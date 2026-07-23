@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RequireAuth } from "@/components/auth-guard";
 import { useParams, Link, useLocation } from "wouter";
 import { useGetProject, useDeleteProject, getGetProjectQueryKey } from "@workspace/api-client-react";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowLeft, Clock, Trash2, Code, AlignLeft, RefreshCw, Download } from "lucide-react";
+import { ArrowLeft, Clock, Trash2, Code, AlignLeft, RefreshCw, Download, VideoOff } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExpandedScript } from "@workspace/api-client-react";
 
@@ -17,6 +17,7 @@ export default function StudioProjectDetail() {
   const deleteMutation = useDeleteProject();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const [videoError, setVideoError] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Auto-poll every 3s while processing
@@ -88,14 +89,25 @@ export default function StudioProjectDetail() {
               {/* Video Preview Area */}
               <Card className="overflow-hidden border-border bg-black">
                 <div className="aspect-video w-full flex items-center justify-center relative">
-                  {project.status === 'completed' && project.videoUrl ? (
+                  {project.status === 'completed' && project.videoUrl && !videoError ? (
                     <video
+                      key={project.videoUrl}
                       src={project.videoUrl}
                       controls
-                      autoPlay
-                      loop
+                      playsInline
                       className="w-full h-full object-cover"
+                      onError={() => setVideoError(true)}
+                      onLoadedData={() => setVideoError(false)}
                     />
+                  ) : project.status === 'completed' && videoError ? (
+                    <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center text-center px-8">
+                      <VideoOff className="h-12 w-12 text-muted-foreground mb-4 opacity-60" />
+                      <p className="text-white font-semibold mb-1">Preview unavailable</p>
+                      <p className="text-sm text-muted-foreground mb-4">The video rendered successfully — use the Download button to watch it.</p>
+                      <a href={project.videoUrl!} download target="_blank" rel="noreferrer">
+                        <Button size="sm"><Download className="h-4 w-4 mr-2" />Download MP4</Button>
+                      </a>
+                    </div>
                   ) : project.status === 'processing' ? (
                     <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center">
                       <RefreshCw className="h-10 w-10 text-primary animate-spin mb-4" />
