@@ -24,7 +24,7 @@ export const signInBodyPasswordMin = 6;
 
 
 export const SignInBody = zod.object({
-  "email": zod.email(),
+  "email": zod.string(),
   "password": zod.string().min(signInBodyPasswordMin)
 })
 
@@ -50,7 +50,7 @@ export const signUpBodyPasswordMin = 6;
 
 
 export const SignUpBody = zod.object({
-  "email": zod.email(),
+  "email": zod.string(),
   "password": zod.string().min(signUpBodyPasswordMin),
   "name": zod.string().optional()
 })
@@ -73,7 +73,7 @@ export const SignUpResponse = zod.object({
  * @summary Generate a temporary password
  */
 export const ForgotPasswordBody = zod.object({
-  "email": zod.email()
+  "email": zod.string()
 })
 
 export const ForgotPasswordResponse = zod.object({

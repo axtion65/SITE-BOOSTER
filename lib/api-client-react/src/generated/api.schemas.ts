@@ -34,7 +34,7 @@ export interface ForgotPasswordInput {
   email: string;
 }
 
-export interface ForgotPasswordResponse {
+export interface TempPasswordResult {
   tempPassword: string;
 }
 

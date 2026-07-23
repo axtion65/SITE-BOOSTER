@@ -27,7 +27,6 @@ import type {
   ErrorResponse,
   ExpandedScript,
   ForgotPasswordInput,
-  ForgotPasswordResponse,
   HealthStatus,
   ListTemplatesParams,
   Project,
@@ -39,6 +38,7 @@ import type {
   SignInInput,
   SignUpInput,
   SuccessResponse,
+  TempPasswordResult,
   Template,
   User
 } from './api.schemas';
@@ -300,9 +300,9 @@ export const getForgotPasswordUrl = () => {
 /**
  * @summary Generate a temporary password
  */
-export const forgotPassword = async (forgotPasswordInput: ForgotPasswordInput, options?: RequestInit): Promise<ForgotPasswordResponse> => {
+export const forgotPassword = async (forgotPasswordInput: ForgotPasswordInput, options?: RequestInit): Promise<TempPasswordResult> => {
 
-  return customFetch<ForgotPasswordResponse>(getForgotPasswordUrl(),
+  return customFetch<TempPasswordResult>(getForgotPasswordUrl(),
   {
     ...options,
     method: 'POST',

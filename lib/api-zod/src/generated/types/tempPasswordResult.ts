@@ -6,6 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ForgotPasswordResponse {
+export interface TempPasswordResult {
   tempPassword: string;
 }
