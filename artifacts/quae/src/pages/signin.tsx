@@ -10,6 +10,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Film } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
+import emailjs from "@emailjs/browser";
+
+const EMAILJS_SERVICE_ID = "service_307mtzs";
+const EMAILJS_TEMPLATE_ID = "template_18dhhtk";
+const EMAILJS_PUBLIC_KEY = "1Bes-WPxtm1iB9jmn";
 
 export default function SignIn() {
   const [, setLocation] = useLocation();
@@ -57,19 +62,29 @@ export default function SignIn() {
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      toast({ title: "Email required", description: "Please enter your email to reset password." });
+      toast({ title: "Email required", description: "Please enter your email address first." });
       return;
     }
     try {
       const res = await forgotPasswordMutation.mutateAsync({ data: { email } });
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        {
+          to_email: email,
+          temp_password: res.tempPassword,
+          new_password: res.tempPassword,
+        },
+        EMAILJS_PUBLIC_KEY
+      );
       toast({
-        title: "Password reset",
-        description: `Your temporary password is: ${res.tempPassword}`,
+        title: "Email sent!",
+        description: "Check your inbox for your temporary password.",
       });
     } catch (err: any) {
       toast({
         title: "Reset failed",
-        description: err.message || "Could not reset password",
+        description: err.message || "Could not send reset email",
         variant: "destructive"
       });
     }
