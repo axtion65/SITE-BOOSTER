@@ -140,15 +140,25 @@ function ProductVideoSection() {
         </div>
 
         {/* Video Player */}
-        <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_60px_rgba(124,58,237,0.2)]">
+        <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_60px_rgba(124,58,237,0.2)] bg-black">
           <video
-            src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
             autoPlay
             muted
             loop
             playsInline
             className="w-full aspect-video object-cover"
-          />
+            onError={(e) => {
+              const video = e.currentTarget;
+              if (!video.dataset.fallback) {
+                video.dataset.fallback = "1";
+                video.src = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+                video.load();
+              }
+            }}
+          >
+            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
+            <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4" />
+          </video>
           {/* Overlay badge */}
           <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 text-xs font-medium text-white">
             <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />

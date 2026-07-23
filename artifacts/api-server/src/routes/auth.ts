@@ -109,4 +109,25 @@ router.post("/auth/signout", (_req, res) => {
   res.json({ success: true });
 });
 
+// One-time setup: promote an email to admin (only works when zero admins exist)
+router.post("/auth/setup-admin", async (req, res) => {
+  const { email } = req.body as { email?: string };
+  if (!email) { res.status(400).json({ error: "Email required" }); return; }
+
+  const admins = await db.select().from(usersTable).where(eq(usersTable.isAdmin, true));
+  if (admins.length > 0) {
+    res.status(403).json({ error: "Admin already exists. Use the admin panel to promote more users." });
+    return;
+  }
+
+  const [user] = await db
+    .update(usersTable)
+    .set({ isAdmin: true })
+    .where(eq(usersTable.email, email.toLowerCase()))
+    .returning();
+
+  if (!user) { res.status(404).json({ error: "No account found with that email" }); return; }
+  res.json({ success: true, message: `${user.email} is now an admin. You can now log in at /admin.` });
+});
+
 export default router;
