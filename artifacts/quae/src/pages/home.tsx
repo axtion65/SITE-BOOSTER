@@ -246,9 +246,8 @@ function ProductVideoSection() {
             className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-500 ${playing ? "opacity-100" : "opacity-0"}`}
             onEnded={() => setShowOverlay(true)}
           >
-            <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
-            <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4" />
-            <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4" type="video/mp4" />
+            <source src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" type="video/mp4" />
+            <source src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4" type="video/mp4" />
           </video>
 
           {/* Poster / play screen — shown before user clicks */}

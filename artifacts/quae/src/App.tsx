@@ -12,6 +12,7 @@ import StudioLayout from '@/pages/studio/layout';
 import StudioIndex from '@/pages/studio/index';
 import StudioProjects from '@/pages/studio/projects';
 import StudioProjectDetail from '@/pages/studio/project-detail';
+import StudioDashboard from '@/pages/studio/dashboard';
 import Templates from '@/pages/templates';
 import Admin from '@/pages/admin';
 
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/templates" component={Templates} />
       
       {/* Studio App */}
+      <Route path="/studio/dashboard" component={() => <StudioLayout><StudioDashboard /></StudioLayout>} />
       <Route path="/studio" component={() => <StudioLayout><StudioIndex /></StudioLayout>} />
       <Route path="/studio/projects" component={() => <StudioLayout><StudioProjects /></StudioLayout>} />
       <Route path="/studio/projects/:id" component={() => <StudioLayout><StudioProjectDetail /></StudioLayout>} />

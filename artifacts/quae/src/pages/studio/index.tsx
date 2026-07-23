@@ -279,18 +279,25 @@ function Wizard() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                {["nova", "echo", "onyx", "alloy", "shimmer", "fable"].map(v => (
+                {([
+                  { id: "nova",    label: "Nova",    desc: "Warm & Energetic" },
+                  { id: "echo",    label: "Echo",    desc: "Deep & Authoritative" },
+                  { id: "onyx",    label: "Onyx",    desc: "Rich & Professional" },
+                  { id: "alloy",   label: "Alloy",   desc: "Clear & Confident" },
+                  { id: "shimmer", label: "Shimmer", desc: "Light & Vibrant" },
+                  { id: "fable",   label: "Fable",   desc: "Narrative & Cinematic" },
+                ] as const).map(v => (
                   <button
-                    key={v}
-                    onClick={() => setVoice(v)}
-                    className={`p-4 rounded-xl border text-left transition-all ${voice === v ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-white/20'}`}
+                    key={v.id}
+                    onClick={() => setVoice(v.id)}
+                    className={`p-4 rounded-xl border text-left transition-all ${voice === v.id ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-white/20'}`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold capitalize text-white">{v}</span>
-                      {voice === v && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                      <span className="font-semibold capitalize text-white">{v.label}</span>
+                      {voice === v.id && <CheckCircle2 className="h-4 w-4 text-primary" />}
                     </div>
                     <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Activity className="h-3 w-3" /> Warm & Energetic
+                      <Activity className="h-3 w-3" /> {v.desc}
                     </div>
                   </button>
                 ))}
