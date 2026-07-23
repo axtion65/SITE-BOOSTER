@@ -74,9 +74,9 @@ function HeroSection() {
             <Link href="/signin" className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-8 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors w-full sm:w-auto">
               Start Creating for Free <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
-            <Link href="#templates" className="inline-flex h-12 items-center justify-center rounded-md border border-border bg-card px-8 text-base font-medium text-white hover:bg-secondary transition-colors w-full sm:w-auto">
+            <a href="#demo" className="inline-flex h-12 items-center justify-center rounded-md border border-border bg-card px-8 text-base font-medium text-white hover:bg-secondary transition-colors w-full sm:w-auto">
               <Play className="mr-2 h-4 w-4" /> Watch Demo
-            </Link>
+            </a>
           </div>
         </motion.div>
       </div>
@@ -178,11 +178,21 @@ function PromptTypewriter() {
 
 function ProductVideoSection() {
   const [showOverlay, setShowOverlay] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const [, setLocation] = useLocation();
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  const handlePlay = () => {
+    setPlaying(true);
+    setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.play().catch(() => {});
+      }
+    }, 50);
+  };
+
   return (
-    <section className="py-24 px-6 relative overflow-hidden">
+    <section id="demo" className="py-24 px-6 relative overflow-hidden">
       {/* Ambient background */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/8 to-transparent pointer-events-none" />
 
@@ -225,42 +235,65 @@ function ProductVideoSection() {
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ delay: 0.3 }}
-          className="relative rounded-2xl overflow-hidden border border-purple-500/30 shadow-[0_0_100px_rgba(124,58,237,0.4)] bg-black"
+          className="relative rounded-2xl overflow-hidden border border-purple-500/30 shadow-[0_0_100px_rgba(124,58,237,0.4)] bg-black aspect-video"
         >
+          {/* Actual video — hidden until user clicks play */}
           <video
             ref={videoRef}
-            autoPlay
             muted
             playsInline
-            preload="auto"
-            className="w-full aspect-video object-cover"
+            preload="none"
+            className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-500 ${playing ? "opacity-100" : "opacity-0"}`}
             onEnded={() => setShowOverlay(true)}
-            onError={(e) => {
-              const v = e.currentTarget;
-              if (!v.dataset.fb) {
-                v.dataset.fb = "1";
-                v.src = "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4";
-                v.load(); v.play().catch(() => {});
-              } else if (v.dataset.fb === "1") {
-                v.dataset.fb = "2";
-                v.src = "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4";
-                v.load(); v.play().catch(() => {});
-              }
-            }}
           >
+            <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
+            <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4" />
             <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4" type="video/mp4" />
           </video>
 
-          {/* Top-left badge */}
-          <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/10 text-xs font-medium text-white">
-            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-            AI Generated · 4K · TikTok Ready
-          </div>
+          {/* Poster / play screen — shown before user clicks */}
+          <AnimatePresence>
+            {!playing && (
+              <motion.div
+                initial={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
+                onClick={handlePlay}
+              >
+                {/* Cinematic dark gradient background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-[#0d0014] via-[#1a0033] to-[#0a001a]" />
+                {/* Animated purple orbs */}
+                <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/20 rounded-full blur-[80px] animate-pulse" />
+                <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-purple-500/15 rounded-full blur-[60px] animate-pulse" style={{ animationDelay: "1s" }} />
 
-          {/* Top-right timer badge */}
-          <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-primary/80 backdrop-blur-sm text-xs font-bold text-white">
-            ⚡ Generated in 47s
-          </div>
+                {/* Product ad preview text */}
+                <div className="relative z-10 text-center px-8">
+                  <div className="text-xs text-muted-foreground font-mono mb-6 tracking-widest uppercase">
+                    AI-Generated Product Ad · TikTok 9:16
+                  </div>
+                  {/* Big play button */}
+                  <button className="h-20 w-20 rounded-full bg-white/10 border-2 border-white/30 flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/60 group-hover:border-primary transition-all duration-300 group-hover:scale-110">
+                    <Play className="h-8 w-8 text-white fill-white ml-1" />
+                  </button>
+                  <p className="text-white font-semibold text-lg">Click to watch the demo</p>
+                  <p className="text-muted-foreground text-sm mt-1">See a full product ad generated by Quae.ai</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Badges — shown while playing */}
+          {playing && (
+            <>
+              <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/10 text-xs font-medium text-white z-10">
+                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                AI Generated · 4K · TikTok Ready
+              </div>
+              <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-primary/80 backdrop-blur-sm text-xs font-bold text-white z-10">
+                ⚡ Generated in 47s
+              </div>
+            </>
+          )}
 
           {/* Signup overlay — fires when video ends */}
           <AnimatePresence>
@@ -269,7 +302,7 @@ function ProductVideoSection() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center text-center px-8 z-10"
+                className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center text-center px-8 z-20"
               >
                 <button
                   onClick={() => setShowOverlay(false)}
@@ -277,7 +310,6 @@ function ProductVideoSection() {
                 >
                   <X className="h-5 w-5" />
                 </button>
-
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -286,11 +318,9 @@ function ProductVideoSection() {
                   <div className="h-16 w-16 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center mx-auto mb-6">
                     <Rocket className="h-8 w-8 text-primary" />
                   </div>
-                  <h3 className="text-3xl font-extrabold text-white mb-3">
-                    Ready to create yours?
-                  </h3>
+                  <h3 className="text-3xl font-extrabold text-white mb-3">Ready to create yours?</h3>
                   <p className="text-muted-foreground mb-8 max-w-sm mx-auto text-base">
-                    Join thousands of sellers who generate professional video ads in under 60 seconds — no camera, no crew, no editing skills.
+                    Join thousands of sellers generating professional video ads in under 60 seconds — no camera, no crew, no editing skills.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <Button
@@ -306,18 +336,16 @@ function ProductVideoSection() {
                       className="text-base px-8"
                       onClick={() => {
                         setShowOverlay(false);
+                        setPlaying(false);
                         if (videoRef.current) {
                           videoRef.current.currentTime = 0;
-                          videoRef.current.play().catch(() => {});
                         }
                       }}
                     >
                       <Play className="mr-2 h-4 w-4" /> Watch Again
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-6">
-                    300 free credits on signup · No credit card required
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-6">300 free credits on signup · No credit card required</p>
                 </motion.div>
               </motion.div>
             )}
