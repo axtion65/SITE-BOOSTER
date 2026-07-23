@@ -5,11 +5,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, Film, PlayCircle, UserPlus, Shield, ShieldOff, Trash2 } from "lucide-react";
+import { Users, Film, PlayCircle, UserPlus, Shield, ShieldOff, Trash2, Copy, Download, Mail } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { AdminUserUpdatePlan } from "@workspace/api-client-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 
 export default function Admin() {
   return (
@@ -20,9 +23,21 @@ export default function Admin() {
             <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
             <p className="text-muted-foreground mt-2">Manage users and view platform statistics.</p>
           </div>
-          
+
           <AdminStats />
-          <AdminUsersTable />
+
+          <Tabs defaultValue="users">
+            <TabsList className="mb-4">
+              <TabsTrigger value="users"><Users className="h-4 w-4 mr-2" />Users</TabsTrigger>
+              <TabsTrigger value="subscribers"><Mail className="h-4 w-4 mr-2" />Subscribers</TabsTrigger>
+            </TabsList>
+            <TabsContent value="users">
+              <AdminUsersTable />
+            </TabsContent>
+            <TabsContent value="subscribers">
+              <SubscribersList />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </RequireAdmin>
@@ -56,6 +71,129 @@ function StatCard({ title, value, icon }: { title: string, value: number, icon: 
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
       </CardContent>
+    </Card>
+  );
+}
+
+function SubscribersList() {
+  const { data: users, isLoading } = useListAdminUsers();
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [filterPlan, setFilterPlan] = useState("all");
+
+  if (isLoading) {
+    return <div className="h-96 rounded-xl bg-card border border-border animate-pulse" />;
+  }
+
+  const filtered = (users || []).filter((u) => {
+    const matchesPlan = filterPlan === "all" || u.plan === filterPlan;
+    const matchesSearch =
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      (u.name || "").toLowerCase().includes(search.toLowerCase());
+    return matchesPlan && matchesSearch;
+  });
+
+  const handleCopyEmails = () => {
+    const emails = filtered.map((u) => u.email).join(", ");
+    navigator.clipboard.writeText(emails);
+    toast({ title: `${filtered.length} emails copied!`, description: "Paste them into your email campaign tool." });
+  };
+
+  const handleExportCSV = () => {
+    const rows = [
+      ["Name", "Email", "Plan", "Joined"],
+      ...filtered.map((u) => [
+        u.name || "",
+        u.email,
+        u.plan,
+        new Date(u.createdAt).toLocaleDateString(),
+      ]),
+    ];
+    const csv = rows.map((r) => r.map((cell) => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "quae-subscribers.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "CSV downloaded!", description: `${filtered.length} subscribers exported.` });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="border-b border-border py-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Subscriber Emails</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              {filtered.length} subscriber{filtered.length !== 1 ? "s" : ""} — use these for email campaigns
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleCopyEmails}>
+              <Copy className="h-4 w-4 mr-2" /> Copy Emails
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportCSV}>
+              <Download className="h-4 w-4 mr-2" /> Export CSV
+            </Button>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-4">
+          <Input
+            placeholder="Search by name or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-xs"
+          />
+          <Select value={filterPlan} onValueChange={setFilterPlan}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="All Plans" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Plans</SelectItem>
+              <SelectItem value="free">Free</SelectItem>
+              <SelectItem value="creator">Creator</SelectItem>
+              <SelectItem value="agency">Agency</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <div className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Plan</TableHead>
+              <TableHead>Joined</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((u) => (
+              <TableRow key={u.id}>
+                <TableCell className="font-medium text-white">{u.name || "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                <TableCell>
+                  <Badge variant={u.plan === "free" ? "secondary" : "default"} className="capitalize">
+                    {u.plan}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {new Date(u.createdAt).toLocaleDateString()}
+                </TableCell>
+              </TableRow>
+            ))}
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                  No subscribers found.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </Card>
   );
 }
@@ -148,17 +286,17 @@ function AdminUsersTable() {
                 <TableCell>{u.projectCount}</TableCell>
                 <TableCell>{new Date(u.createdAt).toLocaleDateString()}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     title={u.isAdmin ? "Remove Admin" : "Make Admin"}
                     onClick={() => handleToggleAdmin(u.id, u.isAdmin)}
                   >
                     {u.isAdmin ? <ShieldOff className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={() => handleDelete(u.id)}
                   >

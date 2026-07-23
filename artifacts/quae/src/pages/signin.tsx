@@ -14,6 +14,7 @@ import emailjs from "@emailjs/browser";
 
 const EMAILJS_SERVICE_ID = "service_307mtzs";
 const EMAILJS_TEMPLATE_ID = "template_18dhhtk";
+const EMAILJS_WELCOME_TEMPLATE_ID = "template_welcome";
 const EMAILJS_PUBLIC_KEY = "1Bes-WPxtm1iB9jmn";
 
 export default function SignIn() {
@@ -49,6 +50,16 @@ export default function SignIn() {
     try {
       const res = await signUpMutation.mutateAsync({ data: { email, password, name } });
       login(res.token, res.user);
+      // Send welcome email in background — don't block signup if it fails
+      emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_WELCOME_TEMPLATE_ID,
+        {
+          to_email: email,
+          to_name: name || "there",
+        },
+        EMAILJS_PUBLIC_KEY
+      ).catch(() => {/* silently ignore */});
       setLocation("/studio");
     } catch (err: any) {
       toast({
