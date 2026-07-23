@@ -88,6 +88,11 @@ export default function StudioProjectDetail() {
               
               {/* Video Preview Area */}
               <Card className="overflow-hidden border-border bg-black">
+                {project.status === 'completed' && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20">
+                    <span className="text-xs text-yellow-400 font-medium">⚠ Demo preview — your final video will be rendered by {project.renderingModelId ?? "Kling"} using the script below</span>
+                  </div>
+                )}
                 <div className="aspect-video w-full flex items-center justify-center relative">
                   {project.status === 'completed' && project.videoUrl && !videoError ? (
                     <video
@@ -102,8 +107,8 @@ export default function StudioProjectDetail() {
                   ) : project.status === 'completed' && videoError ? (
                     <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center text-center px-8">
                       <VideoOff className="h-12 w-12 text-muted-foreground mb-4 opacity-60" />
-                      <p className="text-white font-semibold mb-1">Preview unavailable</p>
-                      <p className="text-sm text-muted-foreground mb-4">The video rendered successfully — use the Download button to watch it.</p>
+                      <p className="text-white font-semibold mb-1">Preview unavailable in browser</p>
+                      <p className="text-sm text-muted-foreground mb-4">Use the Download button to watch your rendered video.</p>
                       <a href={project.videoUrl!} download target="_blank" rel="noreferrer">
                         <Button size="sm"><Download className="h-4 w-4 mr-2" />Download MP4</Button>
                       </a>

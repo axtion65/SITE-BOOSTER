@@ -6,16 +6,29 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { Play, Sparkles, LayoutTemplate } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
-const CATEGORIES = ["All", "Trending", "Product Unboxing", "TikTok Ad", "Amazon Listing", "Shopify Promo", "Before & After", "UGC Review"];
+// These must match the category values in the backend TEMPLATES array exactly
+const CATEGORIES = ["All", "Trending", "TikTok Ad", "Amazon Listing", "Shopify Promo", "Before & After", "UGC Review"];
 
 export default function Templates() {
   const [category, setCategory] = useState("All");
-  
+  const [, setLocation] = useLocation();
+
   // Pass undefined if 'All' to match API expectations
   const apiCategory = category === "All" ? undefined : category;
   const { data: templates, isLoading } = useListTemplates({ category: apiCategory });
+
+  const handleUseTemplate = (t: { platform: string; duration: string; name: string; description: string; id: string }) => {
+    const params = new URLSearchParams({
+      templateId: t.id,
+      templateName: t.name,
+      platform: t.platform.toLowerCase(),
+      duration: t.duration,
+      templateDesc: t.description,
+    });
+    setLocation(`/studio?${params.toString()}`);
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -104,7 +117,12 @@ export default function Templates() {
                   <Badge variant="outline" className="text-muted-foreground uppercase text-[10px] tracking-wider">
                     {t.platform}
                   </Badge>
-                  <Button variant="ghost" size="sm" className="h-8 text-primary hover:text-primary hover:bg-primary/10">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-primary hover:text-primary hover:bg-primary/10"
+                    onClick={() => handleUseTemplate(t)}
+                  >
                     Use Template
                   </Button>
                 </CardContent>

@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useLocation } from "wouter";
+import { useState, useRef, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { RequireAuth } from "@/components/auth-guard";
 import { useExpandPrompt, useListRenderingModels, useCreateProject } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,28 @@ function Wizard() {
   const createMutation = useCreateProject();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const search = useSearch();
+
+  // Pre-fill from template URL params (e.g. ?templateId=t2&platform=tiktok&duration=15s&templateName=TikTok+Ad)
+  const templateApplied = useRef(false);
+  useEffect(() => {
+    if (templateApplied.current) return;
+    const params = new URLSearchParams(search);
+    const tName = params.get("templateName");
+    const tPlatform = params.get("platform");
+    const tDuration = params.get("duration");
+    const tDesc = params.get("templateDesc");
+    if (tName || tPlatform || tDuration) {
+      templateApplied.current = true;
+      if (tName) setProductName("");          // user still fills product name
+      if (tDesc) setDescription(tDesc);       // pre-fill with template hint
+      if (tPlatform) setPlatform(tPlatform.toLowerCase().replace(" ", ""));
+      if (tDuration) setDuration(tDuration);
+      if (tName) {
+        toast({ title: `Template loaded: ${tName}`, description: "Fill in your product name and description, then click Expand with AI." });
+      }
+    }
+  }, [search]);
 
   // Set default model once loaded
   if (models && !modelId && models.length > 0) {
