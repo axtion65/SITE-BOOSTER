@@ -64,15 +64,18 @@ export default function Templates() {
                 <div className="aspect-[9/16] bg-secondary relative overflow-hidden">
                   {/* Mock Thumbnail Image placeholder */}
                   <div className="absolute inset-0 bg-gradient-to-br from-black/80 to-transparent z-10" />
-                  <img 
-                    src={t.thumbnailUrl || `https://images.unsplash.com/photo-[placeholder]?w=400&q=80`} 
-                    alt={t.name}
-                    className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-opacity duration-500 group-hover:scale-105"
-                    onError={(e) => {
-                       // Fallback if unsplash breaks
-                       (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100%" height="100%" fill="%231E1E24"/></svg>';
-                    }}
-                  />
+                  {t.thumbnailUrl ? (
+                    <img
+                      src={t.thumbnailUrl}
+                      alt={t.name}
+                      className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-all duration-500 group-hover:scale-105"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-primary/30 via-purple-900/40 to-black" />
+                  )}
                   
                   <div className="absolute top-3 left-3 z-20 flex gap-2">
                     {t.isPremium && (
