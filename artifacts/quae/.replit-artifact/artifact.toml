@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Quae.ai"
+version = "1.0.0"
+id = "artifacts/quae"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18627
+
+[services.development]
+run = "pnpm --filter @workspace/quae run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/quae", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/quae/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18627"
+BASE_PATH = "/"

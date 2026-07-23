@@ -3,20 +3,29 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Quae.ai API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: studio
+    description: AI Video Studio operations
+  - name: templates
+    description: Video template operations
+  - name: projects
+    description: Video project operations
+  - name: admin
+    description: Admin panel operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +33,398 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/signin:
+    post:
+      operationId: signIn
+      tags: [auth]
+      summary: Sign in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignInInput"
+      responses:
+        "200":
+          description: Signed in successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/signup:
+    post:
+      operationId: signUp
+      tags: [auth]
+      summary: Create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpInput"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Generate a temporary password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "200":
+          description: Temporary password generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgotPasswordResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user info
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/signout:
+    post:
+      operationId: signOut
+      tags: [auth]
+      summary: Sign out current user
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /studio/expand-prompt:
+    post:
+      operationId: expandPrompt
+      tags: [studio]
+      summary: Expand a basic description into a cinematic video script using Claude 3.5 Sonnet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PromptExpandInput"
+      responses:
+        "200":
+          description: Expanded cinematic script
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpandedScript"
+        "500":
+          description: AI error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/models:
+    get:
+      operationId: listRenderingModels
+      tags: [studio]
+      summary: List available AI rendering models/engines
+      responses:
+        "200":
+          description: List of rendering models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RenderingModel"
+
+  /templates:
+    get:
+      operationId: listTemplates
+      tags: [templates]
+      summary: List video templates
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: Filter by category
+      responses:
+        "200":
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Template"
+
+  /templates/{id}:
+    get:
+      operationId: getTemplate
+      tags: [templates]
+      summary: Get a single template
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+        "404":
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List current user's video projects
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new video project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a single project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update a project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdate"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete a project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /projects/stats:
+    get:
+      operationId: getProjectStats
+      tags: [projects]
+      summary: Get summary stats for current user's projects
+      responses:
+        "200":
+          description: Project statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectStats"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get platform-wide admin statistics
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List all users (admin only)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/users/{id}:
+    patch:
+      operationId: updateAdminUser
+      tags: [admin]
+      summary: Update a user (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteAdminUser
+      tags: [admin]
+      summary: Delete a user (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +435,340 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    SignInInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+
+    SignUpInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        name:
+          type: string
+
+    ForgotPasswordInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    ForgotPasswordResponse:
+      type: object
+      required: [tempPassword]
+      properties:
+        tempPassword:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [user, token]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+
+    User:
+      type: object
+      required: [id, email, plan, credits, isAdmin, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        plan:
+          type: string
+          enum: [free, creator, agency]
+        credits:
+          type: integer
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    PromptExpandInput:
+      type: object
+      required: [description, productName]
+      properties:
+        description:
+          type: string
+          description: Basic product description from user
+        productName:
+          type: string
+        targetAudience:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+          description: "Target platform: tiktok, youtube, instagram, amazon"
+        duration:
+          type: ["string", "null"]
+          description: "Video duration: 15s, 30s, 60s"
+
+    ExpandedScript:
+      type: object
+      required: [script, hook, callToAction, scenes, voiceoverText]
+      properties:
+        script:
+          type: string
+          description: Full cinematic video script
+        hook:
+          type: string
+          description: Opening hook line
+        callToAction:
+          type: string
+        scenes:
+          type: array
+          items:
+            type: object
+            required: [sceneNumber, description, duration, visualDirection]
+            properties:
+              sceneNumber:
+                type: integer
+              description:
+                type: string
+              duration:
+                type: string
+              visualDirection:
+                type: string
+        voiceoverText:
+          type: string
+        suggestedMusic:
+          type: ["string", "null"]
+        estimatedDuration:
+          type: ["string", "null"]
+
+    RenderingModel:
+      type: object
+      required: [id, name, description, capabilities, tier]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        tier:
+          type: string
+          enum: [free, creator, agency]
+        badge:
+          type: ["string", "null"]
+
+    Template:
+      type: object
+      required: [id, name, category, platform, duration, description]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        platform:
+          type: string
+        duration:
+          type: string
+        description:
+          type: string
+        thumbnailUrl:
+          type: ["string", "null"]
+        isPremium:
+          type: boolean
+
+    Project:
+      type: object
+      required: [id, userId, title, status, renderingModelId, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [draft, processing, completed, failed]
+        renderingModelId:
+          type: string
+        script:
+          type: ["string", "null"]
+        expandedScript:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        duration:
+          type: ["string", "null"]
+        videoUrl:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
+        templateId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ProjectInput:
+      type: object
+      required: [title, renderingModelId]
+      properties:
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        renderingModelId:
+          type: string
+        script:
+          type: ["string", "null"]
+        expandedScript:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        duration:
+          type: ["string", "null"]
+        templateId:
+          type: ["string", "null"]
+
+    ProjectUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        renderingModelId:
+          type: string
+        script:
+          type: ["string", "null"]
+        expandedScript:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        duration:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [draft, processing, completed, failed]
+
+    ProjectStats:
+      type: object
+      required: [total, byStatus, creditsUsed, creditsRemaining]
+      properties:
+        total:
+          type: integer
+        byStatus:
+          type: object
+          properties:
+            draft:
+              type: integer
+            processing:
+              type: integer
+            completed:
+              type: integer
+            failed:
+              type: integer
+          required: [draft, processing, completed, failed]
+        creditsUsed:
+          type: integer
+        creditsRemaining:
+          type: integer
+
+    AdminStats:
+      type: object
+      required: [totalUsers, totalProjects, totalVideosCompleted, usersByPlan, recentSignups]
+      properties:
+        totalUsers:
+          type: integer
+        totalProjects:
+          type: integer
+        totalVideosCompleted:
+          type: integer
+        usersByPlan:
+          type: object
+          properties:
+            free:
+              type: integer
+            creator:
+              type: integer
+            agency:
+              type: integer
+          required: [free, creator, agency]
+        recentSignups:
+          type: integer
+          description: Signups in the last 7 days
+
+    AdminUser:
+      type: object
+      required: [id, email, plan, credits, isAdmin, projectCount, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        plan:
+          type: string
+          enum: [free, creator, agency]
+        credits:
+          type: integer
+        isAdmin:
+          type: boolean
+        projectCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    AdminUserUpdate:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [free, creator, agency]
+        credits:
+          type: integer
+        isAdmin:
+          type: boolean
