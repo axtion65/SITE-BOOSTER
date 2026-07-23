@@ -11,6 +11,7 @@ export default function Home() {
       <main className="flex-1">
         <HeroSection />
         <StatsBar />
+        <ProductVideoSection />
         <FeaturesSection />
         <HowItWorksSection />
         <PricingSection />
@@ -118,6 +119,51 @@ function StatsBar() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ProductVideoSection() {
+  return (
+    <section className="py-24 px-6">
+      <div className="container mx-auto max-w-5xl">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-sm font-medium mb-6">
+            <Play className="h-3 w-3 fill-primary" />
+            See it in action
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            From product description to polished ad
+          </h2>
+          <p className="text-muted-foreground max-w-xl mx-auto">
+            Watch how Quae.ai turns a simple product description into a cinematic video ad ready for TikTok, Instagram Reels, or Amazon.
+          </p>
+        </div>
+
+        {/* Video Player */}
+        <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_60px_rgba(124,58,237,0.2)]">
+          <video
+            src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="w-full aspect-video object-cover"
+          />
+          {/* Overlay badge */}
+          <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 text-xs font-medium text-white">
+            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+            AI Generated · 4K · TikTok 9:16
+          </div>
+        </div>
+
+        {/* CTA below video */}
+        <div className="mt-8 text-center">
+          <Link href="/signin" className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-8 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+            Create Your First Ad Free <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+    </section>
   );
 }
 

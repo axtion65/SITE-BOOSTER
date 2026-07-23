@@ -1,11 +1,12 @@
+import { useEffect, useRef } from "react";
 import { RequireAuth } from "@/components/auth-guard";
 import { useParams, Link, useLocation } from "wouter";
-import { useGetProject, useUpdateProject, useDeleteProject, getGetProjectQueryKey } from "@workspace/api-client-react";
+import { useGetProject, useDeleteProject, getGetProjectQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowLeft, Clock, Trash2, PlayCircle, Code, AlignLeft, RefreshCw, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Clock, Trash2, Code, AlignLeft, RefreshCw, Download } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExpandedScript } from "@workspace/api-client-react";
 
@@ -13,10 +14,22 @@ export default function StudioProjectDetail() {
   const params = useParams();
   const id = params.id as string;
   const { data: project, isLoading } = useGetProject(id, { query: { enabled: !!id } });
-  const updateMutation = useUpdateProject();
   const deleteMutation = useDeleteProject();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-poll every 3s while processing
+  useEffect(() => {
+    if (project?.status === "processing") {
+      pollRef.current = setInterval(() => {
+        queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(id) });
+      }, 3000);
+    } else {
+      if (pollRef.current) clearInterval(pollRef.current);
+    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [project?.status, id, queryClient]);
 
   if (isLoading) {
     return (
@@ -44,12 +57,6 @@ export default function StudioProjectDetail() {
     }
   };
 
-  const handleSimulateComplete = async () => {
-    // For demo purposes, allow user to mark as completed
-    await updateMutation.mutateAsync({ id, data: { status: 'completed' } });
-    queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(id) });
-  };
-
   return (
     <RequireAuth>
       <div className="p-8 h-full overflow-y-auto bg-background">
@@ -70,40 +77,36 @@ export default function StudioProjectDetail() {
                 </span>
               </div>
             </div>
-            <div className="flex gap-2">
-              {project.status !== 'completed' && (
-                <Button variant="outline" onClick={handleSimulateComplete} disabled={updateMutation.isPending}>
-                  <CheckCircle2 className="h-4 w-4 mr-2" /> Mark Completed
-                </Button>
-              )}
-              <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
-                <Trash2 className="h-4 w-4 mr-2" /> Delete
-              </Button>
-            </div>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            </Button>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 pt-4">
             <div className="md:col-span-2 space-y-6">
               
-              {/* Video Preview Area (Mock) */}
+              {/* Video Preview Area */}
               <Card className="overflow-hidden border-border bg-black">
                 <div className="aspect-video w-full flex items-center justify-center relative">
-                  {project.status === 'completed' ? (
-                     <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center">
-                        <PlayCircle className="h-16 w-16 text-primary mb-4" />
-                        <p className="text-white font-medium">Video Rendered (4K)</p>
-                     </div>
+                  {project.status === 'completed' && project.videoUrl ? (
+                    <video
+                      src={project.videoUrl}
+                      controls
+                      autoPlay
+                      loop
+                      className="w-full h-full object-cover"
+                    />
                   ) : project.status === 'processing' ? (
-                     <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center">
-                        <RefreshCw className="h-10 w-10 text-primary animate-spin mb-4" />
-                        <p className="text-white font-medium">Rendering Engine Active...</p>
-                        <p className="text-xs text-muted-foreground mt-2">Estimated time: 2 mins</p>
-                     </div>
+                    <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center">
+                      <RefreshCw className="h-10 w-10 text-primary animate-spin mb-4" />
+                      <p className="text-white font-medium">Rendering Engine Active...</p>
+                      <p className="text-xs text-muted-foreground mt-2">Auto-refreshing — usually ready in ~30 seconds</p>
+                    </div>
                   ) : (
-                     <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center text-muted-foreground">
-                        <PlayCircle className="h-12 w-12 mb-2 opacity-50" />
-                        <p>No video generated yet</p>
-                     </div>
+                    <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center text-muted-foreground">
+                      <RefreshCw className="h-12 w-12 mb-2 opacity-50" />
+                      <p>Queued for rendering</p>
+                    </div>
                   )}
                 </div>
               </Card>
@@ -163,12 +166,16 @@ export default function StudioProjectDetail() {
                 </CardContent>
               </Card>
 
-              {project.status === 'completed' && (
+              {project.status === 'completed' && project.videoUrl && (
                 <Card className="border-primary/50 bg-primary/5">
                   <CardContent className="p-6">
                     <h3 className="font-bold text-white mb-2">Export Ready</h3>
-                    <p className="text-sm text-muted-foreground mb-4">Your video is ready to be downloaded and published.</p>
-                    <Button className="w-full font-bold">Download MP4</Button>
+                    <p className="text-sm text-muted-foreground mb-4">Your video is ready to download and publish.</p>
+                    <a href={project.videoUrl} download target="_blank" rel="noreferrer">
+                      <Button className="w-full font-bold">
+                        <Download className="h-4 w-4 mr-2" /> Download MP4
+                      </Button>
+                    </a>
                   </CardContent>
                 </Card>
               )}

@@ -66,11 +66,19 @@ router.post("/projects", async (req, res) => {
     platform: parsed.data.platform ?? null,
     duration: parsed.data.duration ?? null,
     templateId: parsed.data.templateId ?? null,
-    status: "draft",
+    status: "processing",
   }).returning();
 
   res.status(201).json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
 });
+
+// Sample demo videos used when a project finishes simulated rendering
+const DEMO_VIDEOS = [
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+];
 
 router.get("/projects/:id", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
@@ -79,6 +87,20 @@ router.get("/projects/:id", async (req, res) => {
   const [project] = await db.select().from(projectsTable)
     .where(and(eq(projectsTable.id, req.params.id), eq(projectsTable.userId, userId)));
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Auto-complete rendering simulation after 30 seconds
+  if (project.status === "processing") {
+    const ageMs = Date.now() - new Date(project.createdAt).getTime();
+    if (ageMs >= 30_000) {
+      const videoUrl = DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)];
+      const [updated] = await db.update(projectsTable)
+        .set({ status: "completed", videoUrl, updatedAt: new Date() })
+        .where(eq(projectsTable.id, project.id))
+        .returning();
+      res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
+      return;
+    }
+  }
 
   res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
 });
