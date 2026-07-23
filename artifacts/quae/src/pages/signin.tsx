@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Film, Copy, Check } from "lucide-react";
+import { Film, Copy, Check, KeyRound } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import emailjs from "@emailjs/browser";
@@ -28,6 +28,10 @@ export default function SignIn() {
   const [name, setName] = useState("");
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // New-password step inside the reset dialog
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const signInMutation = useSignIn();
   const signUpMutation = useSignUp();
@@ -87,55 +91,118 @@ export default function SignIn() {
     }
     try {
       const res = await forgotPasswordMutation.mutateAsync({ data: { email } });
-      // Show temp password in a persistent dialog
       setTempPassword(res.tempPassword);
-      // Also attempt to email it in background
+      setNewPassword("");
+      setNewPasswordConfirm("");
       emailjs
-        .send(
-          EMAILJS_SERVICE_ID,
-          EMAILJS_TEMPLATE_ID,
+        .send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID,
           { to_email: email, temp_password: res.tempPassword, new_password: res.tempPassword },
-          EMAILJS_PUBLIC_KEY
-        )
-        .catch(() => {/* silently ignore */});
+          EMAILJS_PUBLIC_KEY)
+        .catch(() => {});
     } catch (err: any) {
-      toast({
-        title: "Reset failed",
-        description: err.message || "Could not send reset email",
-        variant: "destructive",
+      toast({ title: "Reset failed", description: err.message || "Could not reset password", variant: "destructive" });
+    }
+  };
+
+  const handleSetNewPassword = async () => {
+    if (newPassword.length < 6) {
+      toast({ title: "Too short", description: "Password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      toast({ title: "Passwords don't match", variant: "destructive" });
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, currentPassword: tempPassword, newPassword }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to set new password");
+      login(data.token, data.user);
+      setTempPassword(null);
+      setLocation("/studio");
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setChangingPassword(false);
     }
   };
 
   return (
     <>
-      {/* Temp Password Dialog — stays open until user dismisses it */}
-      <Dialog open={!!tempPassword} onOpenChange={(open) => { if (!open) setTempPassword(null); }}>
+      {/* Password Reset Dialog */}
+      <Dialog open={!!tempPassword} onOpenChange={(open) => { if (!open) { setTempPassword(null); setNewPassword(""); setNewPasswordConfirm(""); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Your temporary password</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary" /> Reset Your Password
+            </DialogTitle>
             <DialogDescription>
-              Copy this and use it to sign in. Change your password in settings afterwards.
+              A temporary password was generated. Set a new password below to get back in.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center gap-2 mt-2">
-            <code className="flex-1 rounded-md bg-secondary px-4 py-3 text-lg font-mono font-bold tracking-widest text-white text-center select-all">
-              {tempPassword}
-            </code>
-            <Button variant="outline" size="icon" onClick={handleCopyTempPassword}>
-              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+
+          {/* Temp password row */}
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Temporary password</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded-md bg-secondary px-3 py-2 text-base font-mono font-bold tracking-widest text-white text-center select-all">
+                {tempPassword}
+              </code>
+              <Button variant="outline" size="icon" onClick={handleCopyTempPassword} className="shrink-0">
+                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Also emailed to <strong>{email}</strong></p>
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-1">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">Set a new password</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* New password fields */}
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-pw">New password</Label>
+              <Input
+                id="new-pw"
+                type="password"
+                placeholder="Min. 6 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="confirm-pw">Confirm new password</Label>
+              <Input
+                id="confirm-pw"
+                type="password"
+                placeholder="Repeat new password"
+                value={newPasswordConfirm}
+                onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSetNewPassword(); }}
+              />
+            </div>
+            <Button className="w-full font-semibold" onClick={handleSetNewPassword} disabled={changingPassword || !newPassword}>
+              {changingPassword ? <Spinner className="mr-2 h-4 w-4" /> : null}
+              Set New Password & Sign In
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground text-center mt-1">
-            We also emailed this to <strong>{email}</strong>
-          </p>
-          <Button className="w-full mt-2" onClick={() => {
-            // Auto-fill the password field so they can sign in immediately
-            setPassword(tempPassword ?? "");
-            setTempPassword(null);
-          }}>
-            Got it — Sign In Now
-          </Button>
+
+          {/* Fallback */}
+          <button
+            className="text-xs text-muted-foreground hover:text-white transition-colors text-center w-full mt-1"
+            onClick={() => { setPassword(tempPassword ?? ""); setTempPassword(null); }}
+          >
+            Skip — I'll sign in with the temp password
+          </button>
         </DialogContent>
       </Dialog>
 

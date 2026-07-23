@@ -15,6 +15,7 @@ import StudioProjectDetail from '@/pages/studio/project-detail';
 import StudioDashboard from '@/pages/studio/dashboard';
 import Templates from '@/pages/templates';
 import Admin from '@/pages/admin';
+import SetupAdmin from '@/pages/setup-admin';
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ function Router() {
       
       {/* Admin */}
       <Route path="/admin" component={Admin} />
+      <Route path="/setup-admin" component={SetupAdmin} />
       
       <Route component={NotFound} />
     </Switch>

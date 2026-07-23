@@ -68,6 +68,27 @@ router.post("/auth/signup", async (req, res) => {
   res.status(201).json({ user: userToPublic(user), token: generateToken(user.id) });
 });
 
+router.post("/auth/change-password", async (req, res) => {
+  const { email, currentPassword, newPassword } = req.body as {
+    email?: string; currentPassword?: string; newPassword?: string;
+  };
+  if (!email || !currentPassword || !newPassword) {
+    res.status(400).json({ error: "email, currentPassword, and newPassword are required" });
+    return;
+  }
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: "New password must be at least 6 characters" });
+    return;
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+  if (!user || user.passwordHash !== hashPassword(currentPassword)) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+  await db.update(usersTable).set({ passwordHash: hashPassword(newPassword) }).where(eq(usersTable.id, user.id));
+  res.json({ user: userToPublic(user), token: generateToken(user.id) });
+});
+
 router.post("/auth/forgot-password", async (req, res) => {
   const parsed = ForgotPasswordBody.safeParse(req.body);
   if (!parsed.success) {
@@ -109,25 +130,27 @@ router.post("/auth/signout", (_req, res) => {
   res.json({ success: true });
 });
 
-// One-time setup: promote an email to admin (only works when zero admins exist)
+// Promote self to admin — requires valid email + password to prove ownership
 router.post("/auth/setup-admin", async (req, res) => {
-  const { email } = req.body as { email?: string };
-  if (!email) { res.status(400).json({ error: "Email required" }); return; }
-
-  const admins = await db.select().from(usersTable).where(eq(usersTable.isAdmin, true));
-  if (admins.length > 0) {
-    res.status(403).json({ error: "Admin already exists. Use the admin panel to promote more users." });
+  const { email, password } = req.body as { email?: string; password?: string };
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password are required" });
     return;
   }
 
-  const [user] = await db
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+  if (!user || user.passwordHash !== hashPassword(password)) {
+    res.status(401).json({ error: "Invalid email or password" });
+    return;
+  }
+
+  const [updated] = await db
     .update(usersTable)
     .set({ isAdmin: true })
-    .where(eq(usersTable.email, email.toLowerCase()))
+    .where(eq(usersTable.id, user.id))
     .returning();
 
-  if (!user) { res.status(404).json({ error: "No account found with that email" }); return; }
-  res.json({ success: true, message: `${user.email} is now an admin. You can now log in at /admin.` });
+  res.json({ success: true, message: `${updated.email} is now an admin.`, token: generateToken(updated.id), user: userToPublic(updated) });
 });
 
 export default router;
