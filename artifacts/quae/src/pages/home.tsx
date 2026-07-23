@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Film, Zap, Globe2, Sparkles, Video, ArrowRight, Play, LayoutTemplate, Palette, Zap as Lightning } from "lucide-react";
-import { motion } from "framer-motion";
+import { Film, Zap, Globe2, Sparkles, Video, ArrowRight, Play, LayoutTemplate, Palette, Zap as Lightning, X, Rocket } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
   return (
@@ -122,56 +122,224 @@ function StatsBar() {
   );
 }
 
-function ProductVideoSection() {
+const PROMPT_TEXT = `"Luxury wireless headphones — deep bass, 40hr battery, matte black. Make it feel premium and cinematic for TikTok."`;
+
+function PromptTypewriter() {
+  const [displayed, setDisplayed] = useState("");
+  const [done, setDone] = useState(false);
+  const idx = useRef(0);
+
+  useEffect(() => {
+    if (done) return;
+    const interval = setInterval(() => {
+      idx.current += 1;
+      setDisplayed(PROMPT_TEXT.slice(0, idx.current));
+      if (idx.current >= PROMPT_TEXT.length) {
+        setDone(true);
+        clearInterval(interval);
+      }
+    }, 28);
+    return () => clearInterval(interval);
+  }, [done]);
+
   return (
-    <section className="py-24 px-6">
-      <div className="container mx-auto max-w-5xl">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-sm font-medium mb-6">
-            <Play className="h-3 w-3 fill-primary" />
-            See it in action
+    <div className="rounded-xl border border-white/10 bg-black/60 backdrop-blur-sm p-4 mb-3 text-left">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="h-2.5 w-2.5 rounded-full bg-red-500/80" />
+        <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/80" />
+        <span className="h-2.5 w-2.5 rounded-full bg-green-500/80" />
+        <span className="ml-2 text-xs text-muted-foreground font-mono">quae.ai — new project</span>
+      </div>
+      <p className="text-sm text-muted-foreground font-mono mb-1">Product description:</p>
+      <p className="text-sm text-white font-mono leading-relaxed min-h-[3.5rem]">
+        {displayed}
+        {!done && <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse align-middle" />}
+      </p>
+      {done && (
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-3 flex items-center gap-2"
+        >
+          <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-primary to-purple-400 rounded-full"
+              initial={{ width: "0%" }}
+              animate={{ width: "100%" }}
+              transition={{ duration: 3, ease: "linear" }}
+            />
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            From product description to polished ad
+          <span className="text-xs text-primary font-medium whitespace-nowrap">Generating ad…</span>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+function ProductVideoSection() {
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [, setLocation] = useLocation();
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  return (
+    <section className="py-24 px-6 relative overflow-hidden">
+      {/* Ambient background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/8 to-transparent pointer-events-none" />
+
+      <div className="container mx-auto max-w-5xl relative">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-12"
+        >
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-sm font-medium mb-6">
+            <Zap className="h-3 w-3 fill-primary" />
+            Watch it generate live
+          </div>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-4">
+            One sentence.{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-400">
+              A cinematic ad.
+            </span>
           </h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">
-            Watch how Quae.ai turns a simple product description into a cinematic video ad ready for TikTok, Instagram Reels, or Amazon.
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Type a product description — Quae.ai writes the script, picks the shots, and renders a polished video ad ready to post.
           </p>
-        </div>
+        </motion.div>
+
+        {/* Typewriter prompt */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.2 }}
+        >
+          <PromptTypewriter />
+        </motion.div>
 
         {/* Video Player */}
-        <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_60px_rgba(124,58,237,0.2)] bg-black">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.3 }}
+          className="relative rounded-2xl overflow-hidden border border-purple-500/30 shadow-[0_0_100px_rgba(124,58,237,0.4)] bg-black"
+        >
           <video
+            ref={videoRef}
             autoPlay
             muted
-            loop
             playsInline
+            preload="auto"
             className="w-full aspect-video object-cover"
+            onEnded={() => setShowOverlay(true)}
             onError={(e) => {
-              const video = e.currentTarget;
-              if (!video.dataset.fallback) {
-                video.dataset.fallback = "1";
-                video.src = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-                video.load();
+              const v = e.currentTarget;
+              if (!v.dataset.fb) {
+                v.dataset.fb = "1";
+                v.src = "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4";
+                v.load(); v.play().catch(() => {});
+              } else if (v.dataset.fb === "1") {
+                v.dataset.fb = "2";
+                v.src = "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4";
+                v.load(); v.play().catch(() => {});
               }
             }}
           >
-            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
-            <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4" />
+            <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4" type="video/mp4" />
           </video>
-          {/* Overlay badge */}
-          <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 text-xs font-medium text-white">
-            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-            AI Generated · 4K · TikTok 9:16
-          </div>
-        </div>
 
-        {/* CTA below video */}
-        <div className="mt-8 text-center">
-          <Link href="/signin" className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-8 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+          {/* Top-left badge */}
+          <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/10 text-xs font-medium text-white">
+            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+            AI Generated · 4K · TikTok Ready
+          </div>
+
+          {/* Top-right timer badge */}
+          <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-primary/80 backdrop-blur-sm text-xs font-bold text-white">
+            ⚡ Generated in 47s
+          </div>
+
+          {/* Signup overlay — fires when video ends */}
+          <AnimatePresence>
+            {showOverlay && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center text-center px-8 z-10"
+              >
+                <button
+                  onClick={() => setShowOverlay(false)}
+                  className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <div className="h-16 w-16 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center mx-auto mb-6">
+                    <Rocket className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-3xl font-extrabold text-white mb-3">
+                    Ready to create yours?
+                  </h3>
+                  <p className="text-muted-foreground mb-8 max-w-sm mx-auto text-base">
+                    Join thousands of sellers who generate professional video ads in under 60 seconds — no camera, no crew, no editing skills.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button
+                      size="lg"
+                      className="text-base px-8 bg-primary hover:bg-primary/90 shadow-[0_0_30px_rgba(124,58,237,0.5)]"
+                      onClick={() => setLocation("/signin")}
+                    >
+                      Start Free — No Credit Card <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="text-base px-8"
+                      onClick={() => {
+                        setShowOverlay(false);
+                        if (videoRef.current) {
+                          videoRef.current.currentTime = 0;
+                          videoRef.current.play().catch(() => {});
+                        }
+                      }}
+                    >
+                      <Play className="mr-2 h-4 w-4" /> Watch Again
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-6">
+                    300 free credits on signup · No credit card required
+                  </p>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Persistent CTA strip below video */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.4 }}
+          className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4"
+        >
+          <Link
+            href="/signin"
+            className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-8 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-[0_0_24px_rgba(124,58,237,0.4)] w-full sm:w-auto"
+          >
             Create Your First Ad Free <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
-        </div>
+          <p className="text-sm text-muted-foreground">No credit card · 300 free credits</p>
+        </motion.div>
       </div>
     </section>
   );
