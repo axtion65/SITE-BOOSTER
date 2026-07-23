@@ -129,8 +129,12 @@ export default function SignIn() {
           <p className="text-xs text-muted-foreground text-center mt-1">
             We also emailed this to <strong>{email}</strong>
           </p>
-          <Button className="w-full mt-2" onClick={() => setTempPassword(null)}>
-            Got it — Sign In
+          <Button className="w-full mt-2" onClick={() => {
+            // Auto-fill the password field so they can sign in immediately
+            setPassword(tempPassword ?? "");
+            setTempPassword(null);
+          }}>
+            Got it — Sign In Now
           </Button>
         </DialogContent>
       </Dialog>
