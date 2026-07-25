@@ -72,7 +72,7 @@ Write a conversion-optimized video script. The hook must stop the scroll in unde
         Authorization: `Key ${falKey}`,
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-sonnet-4.5",
         system_prompt: systemPrompt,
         prompt: userPrompt,
         max_tokens: 8192,

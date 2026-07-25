@@ -59,12 +59,25 @@ router.get("/projects", async (req, res) => {
   })));
 });
 
+const CREDITS_PER_RENDER = 10;
+
 router.post("/projects", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
 
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+
+  // Check and deduct credits
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(401).json({ error: "User not found" }); return; }
+  if (user.credits < CREDITS_PER_RENDER) {
+    res.status(402).json({ error: "Not enough credits. Please upgrade your plan." });
+    return;
+  }
+  await db.update(usersTable)
+    .set({ credits: user.credits - CREDITS_PER_RENDER })
+    .where(eq(usersTable.id, userId));
 
   const [project] = await db.insert(projectsTable).values({
     userId,
@@ -153,6 +166,16 @@ router.post("/projects/:id/rerender", async (req, res) => {
     res.status(503).json({ error: "SHOTSTACK_API_KEY is not configured." });
     return;
   }
+
+  // Deduct credits for re-render
+  const [userForRerender] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!userForRerender || userForRerender.credits < CREDITS_PER_RENDER) {
+    res.status(402).json({ error: "Not enough credits to re-render." });
+    return;
+  }
+  await db.update(usersTable)
+    .set({ credits: userForRerender.credits - CREDITS_PER_RENDER })
+    .where(eq(usersTable.id, userId));
 
   let scriptObj: ExpandedScript;
   try { scriptObj = JSON.parse(project.expandedScript); } catch {
