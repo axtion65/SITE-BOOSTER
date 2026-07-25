@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Link as WouterLink, useLocation } from "wouter"
 import { cn } from "@/lib/utils"
-import { Zap, ShieldCheck, LogOut, ChevronDown } from "lucide-react"
+import { Zap, ShieldCheck, LogOut, CreditCard } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 
@@ -26,6 +26,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
           <NavLink href="/studio" label="Studio" exact />
           <NavLink href="/templates" label="Templates" />
           <NavLink href="/studio/projects" label="My Videos" />
+          <NavLink href="/studio/billing" label="Billing" />
         </nav>
 
         {/* Right side */}
@@ -61,9 +62,9 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
           </div>
 
           {/* Upgrade */}
-          <WouterLink href="/pricing">
-            <Button size="sm" className="font-semibold px-4">
-              Upgrade
+          <WouterLink href="/studio/billing">
+            <Button size="sm" className="font-semibold px-4 gap-1.5">
+              <CreditCard className="h-3.5 w-3.5" /> Upgrade
             </Button>
           </WouterLink>
         </div>

@@ -23,8 +23,9 @@ function DashboardContent() {
 
   const recentProjects = projects?.slice(0, 5) ?? [];
 
-  const planLabel = user?.plan === "free" ? "Free" : user?.plan === "creator" ? "Creator" : "Agency";
-  const maxCredits = user?.plan === "free" ? 300 : user?.plan === "creator" ? 3000 : 15000;
+  const planLabel = { free: "Free", starter: "Starter", pro: "Pro", agency: "Agency" }[user?.plan ?? "free"] ?? "Free";
+  const maxCreditsMap: Record<string, number> = { free: 90, starter: 600, pro: 2000, agency: 6000 };
+  const maxCredits = maxCreditsMap[user?.plan ?? "free"] ?? 90;
   const creditsRemaining = user?.credits ?? 0;
   const creditsUsed = Math.max(0, maxCredits - creditsRemaining);
   const creditPct = Math.round((creditsRemaining / maxCredits) * 100);
@@ -95,8 +96,8 @@ function DashboardContent() {
             </div>
             {user?.plan === "free" && (
               <div className="flex items-center justify-between pt-1">
-                <span className="text-xs text-muted-foreground">Upgrade to get up to 15,000 credits/month</span>
-                <Link href="/pricing">
+                <span className="text-xs text-muted-foreground">Upgrade to get up to 6,000 credits/month</span>
+                <Link href="/studio/billing">
                   <Button size="sm" variant="outline" className="h-7 text-xs">Upgrade Plan</Button>
                 </Link>
               </div>
