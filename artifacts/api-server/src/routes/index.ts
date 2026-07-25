@@ -5,6 +5,7 @@ import studioRouter from "./studio";
 import templatesRouter from "./templates";
 import projectsRouter from "./projects";
 import adminRouter from "./admin";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(studioRouter);
 router.use(templatesRouter);
 router.use(projectsRouter);
 router.use(adminRouter);
+router.use(billingRouter);
 
 export default router;

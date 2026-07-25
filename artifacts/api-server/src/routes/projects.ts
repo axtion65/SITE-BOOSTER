@@ -2,29 +2,27 @@ import { Router } from "express";
 import { db, usersTable, projectsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
-import { submitShotstackRender, pollShotstackRender, type ExpandedScript } from "../lib/shotstack";
+import {
+  submitFalVideoRender, pollFalVideoRender, isFalToken,
+  MODEL_CREDIT_COSTS, type ExpandedScript
+} from "../lib/falvideo";
 
 const router = Router();
 
 async function getUserIdFromToken(authHeader: string | undefined): Promise<string | null> {
   if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7);
   try {
-    const decoded = Buffer.from(token, "base64url").toString("utf-8");
-    const userId = decoded.split(":")[0];
-    return userId || null;
-  } catch {
-    return null;
-  }
+    const decoded = Buffer.from(authHeader.slice(7), "base64url").toString("utf-8");
+    return decoded.split(":")[0] || null;
+  } catch { return null; }
 }
 
-// Shotstack render IDs are stored in thumbnailUrl as "shotstack:<renderId>"
-// so we don't need a new DB column.
-function getShotstackRenderId(project: { thumbnailUrl: string | null }): string | null {
-  if (project.thumbnailUrl?.startsWith("shotstack:")) {
-    return project.thumbnailUrl.slice("shotstack:".length);
-  }
-  return null;
+function getFalToken(project: { thumbnailUrl: string | null }): string | null {
+  return isFalToken(project.thumbnailUrl) ? project.thumbnailUrl! : null;
+}
+
+function getCreditCost(modelId: string): number {
+  return MODEL_CREDIT_COSTS[modelId] ?? MODEL_CREDIT_COSTS["ovi"];
 }
 
 router.get("/projects/stats", async (req, res) => {
@@ -40,7 +38,9 @@ router.get("/projects/stats", async (req, res) => {
     const s = p.status as keyof typeof byStatus;
     if (s in byStatus) byStatus[s]++;
   }
-  const creditsUsed = Math.max(0, (user.plan === "free" ? 300 : user.plan === "creator" ? 3000 : 15000) - user.credits);
+
+  const maxCredits = { free: 90, starter: 600, pro: 2000, agency: 6000 }[user.plan ?? "free"] ?? 90;
+  const creditsUsed = Math.max(0, maxCredits - user.credits);
   res.json({ total: projects.length, byStatus, creditsUsed, creditsRemaining: user.credits });
 });
 
@@ -52,14 +52,8 @@ router.get("/projects", async (req, res) => {
     .where(eq(projectsTable.userId, userId))
     .orderBy(sql`${projectsTable.createdAt} desc`);
 
-  res.json(projects.map((p) => ({
-    ...p,
-    createdAt: p.createdAt.toISOString(),
-    updatedAt: p.updatedAt.toISOString(),
-  })));
+  res.json(projects.map(p => ({ ...p, createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString() })));
 });
-
-const CREDITS_PER_RENDER = 10;
 
 router.post("/projects", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
@@ -68,16 +62,17 @@ router.post("/projects", async (req, res) => {
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
 
-  // Check and deduct credits
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
-  if (user.credits < CREDITS_PER_RENDER) {
-    res.status(402).json({ error: "Not enough credits. Please upgrade your plan." });
+
+  const creditCost = getCreditCost(parsed.data.renderingModelId ?? "quae-v1");
+  if (user.credits < creditCost) {
+    res.status(402).json({ error: `Not enough credits. This render costs ${creditCost} credits. You have ${user.credits}.` });
     return;
   }
-  await db.update(usersTable)
-    .set({ credits: user.credits - CREDITS_PER_RENDER })
-    .where(eq(usersTable.id, userId));
+
+  // Deduct credits
+  await db.update(usersTable).set({ credits: user.credits - creditCost }).where(eq(usersTable.id, userId));
 
   const [project] = await db.insert(projectsTable).values({
     userId,
@@ -92,19 +87,16 @@ router.post("/projects", async (req, res) => {
     status: "processing",
   }).returning();
 
-  // Submit Shotstack render synchronously before responding so autoscale doesn't kill it
-  if (process.env.SHOTSTACK_API_KEY && parsed.data.expandedScript) {
+  // Submit fal.ai video render synchronously before responding
+  if (process.env.FAL_KEY && parsed.data.expandedScript) {
     try {
-      let scriptObj: ExpandedScript;
-      scriptObj = JSON.parse(parsed.data.expandedScript);
+      const scriptObj: ExpandedScript = JSON.parse(parsed.data.expandedScript);
       const platform = parsed.data.platform ?? "youtube";
       const duration = parsed.data.duration ?? "30s";
-      const renderId = await submitShotstackRender(scriptObj, platform, duration);
-      await db.update(projectsTable)
-        .set({ thumbnailUrl: `shotstack:${renderId}`, updatedAt: new Date() })
-        .where(eq(projectsTable.id, project.id));
+      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1");
+      await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     } catch (err) {
-      console.error("[shotstack] submit error", err);
+      console.error("[fal-video] submit error", err);
     }
   }
 
@@ -119,36 +111,30 @@ router.get("/projects/:id", async (req, res) => {
     .where(and(eq(projectsTable.id, req.params.id), eq(projectsTable.userId, userId)));
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
 
-  // Poll Shotstack for real render status
-  const renderId = getShotstackRenderId(project);
-  if (project.status === "processing" && renderId) {
+  const token = getFalToken(project);
+  if (project.status === "processing" && token) {
     try {
-      const poll = await pollShotstackRender(renderId);
+      const poll = await pollFalVideoRender(token);
       if (poll.status === "done" && poll.url) {
         const [updated] = await db.update(projectsTable)
           .set({ status: "completed", videoUrl: poll.url, thumbnailUrl: null, updatedAt: new Date() })
-          .where(eq(projectsTable.id, project.id))
-          .returning();
+          .where(eq(projectsTable.id, project.id)).returning();
         res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
         return;
       }
       if (poll.status === "failed") {
         const [updated] = await db.update(projectsTable)
           .set({ status: "failed", thumbnailUrl: null, updatedAt: new Date() })
-          .where(eq(projectsTable.id, project.id))
-          .returning();
+          .where(eq(projectsTable.id, project.id)).returning();
         res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
         return;
       }
-    } catch (err) {
-      console.error("[shotstack] poll error", err);
-    }
+    } catch (err) { console.error("[fal-video] poll error", err); }
   }
 
   res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
 });
 
-// Re-render an existing project via Shotstack
 router.post("/projects/:id/rerender", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
@@ -156,50 +142,27 @@ router.post("/projects/:id/rerender", async (req, res) => {
   const [project] = await db.select().from(projectsTable)
     .where(and(eq(projectsTable.id, req.params.id), eq(projectsTable.userId, userId)));
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
+  if (!project.expandedScript) { res.status(400).json({ error: "No script — generate one first." }); return; }
 
-  if (!project.expandedScript) {
-    res.status(400).json({ error: "Project has no script — generate a script first." });
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1");
+  if (!user || user.credits < creditCost) {
+    res.status(402).json({ error: `Not enough credits. Re-render costs ${creditCost} credits.` });
     return;
   }
+  await db.update(usersTable).set({ credits: user.credits - creditCost }).where(eq(usersTable.id, userId));
 
-  if (!process.env.SHOTSTACK_API_KEY) {
-    res.status(503).json({ error: "SHOTSTACK_API_KEY is not configured." });
-    return;
-  }
-
-  // Deduct credits for re-render
-  const [userForRerender] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!userForRerender || userForRerender.credits < CREDITS_PER_RENDER) {
-    res.status(402).json({ error: "Not enough credits to re-render." });
-    return;
-  }
-  await db.update(usersTable)
-    .set({ credits: userForRerender.credits - CREDITS_PER_RENDER })
-    .where(eq(usersTable.id, userId));
-
-  let scriptObj: ExpandedScript;
-  try { scriptObj = JSON.parse(project.expandedScript); } catch {
-    res.status(400).json({ error: "Could not parse project script." }); return;
-  }
-
-  // Reset to processing, clear old video and render ID
   const [reset] = await db.update(projectsTable)
     .set({ status: "processing", videoUrl: null, thumbnailUrl: null, updatedAt: new Date() })
-    .where(eq(projectsTable.id, project.id))
-    .returning();
+    .where(eq(projectsTable.id, project.id)).returning();
 
-  const platform = project.platform ?? "youtube";
-  const duration = project.duration ?? "30s";
   try {
-    const renderId = await submitShotstackRender(scriptObj, platform, duration);
-    await db.update(projectsTable)
-      .set({ thumbnailUrl: `shotstack:${renderId}`, updatedAt: new Date() })
-      .where(eq(projectsTable.id, project.id));
+    const scriptObj: ExpandedScript = JSON.parse(project.expandedScript);
+    const token = await submitFalVideoRender(scriptObj, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1");
+    await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   } catch (err) {
-    console.error("[shotstack] rerender submit error", err);
-    await db.update(projectsTable)
-      .set({ status: "failed", updatedAt: new Date() })
-      .where(eq(projectsTable.id, project.id));
+    console.error("[fal-video] rerender error", err);
+    await db.update(projectsTable).set({ status: "failed", updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   }
 
   res.json({ ...reset, createdAt: reset.createdAt.toISOString(), updatedAt: reset.updatedAt.toISOString() });

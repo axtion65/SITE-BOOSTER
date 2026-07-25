@@ -138,7 +138,8 @@ export const ListRenderingModelsResponseItem = zod.object({
   "name": zod.string(),
   "description": zod.string(),
   "capabilities": zod.array(zod.string()),
-  "tier": zod.enum(['free', 'creator', 'agency']),
+  "creditCost": zod.number().optional(),
+  "tier": zod.enum(['free', 'starter', 'pro', 'agency']),
   "badge": zod.string().nullish()
 })
 export const ListRenderingModelsResponse = zod.array(ListRenderingModelsResponseItem)

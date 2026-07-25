@@ -1,0 +1,4 @@
+- [Stripe dev init](stripe-dev-init.md) — Stripe init is non-fatal in dev; credentials only available in deployment
+- [fal.ai video token format](falvideo-token.md) — render tokens stored as `fal:<modelPath>:<requestId>` in thumbnailUrl column
+- [Credit system](credit-system.md) — model costs, plan allocations, and billing sync approach
+- [Seed products](seed-products.md) — seed script needs deployment credentials; run post-deploy

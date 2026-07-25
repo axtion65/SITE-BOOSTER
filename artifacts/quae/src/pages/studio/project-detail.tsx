@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { RequireAuth } from "@/components/auth-guard";
 import { useParams, Link, useLocation } from "wouter";
-import { useGetProject, useDeleteProject, getGetProjectQueryKey } from "@workspace/api-client-react";
+import { useGetProject, useDeleteProject, getGetProjectQueryKey, getGetProjectQueryOptions } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ArrowLeft, Clock, Trash2, Code, AlignLeft, RefreshCw, Download, VideoOff, RotateCcw } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { ExpandedScript, customFetch } from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ExpandedScript } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function StudioProjectDetail() {
   const params = useParams();
   const id = params.id as string;
-  const { data: project, isLoading } = useGetProject(id, { query: { enabled: !!id } });
+  const { data: project, isLoading } = useQuery({ ...getGetProjectQueryOptions(id), enabled: !!id });
   const deleteMutation = useDeleteProject();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -65,11 +65,15 @@ export default function StudioProjectDetail() {
     setRerendering(true);
     setVideoError(false);
     try {
-      await customFetch(`/api/projects/${id}/rerender`, { method: "POST" });
+      const token = localStorage.getItem("quae_token");
+      await fetch(`/api/projects/${id}/rerender`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       await queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(id) });
       toast({ title: "Re-render started", description: "Your video is being rendered. This page will refresh automatically." });
     } catch {
-      toast({ title: "Re-render failed", description: "Could not start the render. Check that your SHOTSTACK_API_KEY is set.", variant: "destructive" });
+      toast({ title: "Re-render failed", description: "Could not start the render. Please try again.", variant: "destructive" });
     } finally {
       setRerendering(false);
     }
@@ -143,7 +147,7 @@ export default function StudioProjectDetail() {
                     <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center text-center px-8">
                       <VideoOff className="h-12 w-12 text-destructive mb-4 opacity-80" />
                       <p className="text-white font-semibold mb-1">Render failed</p>
-                      <p className="text-sm text-muted-foreground">The video render encountered an error. Check that your SHOTSTACK_API_KEY secret is set, then try again.</p>
+                      <p className="text-sm text-muted-foreground">The video render encountered an error. Please try again or contact support.</p>
                     </div>
                   ) : (
                     <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center text-muted-foreground">
