@@ -4,9 +4,12 @@
  * Uses SHOTSTACK_API_KEY env var (sandbox or production key from app.shotstack.io).
  */
 
+// Shotstack API base URL:
+//   sandbox (default) → https://api.shotstack.io/edit/stage
+//   production        → https://api.shotstack.io/edit/v1
 const SHOTSTACK_BASE = process.env.SHOTSTACK_ENV === "production"
-  ? "https://api.shotstack.io/v1"
-  : "https://api.shotstack.io/stage/v1";
+  ? "https://api.shotstack.io/edit/v1"
+  : "https://api.shotstack.io/edit/stage";
 
 function apiKey(): string {
   const key = process.env.SHOTSTACK_API_KEY;
