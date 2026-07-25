@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db, usersTable, projectsTable } from "@workspace/db";
-import { eq, and, count, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
+import { submitShotstackRender, pollShotstackRender, type ExpandedScript } from "../lib/shotstack";
 
 const router = Router();
 
@@ -69,16 +70,29 @@ router.post("/projects", async (req, res) => {
     status: "processing",
   }).returning();
 
+  // Fire Shotstack render in background if we have a script and the API key is configured
+  if (process.env.SHOTSTACK_API_KEY && parsed.data.expandedScript) {
+    const projectId = project.id;
+    const platform = parsed.data.platform ?? "youtube";
+    const duration = parsed.data.duration ?? "30s";
+    const expandedScript = parsed.data.expandedScript;
+    // Intentionally not awaited — render runs asynchronously
+    (async () => {
+      try {
+        let scriptObj: ExpandedScript;
+        try { scriptObj = JSON.parse(expandedScript); } catch { return; }
+        const renderId = await submitShotstackRender(scriptObj, platform, duration);
+        await db.update(projectsTable)
+          .set({ shotstackRenderId: renderId, updatedAt: new Date() })
+          .where(eq(projectsTable.id, projectId));
+      } catch (err) {
+        console.error("[shotstack] submit error", err);
+      }
+    })();
+  }
+
   res.status(201).json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
 });
-
-// Sample demo videos — hosted by Mozilla's MDN CDN (reliable, no CORS issues)
-const DEMO_VIDEOS = [
-  "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-  "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-  "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-  "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-];
 
 router.get("/projects/:id", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
@@ -88,20 +102,33 @@ router.get("/projects/:id", async (req, res) => {
     .where(and(eq(projectsTable.id, req.params.id), eq(projectsTable.userId, userId)));
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
 
-  // Auto-complete rendering simulation after 30 seconds
-  if (project.status === "processing") {
-    const ageMs = Date.now() - new Date(project.createdAt).getTime();
-    if (ageMs >= 30_000) {
-      const videoUrl = DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)];
-      const [updated] = await db.update(projectsTable)
-        .set({ status: "completed", videoUrl, updatedAt: new Date() })
-        .where(eq(projectsTable.id, project.id))
-        .returning();
-      res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
-      return;
+  // Poll Shotstack for real render status
+  if (project.status === "processing" && project.shotstackRenderId) {
+    try {
+      const poll = await pollShotstackRender(project.shotstackRenderId);
+      if (poll.status === "done" && poll.url) {
+        const [updated] = await db.update(projectsTable)
+          .set({ status: "completed", videoUrl: poll.url, updatedAt: new Date() })
+          .where(eq(projectsTable.id, project.id))
+          .returning();
+        res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
+        return;
+      }
+      if (poll.status === "failed") {
+        const [updated] = await db.update(projectsTable)
+          .set({ status: "failed", updatedAt: new Date() })
+          .where(eq(projectsTable.id, project.id))
+          .returning();
+        res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
+        return;
+      }
+    } catch (err) {
+      console.error("[shotstack] poll error", err);
     }
   }
 
+  // Fallback for projects without Shotstack (no API key, or no expandedScript):
+  // keep "processing" indefinitely rather than assigning a random flower video
   res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
 });
 

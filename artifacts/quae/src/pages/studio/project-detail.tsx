@@ -88,11 +88,6 @@ export default function StudioProjectDetail() {
               
               {/* Video Preview Area */}
               <Card className="overflow-hidden border-border bg-black">
-                {project.status === 'completed' && (
-                  <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20">
-                    <span className="text-xs text-yellow-400 font-medium">⚠ Demo preview — your final video will be rendered by {project.renderingModelId ?? "Kling"} using the script below</span>
-                  </div>
-                )}
                 <div className="aspect-video w-full flex items-center justify-center relative">
                   {project.status === 'completed' && project.videoUrl && !videoError ? (
                     <video
@@ -114,10 +109,16 @@ export default function StudioProjectDetail() {
                       </a>
                     </div>
                   ) : project.status === 'processing' ? (
-                    <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center">
+                    <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center text-center px-8">
                       <RefreshCw className="h-10 w-10 text-primary animate-spin mb-4" />
-                      <p className="text-white font-medium">Rendering Engine Active...</p>
-                      <p className="text-xs text-muted-foreground mt-2">Auto-refreshing — usually ready in ~30 seconds</p>
+                      <p className="text-white font-medium">Rendering your video…</p>
+                      <p className="text-xs text-muted-foreground mt-2">This page refreshes automatically. Usually takes 1–3 minutes.</p>
+                    </div>
+                  ) : project.status === 'failed' ? (
+                    <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center text-center px-8">
+                      <VideoOff className="h-12 w-12 text-destructive mb-4 opacity-80" />
+                      <p className="text-white font-semibold mb-1">Render failed</p>
+                      <p className="text-sm text-muted-foreground">The video render encountered an error. Check that your SHOTSTACK_API_KEY secret is set, then try again.</p>
                     </div>
                   ) : (
                     <div className="absolute inset-0 bg-secondary/20 flex flex-col items-center justify-center text-muted-foreground">
