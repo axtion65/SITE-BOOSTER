@@ -1,14 +1,18 @@
 /**
  * Seed Stripe products for Quae.ai
- * Run: pnpm --filter @workspace/api-server exec tsx scripts/seed-products.ts
+ * Run: pnpm exec tsx artifacts/api-server/scripts/seed-products.ts
  *
  * Plans:
  *   Starter  $29/mo  | $278.40/yr (save 20%)  → 600 credits/mo
- *   Pro      $49/mo  | $470.40/yr (save 20%)  → 2000 credits/mo
- *   Agency   $149/mo | $1430.40/yr (save 20%) → 6000 credits/mo
+ *   Pro      $49/mo  | $470.40/yr (save 20%)  → 2,000 credits/mo
+ *   Agency   $149/mo | $1,430.40/yr (save 20%)→ 6,000 credits/mo
  */
 
-import { getUncachableStripeClient } from "../src/stripeClient";
+import Stripe from 'stripe';
+
+const key = process.env.STRIPE_SECRET_KEY;
+if (!key) { console.error('STRIPE_SECRET_KEY not set'); process.exit(1); }
+const stripe = new Stripe(key);
 
 const PLANS = [
   {
@@ -35,10 +39,11 @@ const PLANS = [
 ];
 
 async function seed() {
-  const stripe = await getUncachableStripeClient();
-
   for (const plan of PLANS) {
-    const existing = await stripe.products.search({ query: `name:'${plan.name}' AND active:'true'` });
+    const existing = await stripe.products.search({
+      query: `name:'${plan.name}' AND active:'true'`,
+    });
+
     if (existing.data.length > 0) {
       console.log(`✓ ${plan.name} already exists (${existing.data[0].id})`);
       continue;
@@ -69,7 +74,7 @@ async function seed() {
     console.log(`✓ Created ${plan.name}: monthly=${monthly.id} annual=${annual.id}`);
   }
 
-  console.log("\n✅ Done. Webhooks will sync products to your database.");
+  console.log("\n✅ Done. Products and prices are ready in your Stripe account.");
 }
 
 seed().catch((err) => { console.error(err); process.exit(1); });

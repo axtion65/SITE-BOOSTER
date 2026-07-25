@@ -12,7 +12,6 @@
   "dependencies": {
     "@replit/connectors-sdk": "^0.4.1",
     "stripe": "^22.3.2",
-    "stripe-replit-sync": "^1.0.0",
     "tsx": "catalog:"
   },
   "devDependencies": {

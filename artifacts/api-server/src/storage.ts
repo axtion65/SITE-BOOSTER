@@ -7,9 +7,15 @@ export class Storage {
     return user ?? null;
   }
 
+  async getUserByStripeCustomerId(customerId: string) {
+    const [user] = await db.select().from(usersTable)
+      .where(eq(usersTable.stripeCustomerId, customerId));
+    return user ?? null;
+  }
+
   async updateUserStripeInfo(userId: string, info: {
     stripeCustomerId?: string;
-    stripeSubscriptionId?: string;
+    stripeSubscriptionId?: string | null;
     plan?: string;
     credits?: number;
   }) {
@@ -18,33 +24,6 @@ export class Storage {
       .where(eq(usersTable.id, userId))
       .returning();
     return user;
-  }
-
-  async getSubscription(subscriptionId: string) {
-    const result = await db.execute(
-      sql`SELECT * FROM stripe.subscriptions WHERE id = ${subscriptionId}`
-    );
-    return result.rows[0] ?? null;
-  }
-
-  async getActiveSubscriptionForCustomer(customerId: string) {
-    const result = await db.execute(
-      sql`SELECT * FROM stripe.subscriptions WHERE customer = ${customerId} AND status = 'active' LIMIT 1`
-    );
-    return result.rows[0] ?? null;
-  }
-
-  async listProductsWithPrices() {
-    const result = await db.execute(sql`
-      SELECT
-        p.id as product_id, p.name as product_name, p.description, p.metadata,
-        pr.id as price_id, pr.unit_amount, pr.currency, pr.recurring
-      FROM stripe.products p
-      LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
-      WHERE p.active = true
-      ORDER BY pr.unit_amount ASC
-    `);
-    return result.rows;
   }
 }
 
