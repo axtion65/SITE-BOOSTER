@@ -1,0 +1,78 @@
+Act as a SaaS founder focused on building a profitable AI video business.
+ 
+I'm building QUAE.AI using Next.js, Supabase, Stripe, and FAL AI video models (Ovi, Wan 2.5, Kling 2.5 Turbo Pro, and Veo).
+ 
+My goal is to create a competitive AI video platform that maximizes recurring revenue, annual subscriptions, and long-term profitability while maintaining 65–75% gross margins.
+ 
+Build the complete business and technical plan including:
+ 
+• Modern landing page focused on TikTok Ads, Instagram Reels, YouTube Shorts, Shopify Product Ads, and UGC-style video creation.
+• Free plan with limited generations.
+• Subscription-based pricing with monthly and annual billing.
+• Credit-based system for video generation.
+• Stripe billing integration.
+• User dashboard with credits, billing, video history, and referrals.
+ 
+Pricing Structure:
+ 
+Starter
+- $15–19/month
+ 
+Pro
+- $39–49/month
+ 
+Agency
+- $99–149/month
+ 
+Annual Plans:
+- Default pricing option on the website.
+- Display a prominent "🔥 Save 20%" badge.
+- Offer 20% savings compared to monthly billing.
+- Collect payment upfront for immediate cash flow.
+- Credits are distributed monthly, not all at once.
+- Unused credits expire after 30 days.
+- Prevent abuse and protect profitability.
+ 
+Include:
+- Credit costs for Ovi, Wan, Kling, and Veo.
+- Monthly credit allocations for each plan.
+- Credit top-up purchases.
+- Referral rewards system.
+- Upgrade prompts throughout the dashboard.
+- Daily usage limits.
+- Rate limiting and anti-abuse protections.
+ 
+Optimize conversions using:
+- Annual plans highlighted as "Best Value".
+- "🔥 Save 20%" badges throughout pricing.
+- Clear savings calculations.
+- Upgrade banners and account notifications.
+- One-click annual upgrades.
+ 
+Generate:
+ 
+1. Complete site architecture.
+2. Landing page structure and copy.
+3. Database schema.
+4. Pricing table.
+5. Stripe products and subscription setup.
+6. Credit system design.
+7. User dashboard layout.
+8. Revenue and profit projections for:
+   - 100 users
+   - 500 users
+   - 1,000 users
+ 
+Prioritize simplicity, strong conversions, recurring subscriptions, upfront annual payments, healthy margins, and fast growth.
+
+Show more lines
+
+
+
+
+
+Summarize this prompt for quick reference
+
+Add example pricing table to the prompt
+
+Suggest key landing page headlines for sales
