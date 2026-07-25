@@ -366,7 +366,7 @@ async function buildTimeline(
   ) {
     if (videoUrl) {
       bgClips.push({
-        asset: { type: "video", src: videoUrl, trim: { start: 0 } },
+        asset: { type: "video", src: videoUrl },
         start,
         length,
         fit: "cover",
