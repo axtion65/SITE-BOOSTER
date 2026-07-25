@@ -6,44 +6,12 @@ const router = Router();
 
 const RENDERING_MODELS = [
   {
-    id: "kling-1.6",
-    name: "Kling 1.6",
-    description: "High-quality cinematic video generation with realistic motion and lighting.",
-    capabilities: ["4K export", "Cinematic motion", "60s videos", "Product placement"],
-    tier: "free",
+    id: "quae-v1",
+    name: "Quae Render Engine",
+    description: "AI-generated scene images (fal.ai FLUX) assembled with music and text overlays via Shotstack.",
+    capabilities: ["AI scene images", "Background music", "Text overlays", "Multi-platform"],
+    tier: "standard",
     badge: null,
-  },
-  {
-    id: "wan-2.1",
-    name: "Wan 2.1",
-    description: "Fast and versatile engine optimized for social media formats.",
-    capabilities: ["Multi-format export", "Fast render", "30s videos", "Text overlays"],
-    tier: "creator",
-    badge: "Popular",
-  },
-  {
-    id: "hailuo-02",
-    name: "Hailuo 02",
-    description: "Cutting-edge model with ultra-realistic human and product rendering.",
-    capabilities: ["Ultra-realistic", "UGC style", "60s videos", "Voice sync"],
-    tier: "creator",
-    badge: "New",
-  },
-  {
-    id: "veo3",
-    name: "Veo 3",
-    description: "Google's flagship video model — unmatched realism and creative control.",
-    capabilities: ["Photorealistic", "Creative direction", "4K", "Audio generation"],
-    tier: "agency",
-    badge: "Premium",
-  },
-  {
-    id: "runway-gen4",
-    name: "Runway Gen-4",
-    description: "Industry-leading creative AI for brand-level video production.",
-    capabilities: ["Brand-safe", "Custom style", "4K export", "Director mode"],
-    tier: "agency",
-    badge: "Pro",
   },
 ];
 

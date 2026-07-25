@@ -87,65 +87,40 @@ function keywords(text: string, n = 4): string {
     .join(" ");
 }
 
-// ── AI image generation (OpenAI gpt-image-1) ─────────────────────────────────
+// ── AI image generation (fal.ai FLUX/schnell — bills your fal.ai account) ────
 
 async function generateAIImage(prompt: string, portrait: boolean): Promise<string | null> {
-  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-  if (!apiKey || !baseUrl) return null;
+  const falKey = process.env.FAL_KEY;
+  if (!falKey) return null;
 
-  const size = portrait ? "1024x1536" : "1536x1024";
+  // FLUX/schnell: ~3 s/image, returns direct CDN URL — no extra hosting needed
+  const imageSize = portrait ? "portrait_4_3" : "landscape_16_9";
 
   try {
-    const res = await fetch(`${baseUrl}/images/generations`, {
+    const res = await fetch("https://fal.run/fal-ai/flux/schnell", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Key ${falKey}`,
+      },
       body: JSON.stringify({
-        model: "gpt-image-1",
-        prompt: `Cinematic photorealistic background for a video advertisement. No text, no overlaid words, no logos. Atmospheric, professional, high contrast. ${prompt}`,
-        size,
-        n: 1,
-        output_format: "jpeg",
-        quality: "medium",
+        prompt: `Cinematic photorealistic background for a video advertisement. No text, no words, no logos, no watermarks. Atmospheric, high contrast, professional lighting. ${prompt}`,
+        image_size: imageSize,
+        num_images: 1,
+        num_inference_steps: 4,
+        enable_safety_checker: true,
       }),
     });
 
     if (!res.ok) {
-      console.error("[ai-image] OpenAI error:", res.status, await res.text());
+      console.error("[fal-image] error:", res.status, await res.text());
       return null;
     }
 
-    const data = (await res.json()) as { data?: Array<{ url?: string; b64_json?: string }> };
-
-    // Some proxy configs return a direct URL — use immediately
-    if (data.data?.[0]?.url) return data.data[0].url;
-
-    // Otherwise base64 → upload to tmpfiles.org for a public URL Shotstack can fetch
-    const b64 = data.data?.[0]?.b64_json;
-    if (!b64) return null;
-
-    const buf = Buffer.from(b64, "base64");
-    const form = new FormData();
-    form.append("file", new Blob([buf], { type: "image/jpeg" }), "ai-scene.jpg");
-
-    const upload = await fetch("https://tmpfiles.org/api/v1/upload", {
-      method: "POST",
-      body: form,
-    });
-
-    if (!upload.ok) {
-      console.error("[ai-image] tmpfiles upload failed:", upload.status);
-      return null;
-    }
-
-    const upData = (await upload.json()) as { data?: { url?: string } };
-    const url = upData.data?.url;
-    if (!url) return null;
-
-    // tmpfiles returns https://tmpfiles.org/1234/file.jpg — direct download is /dl/ path
-    return url.replace("tmpfiles.org/", "tmpfiles.org/dl/");
+    const data = (await res.json()) as { images?: Array<{ url: string }> };
+    return data.images?.[0]?.url ?? null;
   } catch (err) {
-    console.error("[ai-image] error:", err);
+    console.error("[fal-image] fetch error:", err);
     return null;
   }
 }

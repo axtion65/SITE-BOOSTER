@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -132,27 +131,9 @@ function Wizard() {
           <span className={step >= 4 ? "text-primary" : ""}>4. Export</span>
         </div>
         
-        <div className="flex items-center gap-3">
-          <Label className="text-muted-foreground">Rendering Engine:</Label>
-          <div className="w-64">
-            <Select value={modelId} onValueChange={setModelId} disabled={modelsLoading}>
-              <SelectTrigger className="h-9 bg-background border-border">
-                <SelectValue placeholder="Select an engine" />
-              </SelectTrigger>
-              <SelectContent>
-                {models?.map(m => (
-                  <SelectItem key={m.id} value={m.id}>
-                    <div className="flex items-center justify-between w-full pr-4">
-                      <span>{m.name}</span>
-                      <Badge variant={m.tier === 'free' ? 'outline' : 'default'} className="ml-2 text-[10px] h-4">
-                        {m.tier}
-                      </Badge>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Activity className="h-4 w-4 text-primary" />
+          <span>Quae Render Engine</span>
         </div>
       </div>
 
