@@ -18,6 +18,15 @@ async function getUserIdFromToken(authHeader: string | undefined): Promise<strin
   }
 }
 
+// Shotstack render IDs are stored in thumbnailUrl as "shotstack:<renderId>"
+// so we don't need a new DB column.
+function getShotstackRenderId(project: { thumbnailUrl: string | null }): string | null {
+  if (project.thumbnailUrl?.startsWith("shotstack:")) {
+    return project.thumbnailUrl.slice("shotstack:".length);
+  }
+  return null;
+}
+
 router.get("/projects/stats", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
@@ -76,14 +85,14 @@ router.post("/projects", async (req, res) => {
     const platform = parsed.data.platform ?? "youtube";
     const duration = parsed.data.duration ?? "30s";
     const expandedScript = parsed.data.expandedScript;
-    // Intentionally not awaited — render runs asynchronously
     (async () => {
       try {
         let scriptObj: ExpandedScript;
         try { scriptObj = JSON.parse(expandedScript); } catch { return; }
         const renderId = await submitShotstackRender(scriptObj, platform, duration);
+        // Store render ID in thumbnailUrl with "shotstack:" prefix — no schema change needed
         await db.update(projectsTable)
-          .set({ shotstackRenderId: renderId, updatedAt: new Date() })
+          .set({ thumbnailUrl: `shotstack:${renderId}`, updatedAt: new Date() })
           .where(eq(projectsTable.id, projectId));
       } catch (err) {
         console.error("[shotstack] submit error", err);
@@ -103,12 +112,13 @@ router.get("/projects/:id", async (req, res) => {
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
 
   // Poll Shotstack for real render status
-  if (project.status === "processing" && project.shotstackRenderId) {
+  const renderId = getShotstackRenderId(project);
+  if (project.status === "processing" && renderId) {
     try {
-      const poll = await pollShotstackRender(project.shotstackRenderId);
+      const poll = await pollShotstackRender(renderId);
       if (poll.status === "done" && poll.url) {
         const [updated] = await db.update(projectsTable)
-          .set({ status: "completed", videoUrl: poll.url, updatedAt: new Date() })
+          .set({ status: "completed", videoUrl: poll.url, thumbnailUrl: null, updatedAt: new Date() })
           .where(eq(projectsTable.id, project.id))
           .returning();
         res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
@@ -116,7 +126,7 @@ router.get("/projects/:id", async (req, res) => {
       }
       if (poll.status === "failed") {
         const [updated] = await db.update(projectsTable)
-          .set({ status: "failed", updatedAt: new Date() })
+          .set({ status: "failed", thumbnailUrl: null, updatedAt: new Date() })
           .where(eq(projectsTable.id, project.id))
           .returning();
         res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
@@ -127,12 +137,10 @@ router.get("/projects/:id", async (req, res) => {
     }
   }
 
-  // Fallback for projects without Shotstack (no API key, or no expandedScript):
-  // keep "processing" indefinitely rather than assigning a random flower video
   res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
 });
 
-// Re-render an existing project via Shotstack (resets status and fires a new render job)
+// Re-render an existing project via Shotstack
 router.post("/projects/:id/rerender", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
@@ -142,12 +150,12 @@ router.post("/projects/:id/rerender", async (req, res) => {
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
 
   if (!project.expandedScript) {
-    res.status(400).json({ error: "Project has no script — generate a script first before rendering." });
+    res.status(400).json({ error: "Project has no script — generate a script first." });
     return;
   }
 
   if (!process.env.SHOTSTACK_API_KEY) {
-    res.status(503).json({ error: "SHOTSTACK_API_KEY is not configured on this server." });
+    res.status(503).json({ error: "SHOTSTACK_API_KEY is not configured." });
     return;
   }
 
@@ -156,20 +164,19 @@ router.post("/projects/:id/rerender", async (req, res) => {
     res.status(400).json({ error: "Could not parse project script." }); return;
   }
 
-  // Reset project to processing state
+  // Reset to processing, clear old video and render ID
   const [reset] = await db.update(projectsTable)
-    .set({ status: "processing", videoUrl: null, shotstackRenderId: null, updatedAt: new Date() })
+    .set({ status: "processing", videoUrl: null, thumbnailUrl: null, updatedAt: new Date() })
     .where(eq(projectsTable.id, project.id))
     .returning();
 
-  // Fire Shotstack render — don't block the HTTP response
   const platform = project.platform ?? "youtube";
   const duration = project.duration ?? "30s";
   (async () => {
     try {
       const renderId = await submitShotstackRender(scriptObj, platform, duration);
       await db.update(projectsTable)
-        .set({ shotstackRenderId: renderId, updatedAt: new Date() })
+        .set({ thumbnailUrl: `shotstack:${renderId}`, updatedAt: new Date() })
         .where(eq(projectsTable.id, project.id));
     } catch (err) {
       console.error("[shotstack] rerender submit error", err);

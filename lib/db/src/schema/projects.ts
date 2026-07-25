@@ -16,7 +16,6 @@ export const projectsTable = pgTable("projects", {
   videoUrl: text("video_url"),
   thumbnailUrl: text("thumbnail_url"),
   templateId: text("template_id"),
-  shotstackRenderId: text("shotstack_render_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
