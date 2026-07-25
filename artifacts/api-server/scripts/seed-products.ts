@@ -10,8 +10,8 @@
 
 import Stripe from 'stripe';
 
-const key = process.env.STRIPE_SECRET_KEY;
-if (!key) { console.error('STRIPE_SECRET_KEY not set'); process.exit(1); }
+const key = process.env.STRIPE_API_KEY;
+if (!key) { console.error('STRIPE_API_KEY not set'); process.exit(1); }
 const stripe = new Stripe(key);
 
 const PLANS = [

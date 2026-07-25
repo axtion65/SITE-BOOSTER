@@ -6,8 +6,8 @@ if (!rawPort) throw new Error("PORT environment variable is required");
 const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT: "${rawPort}"`);
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  logger.warn("STRIPE_SECRET_KEY not set — billing endpoints will fail");
+if (!process.env.STRIPE_API_KEY) {
+  logger.warn("STRIPE_API_KEY not set — billing endpoints will fail");
 }
 
 app.listen(port, (err) => {
