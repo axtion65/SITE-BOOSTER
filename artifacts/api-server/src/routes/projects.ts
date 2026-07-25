@@ -79,25 +79,20 @@ router.post("/projects", async (req, res) => {
     status: "processing",
   }).returning();
 
-  // Fire Shotstack render in background if we have a script and the API key is configured
+  // Submit Shotstack render synchronously before responding so autoscale doesn't kill it
   if (process.env.SHOTSTACK_API_KEY && parsed.data.expandedScript) {
-    const projectId = project.id;
-    const platform = parsed.data.platform ?? "youtube";
-    const duration = parsed.data.duration ?? "30s";
-    const expandedScript = parsed.data.expandedScript;
-    (async () => {
-      try {
-        let scriptObj: ExpandedScript;
-        try { scriptObj = JSON.parse(expandedScript); } catch { return; }
-        const renderId = await submitShotstackRender(scriptObj, platform, duration);
-        // Store render ID in thumbnailUrl with "shotstack:" prefix — no schema change needed
-        await db.update(projectsTable)
-          .set({ thumbnailUrl: `shotstack:${renderId}`, updatedAt: new Date() })
-          .where(eq(projectsTable.id, projectId));
-      } catch (err) {
-        console.error("[shotstack] submit error", err);
-      }
-    })();
+    try {
+      let scriptObj: ExpandedScript;
+      scriptObj = JSON.parse(parsed.data.expandedScript);
+      const platform = parsed.data.platform ?? "youtube";
+      const duration = parsed.data.duration ?? "30s";
+      const renderId = await submitShotstackRender(scriptObj, platform, duration);
+      await db.update(projectsTable)
+        .set({ thumbnailUrl: `shotstack:${renderId}`, updatedAt: new Date() })
+        .where(eq(projectsTable.id, project.id));
+    } catch (err) {
+      console.error("[shotstack] submit error", err);
+    }
   }
 
   res.status(201).json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
@@ -172,19 +167,17 @@ router.post("/projects/:id/rerender", async (req, res) => {
 
   const platform = project.platform ?? "youtube";
   const duration = project.duration ?? "30s";
-  (async () => {
-    try {
-      const renderId = await submitShotstackRender(scriptObj, platform, duration);
-      await db.update(projectsTable)
-        .set({ thumbnailUrl: `shotstack:${renderId}`, updatedAt: new Date() })
-        .where(eq(projectsTable.id, project.id));
-    } catch (err) {
-      console.error("[shotstack] rerender submit error", err);
-      await db.update(projectsTable)
-        .set({ status: "failed", updatedAt: new Date() })
-        .where(eq(projectsTable.id, project.id));
-    }
-  })();
+  try {
+    const renderId = await submitShotstackRender(scriptObj, platform, duration);
+    await db.update(projectsTable)
+      .set({ thumbnailUrl: `shotstack:${renderId}`, updatedAt: new Date() })
+      .where(eq(projectsTable.id, project.id));
+  } catch (err) {
+    console.error("[shotstack] rerender submit error", err);
+    await db.update(projectsTable)
+      .set({ status: "failed", updatedAt: new Date() })
+      .where(eq(projectsTable.id, project.id));
+  }
 
   res.json({ ...reset, createdAt: reset.createdAt.toISOString(), updatedAt: reset.updatedAt.toISOString() });
 });

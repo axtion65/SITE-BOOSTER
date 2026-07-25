@@ -112,7 +112,7 @@ export default function StudioProjectDetail() {
             <div className="md:col-span-2 space-y-6">
               
               {/* Video Preview Area */}
-              <Card className="overflow-hidden border-border bg-black">
+              <Card className="border-border bg-black">
                 <div className="aspect-video w-full flex items-center justify-center relative">
                   {project.status === 'completed' && project.videoUrl && !videoError ? (
                     <video
@@ -120,7 +120,7 @@ export default function StudioProjectDetail() {
                       src={project.videoUrl}
                       controls
                       playsInline
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       onError={() => setVideoError(true)}
                       onLoadedData={() => setVideoError(false)}
                     />
@@ -214,9 +214,10 @@ export default function StudioProjectDetail() {
                   <CardContent className="p-6">
                     <h3 className="font-bold text-white mb-2">Export Ready</h3>
                     <p className="text-sm text-muted-foreground mb-4">Your video is ready to download and publish.</p>
-                    <a href={project.videoUrl} download target="_blank" rel="noreferrer">
+                    {/* Cross-origin Shotstack URLs block the download attribute — open in new tab instead */}
+                    <a href={project.videoUrl} target="_blank" rel="noreferrer">
                       <Button className="w-full font-bold">
-                        <Download className="h-4 w-4 mr-2" /> Download MP4
+                        <Download className="h-4 w-4 mr-2" /> Open MP4
                       </Button>
                     </a>
                   </CardContent>
