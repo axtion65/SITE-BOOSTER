@@ -132,6 +132,56 @@ router.get("/projects/:id", async (req, res) => {
   res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
 });
 
+// Re-render an existing project via Shotstack (resets status and fires a new render job)
+router.post("/projects/:id/rerender", async (req, res) => {
+  const userId = await getUserIdFromToken(req.headers.authorization);
+  if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const [project] = await db.select().from(projectsTable)
+    .where(and(eq(projectsTable.id, req.params.id), eq(projectsTable.userId, userId)));
+  if (!project) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (!project.expandedScript) {
+    res.status(400).json({ error: "Project has no script — generate a script first before rendering." });
+    return;
+  }
+
+  if (!process.env.SHOTSTACK_API_KEY) {
+    res.status(503).json({ error: "SHOTSTACK_API_KEY is not configured on this server." });
+    return;
+  }
+
+  let scriptObj: ExpandedScript;
+  try { scriptObj = JSON.parse(project.expandedScript); } catch {
+    res.status(400).json({ error: "Could not parse project script." }); return;
+  }
+
+  // Reset project to processing state
+  const [reset] = await db.update(projectsTable)
+    .set({ status: "processing", videoUrl: null, shotstackRenderId: null, updatedAt: new Date() })
+    .where(eq(projectsTable.id, project.id))
+    .returning();
+
+  // Fire Shotstack render — don't block the HTTP response
+  const platform = project.platform ?? "youtube";
+  const duration = project.duration ?? "30s";
+  (async () => {
+    try {
+      const renderId = await submitShotstackRender(scriptObj, platform, duration);
+      await db.update(projectsTable)
+        .set({ shotstackRenderId: renderId, updatedAt: new Date() })
+        .where(eq(projectsTable.id, project.id));
+    } catch (err) {
+      console.error("[shotstack] rerender submit error", err);
+      await db.update(projectsTable)
+        .set({ status: "failed", updatedAt: new Date() })
+        .where(eq(projectsTable.id, project.id));
+    }
+  })();
+
+  res.json({ ...reset, createdAt: reset.createdAt.toISOString(), updatedAt: reset.updatedAt.toISOString() });
+});
+
 router.patch("/projects/:id", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }

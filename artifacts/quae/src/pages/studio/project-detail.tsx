@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowLeft, Clock, Trash2, Code, AlignLeft, RefreshCw, Download, VideoOff } from "lucide-react";
+import { ArrowLeft, Clock, Trash2, Code, AlignLeft, RefreshCw, Download, VideoOff, RotateCcw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ExpandedScript } from "@workspace/api-client-react";
+import { ExpandedScript, customFetch } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function StudioProjectDetail() {
   const params = useParams();
@@ -18,6 +19,8 @@ export default function StudioProjectDetail() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const [videoError, setVideoError] = useState(false);
+  const [rerendering, setRerendering] = useState(false);
+  const { toast } = useToast();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Auto-poll every 3s while processing
@@ -58,6 +61,20 @@ export default function StudioProjectDetail() {
     }
   };
 
+  const handleRerender = async () => {
+    setRerendering(true);
+    setVideoError(false);
+    try {
+      await customFetch(`/api/projects/${id}/rerender`, { method: "POST" });
+      await queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(id) });
+      toast({ title: "Re-render started", description: "Your video is being rendered. This page will refresh automatically." });
+    } catch {
+      toast({ title: "Re-render failed", description: "Could not start the render. Check that your SHOTSTACK_API_KEY is set.", variant: "destructive" });
+    } finally {
+      setRerendering(false);
+    }
+  };
+
   return (
     <RequireAuth>
       <div className="p-8 h-full overflow-y-auto bg-background">
@@ -78,9 +95,17 @@ export default function StudioProjectDetail() {
                 </span>
               </div>
             </div>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
-              <Trash2 className="h-4 w-4 mr-2" /> Delete
-            </Button>
+            <div className="flex gap-2">
+              {project.expandedScript && (
+                <Button variant="outline" onClick={handleRerender} disabled={rerendering || project.status === "processing"}>
+                  <RotateCcw className={`h-4 w-4 mr-2 ${rerendering ? "animate-spin" : ""}`} />
+                  {rerendering ? "Starting…" : "Re-render"}
+                </Button>
+              )}
+              <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </Button>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 pt-4">
