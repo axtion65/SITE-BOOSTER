@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { ExpandPromptBody } from "@workspace/api-zod";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
 
 const router = Router();
 
@@ -19,10 +18,17 @@ router.get("/studio/models", (_req, res) => {
   res.json(RENDERING_MODELS);
 });
 
+// Script generation via fal.ai any-llm — bills your fal.ai account, zero Replit credits
 router.post("/studio/expand-prompt", async (req, res) => {
   const parsed = ExpandPromptBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+
+  const falKey = process.env.FAL_KEY;
+  if (!falKey) {
+    res.status(500).json({ error: "FAL_KEY not configured" });
     return;
   }
 
@@ -59,22 +65,37 @@ Duration: ${duration || "30s"}
 Write a conversion-optimized video script. The hook must stop the scroll in under 3 seconds. Make every scene purposeful and cinematic.`;
 
   try {
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 8192,
-      messages: [{ role: "user", content: userPrompt }],
-      system: systemPrompt,
+    const falRes = await fetch("https://fal.run/fal-ai/any-llm", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Key ${falKey}`,
+      },
+      body: JSON.stringify({
+        model: "anthropic/claude-sonnet-4-5",
+        system_prompt: systemPrompt,
+        prompt: userPrompt,
+        max_tokens: 8192,
+      }),
     });
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
+    if (!falRes.ok) {
+      const errText = await falRes.text();
+      console.error("[fal-llm] error:", falRes.status, errText);
+      res.status(500).json({ error: "AI generation failed" });
+      return;
+    }
+
+    const data = (await falRes.json()) as { output?: string };
+    const text = data.output ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       res.status(500).json({ error: "Failed to parse AI response" });
       return;
     }
-    const result = JSON.parse(jsonMatch[0]);
-    res.json(result);
+    res.json(JSON.parse(jsonMatch[0]));
   } catch (err) {
+    console.error("[fal-llm] fetch error:", err);
     res.status(500).json({ error: "AI generation failed" });
   }
 });
