@@ -27,3 +27,4 @@ channel = "stable-25_05"
 [userenv.shared]
 EMAILJS_FROM_NAME = "info@Quae.ai"
 EMAILJS_SERVICE_ID = "service_r89qfhw"
+EMAIL_FROM_ADDRESS = "info@quae.ai"
