@@ -28,6 +28,7 @@ export default function SignIn() {
   const [name, setName] = useState("");
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
   // New-password step inside the reset dialog
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
@@ -83,12 +84,12 @@ export default function SignIn() {
     }
   };
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleForgotPassword = async () => {
     if (!email) {
-      toast({ title: "Email required", description: "Please enter your email address first." });
+      toast({ title: "Email required", description: "Enter your email address above first." });
       return;
     }
+    setForgotLoading(true);
     try {
       const res = await forgotPasswordMutation.mutateAsync({ data: { email } });
       setTempPassword(res.tempPassword);
@@ -101,6 +102,8 @@ export default function SignIn() {
         .catch(() => {});
     } catch (err: any) {
       toast({ title: "Reset failed", description: err.message || "Could not reset password", variant: "destructive" });
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -245,9 +248,11 @@ export default function SignIn() {
                       <button
                         type="button"
                         onClick={handleForgotPassword}
-                        className="text-xs text-primary hover:underline"
+                        disabled={forgotLoading}
+                        className="text-xs text-primary hover:underline disabled:opacity-50 flex items-center gap-1"
                       >
-                        Forgot password?
+                        {forgotLoading && <Spinner className="h-3 w-3" />}
+                        {forgotLoading ? "Sending…" : "Forgot password?"}
                       </button>
                     </div>
                     <Input
