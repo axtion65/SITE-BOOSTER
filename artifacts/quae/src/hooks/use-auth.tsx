@@ -23,11 +23,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthTokenGetter(() => localStorage.getItem("quae_token"));
   }, []);
 
-  const { data: fetchedUser, isLoading } = useGetMe({
+  const { data: fetchedUser, isLoading, isError, error } = useGetMe({
     query: {
       enabled: !!token,
       queryKey: getGetMeQueryKey(),
-      retry: false
+      retry: 2,
+      retryDelay: 1000,
     }
   });
 
@@ -38,11 +39,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchedUser]);
 
   useEffect(() => {
-    if (token && !isLoading && !fetchedUser) {
-       // Token invalid or expired
-       logout();
+    // Only clear the token if the server explicitly rejected it (401/403).
+    // A network failure (isError without a 4xx) should NOT log the user out —
+    // on mobile, transient errors are common and we don't want to eject the user.
+    if (token && isError) {
+      const status = (error as any)?.response?.status ?? (error as any)?.status;
+      if (status === 401 || status === 403) {
+        logout();
+      }
     }
-  }, [token, isLoading, fetchedUser]);
+  }, [token, isError, error]);
 
   const login = (newToken: string, newUser: User) => {
     localStorage.setItem("quae_token", newToken);
