@@ -287,6 +287,15 @@ function Wizard() {
                 <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
               </div>
 
+              {/* Honest clip-length notice — shown once above the grid */}
+              <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-amber-400/80 flex items-start gap-2">
+                <span className="text-amber-400 mt-0.5 flex-shrink-0">⚠</span>
+                <span>
+                  <strong className="text-amber-400">AI video models generate short clips</strong> — output length depends on the model, not your script duration.
+                  Ovi outputs ~5 sec, Wan ~8 sec, Kling ~10 sec. For longer ads, combine multiple renders.
+                </span>
+              </div>
+
               {modelsLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Spinner className="h-8 w-8" />
@@ -296,6 +305,10 @@ function Wizard() {
                   {(models ?? []).map((model) => {
                     const isSelected = modelId === model.id;
                     const canUse = canUseModel(model.tier);
+                    const clipMap: Record<string, string> = {
+                      ovi: '~5 sec', wan: '~8 sec', kling: '~10 sec', veo3: '~8 sec'
+                    };
+                    const clipLen = clipMap[model.id] ?? '~5 sec';
                     return (
                       <button
                         key={model.id}
@@ -320,11 +333,15 @@ function Wizard() {
                           {canUse && !isSelected && <Activity className="h-4 w-4 text-muted-foreground" />}
                           <span className="font-bold text-white">{model.name}</span>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{model.description}</p>
-                        <div className="flex flex-wrap gap-1.5 mb-4">
+                        <p className="text-sm text-muted-foreground mb-3 leading-relaxed">{model.description}</p>
+                        <div className="flex flex-wrap gap-1.5 mb-3">
                           {model.capabilities.slice(0, 3).map((cap, ci) => (
                             <span key={ci} className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-white/50 border border-white/10">{cap}</span>
                           ))}
+                        </div>
+                        {/* Clip length — prominent, honest */}
+                        <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/8 text-[11px] text-white/50">
+                          Output clip: <span className="text-white font-bold">{clipLen}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">

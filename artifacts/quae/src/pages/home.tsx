@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign } from "lucide-react";
+import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign, Sparkles, ChevronRight } from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col">
+    <div className="min-h-screen bg-[#050507] text-white flex flex-col">
       <Navbar />
       <main className="flex-1">
         <HeroSection />
+        <LogoBar />
         <TemplatesSection />
         <HowItWorksSection />
         <PricingSection />
@@ -22,13 +23,9 @@ export default function Home() {
 
 function QuaeLogo({ size = 32 }: { size?: number }) {
   return (
-    <div className="flex items-center gap-2 font-black tracking-tight" style={{ fontSize: size * 0.65 }}>
-      <img
-        src="/images/logo-icon.png"
-        alt="Quae.ai logo"
-        style={{ width: size, height: size, objectFit: "contain" }}
-      />
-      <span style={{ letterSpacing: "-0.02em" }}>
+    <div className="flex items-center gap-2.5" style={{ fontSize: size * 0.62 }}>
+      <img src="/images/logo-icon.png" alt="Quae.ai" style={{ width: size, height: size, objectFit: "contain" }} />
+      <span className="font-black tracking-tight" style={{ letterSpacing: "-0.02em" }}>
         Quae<span className="text-violet-400">.ai</span>
       </span>
     </div>
@@ -37,18 +34,17 @@ function QuaeLogo({ size = 32 }: { size?: number }) {
 
 function Navbar() {
   return (
-    <header className="fixed top-0 w-full border-b border-white/5 bg-[#0a0a0f]/90 backdrop-blur-md z-50">
+    <header className="fixed top-0 w-full border-b border-white/[0.05] bg-[#050507]/90 backdrop-blur-xl z-50">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <QuaeLogo size={34} />
+        <QuaeLogo size={32} />
         <nav className="hidden md:flex items-center gap-8 text-sm">
-          {/* visited: and active: overrides prevent browser default dark-link state */}
-          <a href="#templates" className="text-white/60 hover:text-white active:text-white/60 visited:text-white/60 transition-colors outline-none">Templates</a>
-          <a href="#how" className="text-white/60 hover:text-white active:text-white/60 visited:text-white/60 transition-colors outline-none">How It Works</a>
-          <a href="#pricing" className="text-white/60 hover:text-white active:text-white/60 visited:text-white/60 transition-colors outline-none">Pricing</a>
+          <a href="#templates" className="text-white/50 hover:text-white transition-colors outline-none visited:text-white/50">Templates</a>
+          <a href="#how" className="text-white/50 hover:text-white transition-colors outline-none visited:text-white/50">How It Works</a>
+          <a href="#pricing" className="text-white/50 hover:text-white transition-colors outline-none visited:text-white/50">Pricing</a>
         </nav>
         <div className="flex items-center gap-3">
-          <Link href="/signin" className="text-sm text-white/60 hover:text-white active:text-white/60 visited:text-white/60 transition-colors outline-none">Sign In</Link>
-          <Link href="/signin" className="h-9 px-4 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5">
+          <Link href="/signin" className="text-sm text-white/50 hover:text-white transition-colors outline-none visited:text-white/50">Sign In</Link>
+          <Link href="/signin" className="h-9 px-5 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-bold transition-all shadow-lg shadow-violet-600/20 flex items-center gap-1.5">
             Start Free <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -59,34 +55,53 @@ function Navbar() {
 
 function HeroSection() {
   return (
-    <section className="pt-32 pb-24 px-6 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(124,58,237,0.15),transparent)]" />
+    <section className="pt-36 pb-24 px-6 relative overflow-hidden">
+      {/* Multi-layer bg */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_-10%,rgba(124,58,237,0.18),transparent)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_30%_at_80%_20%,rgba(139,92,246,0.08),transparent)]" />
+
+      {/* Subtle grid */}
+      <div className="absolute inset-0 opacity-[0.025]" style={{
+        backgroundImage: "linear-gradient(rgba(255,255,255,0.8) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.8) 1px,transparent 1px)",
+        backgroundSize: "60px 60px"
+      }} />
+
       <div className="max-w-5xl mx-auto text-center relative z-10">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-medium mb-8 uppercase tracking-wider">
-            <Zap className="h-3 w-3" /> AI Video Ads for Businesses
+        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: "easeOut" }}>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[11px] font-bold mb-8 uppercase tracking-[0.15em]">
+            <Sparkles className="h-3 w-3" /> AI Video Ads — Powered by Kling, Veo 3 & Ovi
           </div>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-6 leading-[1.05]">
+          <h1 className="text-5xl md:text-[80px] font-black tracking-tight mb-6 leading-[1.0]">
             Create TikTok Ads,{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-purple-300">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400">
               Shopify Videos
             </span>{" "}
-            & UGC Content in Minutes
+            &{" "}UGC Content<br className="hidden md:block" /> in Minutes
           </h1>
-          <p className="text-lg md:text-xl text-white/50 mb-10 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg md:text-xl text-white/40 mb-10 max-w-2xl mx-auto leading-relaxed">
             Describe your product. Pick a template. Get a polished, ready-to-post video ad — without a camera, editor, or agency.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/signin" className="h-13 px-8 py-3.5 bg-violet-600 hover:bg-violet-500 rounded-xl font-bold text-base transition-all shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 flex items-center gap-2">
-              Start Free — 3 Videos Included <ArrowRight className="h-4 w-4" />
+            <Link href="/signin" className="h-14 px-8 bg-violet-600 hover:bg-violet-500 rounded-2xl font-black text-base transition-all shadow-2xl shadow-violet-600/30 hover:shadow-violet-500/40 flex items-center gap-2.5 group">
+              Start Free — 3 Videos Included
+              <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
             </Link>
-            <div className="flex items-center gap-2 text-sm text-white/40">
-              <Check className="h-4 w-4 text-violet-400" /> No credit card required
-            </div>
+            <Link href="/templates" className="h-14 px-8 border border-white/10 hover:border-white/20 rounded-2xl font-semibold text-base text-white/60 hover:text-white transition-all flex items-center gap-2">
+              View Templates <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-5 flex items-center justify-center gap-1.5 text-sm text-white/25">
+            <Check className="h-3.5 w-3.5 text-violet-400/60" /> No credit card required · Cancel anytime
           </div>
         </motion.div>
 
-        <div className="mt-16 flex flex-wrap items-center justify-center gap-8 text-sm text-white/30">
+        {/* Platform pills */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="mt-16 flex flex-wrap items-center justify-center gap-6 text-sm text-white/25"
+        >
           {[
             { icon: ShoppingBag, label: "Shopify Ads" },
             { icon: TrendingUp, label: "TikTok Hooks" },
@@ -95,102 +110,139 @@ function HeroSection() {
             { icon: Star, label: "Product Demos" },
           ].map((item, i) => (
             <div key={i} className="flex items-center gap-2">
-              <item.icon className="h-4 w-4 text-violet-400/60" />
+              <item.icon className="h-3.5 w-3.5 text-violet-400/50" />
               <span>{item.label}</span>
             </div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );
 }
 
-const TEMPLATES = [
+function LogoBar() {
+  const brands = ["Shopify", "TikTok", "Amazon", "Instagram", "YouTube", "Meta Ads"];
+  return (
+    <div className="py-8 border-y border-white/[0.05] bg-white/[0.01]">
+      <div className="max-w-4xl mx-auto px-6">
+        <p className="text-center text-[11px] uppercase tracking-[0.2em] text-white/20 font-semibold mb-6">Video ads for every platform</p>
+        <div className="flex flex-wrap items-center justify-center gap-8">
+          {brands.map(b => (
+            <span key={b} className="text-white/20 font-black text-sm tracking-tight hover:text-white/40 transition-colors cursor-default">{b}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const HOME_TEMPLATES = [
   {
     name: "Shopify Product Ad",
     desc: "Drive purchases with a polished product showcase",
-    platform: "Instagram / TikTok",
+    platform: "Instagram · TikTok",
     duration: "15s",
-    image: "/images/template-shopify.jpg",
+    image: "/images/home-shopify.jpg",
+    accent: "#4ade80",
   },
   {
     name: "TikTok Viral Hook",
     desc: "Stop-the-scroll opening that keeps viewers watching",
     platform: "TikTok",
     duration: "15s",
-    image: "/images/template-tiktok.jpg",
+    image: "/images/home-tiktok.jpg",
+    accent: "#69C9D0",
   },
   {
     name: "UGC Review Style",
     desc: "Authentic, organic-feeling testimonial video",
-    platform: "TikTok / Reels",
+    platform: "TikTok · Reels",
     duration: "30s",
-    image: "/images/template-ugc.jpg",
+    image: "/images/home-ugc.jpg",
+    accent: "#f0f0f0",
   },
   {
     name: "Before & After",
     desc: "Show the transformation your product delivers",
     platform: "All platforms",
     duration: "30s",
-    image: "/images/template-beforeafter.jpg",
+    image: "/images/home-beforeafter.jpg",
+    accent: "#a78bfa",
   },
   {
     name: "Problem / Solution",
     desc: "Agitate the pain, then introduce your fix",
     platform: "YouTube Shorts",
     duration: "30s",
-    image: "/images/template-problem.jpg",
+    image: "/images/home-problem.jpg",
+    accent: "#f87171",
   },
   {
     name: "Product Demo",
     desc: "Walk through features and benefits clearly",
-    platform: "YouTube / Amazon",
+    platform: "YouTube · Amazon",
     duration: "60s",
-    image: "/images/template-demo.jpg",
+    image: "/images/home-demo.jpg",
+    accent: "#34d399",
   },
 ];
 
 function TemplatesSection() {
   return (
-    <section id="templates" className="py-24 px-6">
+    <section id="templates" className="py-28 px-6">
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-14">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Start with a template</h2>
-          <p className="text-white/50 text-lg">Pre-built for the content types that actually convert</p>
+        <div className="flex items-end justify-between mb-14">
+          <div>
+            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">Formats</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">Start with a<br />proven template</h2>
+          </div>
+          <Link href="/templates" className="hidden md:flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/20 px-4 py-2 rounded-lg">
+            View all 12 <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
+
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {TEMPLATES.map((t, i) => (
-            <Link key={i} href="/signin" className="group rounded-2xl border border-white/5 bg-white/[0.02] hover:border-violet-500/30 transition-all cursor-pointer overflow-hidden block">
-              {/* Image thumbnail */}
-              <div className="relative h-44 overflow-hidden">
+          {HOME_TEMPLATES.map((t, i) => (
+            <Link
+              key={i}
+              href="/signin"
+              className="group rounded-2xl border border-white/[0.06] hover:border-white/15 transition-all duration-500 overflow-hidden block bg-[#0c0c0f] hover:shadow-[0_8px_40px_rgba(0,0,0,0.5)] hover:-translate-y-0.5"
+            >
+              <div className="relative h-52 overflow-hidden">
                 <img
                   src={t.image}
                   alt={t.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                 />
-                {/* Overlay gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/20 to-transparent" />
-                {/* Duration badge */}
-                <span className="absolute top-3 right-3 text-xs text-white/80 bg-black/60 backdrop-blur-sm rounded-full px-2 py-0.5 border border-white/10">
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c0f] via-[#0c0c0f]/30 to-transparent" />
+                <span className="absolute top-3 right-3 text-[10px] text-white/70 bg-black/50 backdrop-blur-sm rounded-full px-2.5 py-1 border border-white/10 font-semibold">
                   {t.duration}
                 </span>
-                {/* Play button */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="h-12 w-12 rounded-full bg-violet-600/90 backdrop-blur-sm flex items-center justify-center shadow-lg shadow-violet-500/30">
-                    <Play className="h-5 w-5 text-white fill-white ml-0.5" />
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+                  <div className="h-12 w-12 rounded-full bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center shadow-xl">
+                    <Play className="h-4 w-4 text-white fill-white ml-0.5" />
                   </div>
                 </div>
               </div>
-              {/* Card content */}
               <div className="p-5">
-                <h3 className="font-semibold text-white mb-1.5 group-hover:text-violet-300 transition-colors">{t.name}</h3>
-                <p className="text-sm text-white/40 mb-3 leading-relaxed">{t.desc}</p>
-                <div className="flex items-center gap-1.5 text-xs text-violet-400/70">
-                  <Play className="h-3 w-3" /> {t.platform}
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <h3 className="font-bold text-white text-sm leading-snug group-hover:text-violet-300 transition-colors">{t.name}</h3>
+                  <div className="h-1.5 w-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: t.accent }} />
+                </div>
+                <p className="text-xs text-white/35 leading-relaxed mb-3">{t.desc}</p>
+                <div className="flex items-center gap-1.5 text-[10px] text-white/25 font-medium uppercase tracking-wide">
+                  <span>{t.platform}</span>
                 </div>
               </div>
             </Link>
           ))}
+        </div>
+
+        <div className="mt-8 text-center md:hidden">
+          <Link href="/templates" className="inline-flex items-center gap-1.5 text-sm text-violet-400 hover:text-violet-300 transition-colors font-semibold">
+            View all 12 templates <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </div>
     </section>
@@ -199,40 +251,44 @@ function TemplatesSection() {
 
 function HowItWorksSection() {
   const steps = [
-    { n: "01", title: "Describe your product", desc: "Enter your product name, what it does, and who it's for. 30 seconds." },
-    { n: "02", title: "AI writes the script", desc: "Claude generates a scroll-stopping hook, scenes, and voiceover in seconds." },
-    { n: "03", title: "Choose your style", desc: "Pick your AI video model, platform format, and duration." },
-    { n: "04", title: "Get your video", desc: "Download a ready-to-post video ad. No editing. No camera. Done." },
+    { n: "01", title: "Describe your product", desc: "Name, benefits, audience. 30 seconds to fill out." },
+    { n: "02", title: "AI writes the script", desc: "Claude generates a scroll-stopping hook, scenes, and full voiceover." },
+    { n: "03", title: "Choose your model", desc: "Ovi for speed. Kling for cinematic. Veo 3 for agency-grade output." },
+    { n: "04", title: "Download your video", desc: "Ready-to-post MP4. No editing. No camera. No waiting for a freelancer." },
   ];
   return (
-    <section id="how" className="py-24 px-6 border-t border-white/5">
+    <section id="how" className="py-28 px-6 border-t border-white/[0.05]">
       <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-14">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">From idea to video in 4 steps</h2>
-          <p className="text-white/50 text-lg">No studio. No editor. No waiting.</p>
+        <div className="text-center mb-20">
+          <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">Process</p>
+          <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4">From idea to video<br />in 4 steps</h2>
+          <p className="text-white/35 text-lg">No studio. No editor. No agency retainer.</p>
         </div>
+
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {steps.map((s, i) => (
-            <div key={i} className="relative">
-              <div className="text-5xl font-black text-white/5 mb-3">{s.n}</div>
-              <h3 className="font-bold text-white mb-2">{s.title}</h3>
-              <p className="text-sm text-white/40 leading-relaxed">{s.desc}</p>
+            <div key={i} className="relative group">
+              <div className="text-7xl font-black text-white/[0.04] mb-4 leading-none select-none group-hover:text-white/[0.07] transition-colors duration-500">{s.n}</div>
+              <div className="w-8 h-[2px] bg-violet-500/50 mb-4 group-hover:w-12 group-hover:bg-violet-400 transition-all duration-500" />
+              <h3 className="font-bold text-white mb-2 text-sm">{s.title}</h3>
+              <p className="text-xs text-white/35 leading-relaxed">{s.desc}</p>
               {i < steps.length - 1 && (
-                <div className="hidden lg:block absolute top-8 -right-3 text-white/10 text-lg">→</div>
+                <div className="hidden lg:block absolute top-10 -right-3 text-white/[0.08] text-xl select-none">→</div>
               )}
             </div>
           ))}
         </div>
-        <div className="mt-12 grid grid-cols-3 gap-6 max-w-lg mx-auto text-center">
+
+        <div className="mt-16 grid grid-cols-3 gap-4 max-w-md mx-auto">
           {[
-            { icon: Clock, label: "Avg render time", value: "~60 sec" },
-            { icon: DollarSign, label: "Cost vs agency", value: "95% less" },
+            { icon: Clock, label: "Avg render time", value: "~2 min" },
+            { icon: DollarSign, label: "vs Agency cost", value: "97% less" },
             { icon: TrendingUp, label: "Platforms", value: "5+" },
           ].map((stat, i) => (
-            <div key={i} className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
-              <stat.icon className="h-5 w-5 text-violet-400 mx-auto mb-2" />
-              <div className="font-bold text-white">{stat.value}</div>
-              <div className="text-xs text-white/30 mt-0.5">{stat.label}</div>
+            <div key={i} className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-center hover:border-violet-500/20 transition-colors">
+              <stat.icon className="h-4 w-4 text-violet-400 mx-auto mb-3 opacity-70" />
+              <div className="font-black text-white text-lg">{stat.value}</div>
+              <div className="text-[10px] text-white/25 mt-1 uppercase tracking-wide">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -248,7 +304,7 @@ const PLANS = [
     desc: "Try it out",
     credits: 90,
     videos: "3 videos",
-    features: ["3 AI videos (Ovi)", "All 6 templates", "TikTok, Reels, Shorts", "720p export"],
+    features: ["3 AI videos (Ovi)", "All 12 templates", "TikTok, Reels, Shorts", "720p export"],
     cta: "Start Free",
     highlight: false,
   },
@@ -256,7 +312,7 @@ const PLANS = [
     name: "Starter",
     monthly: 29,
     annual: 278,
-    desc: "For solo creators & small brands",
+    desc: "Solo creators & small brands",
     credits: 600,
     videos: "~20 Ovi or 3 Wan videos",
     features: ["600 credits/month", "Ovi + Wan 2.5 models", "All platforms", "1080p export", "Priority support"],
@@ -267,7 +323,7 @@ const PLANS = [
     name: "Pro",
     monthly: 49,
     annual: 470,
-    desc: "For growing brands & teams",
+    desc: "Growing brands & teams",
     credits: 2000,
     videos: "~66 Ovi or 6 Kling videos",
     features: ["2,000 credits/month", "All models + Kling 2.5", "All platforms", "4K export", "Priority rendering", "Video history"],
@@ -278,7 +334,7 @@ const PLANS = [
     name: "Agency",
     monthly: 149,
     annual: 1430,
-    desc: "For agencies & high-volume creators",
+    desc: "Agencies & high-volume teams",
     credits: 6000,
     videos: "~200 Ovi or 4 Veo 3 videos",
     features: ["6,000 credits/month", "All models + Veo 3", "All platforms", "4K export", "Fastest rendering", "Team workspace", "API access"],
@@ -290,76 +346,93 @@ const PLANS = [
 function PricingSection() {
   const [annual, setAnnual] = useState(true);
   return (
-    <section id="pricing" className="py-24 px-6 border-t border-white/5">
+    <section id="pricing" className="py-28 px-6 border-t border-white/[0.05]">
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple, credit-based pricing</h2>
-          <p className="text-white/50 text-lg mb-8">Pay for what you use. Credits reset monthly.</p>
-          <div className="inline-flex items-center gap-3 p-1 rounded-xl bg-white/5 border border-white/10">
-            <button onClick={() => setAnnual(false)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${!annual ? "bg-white/10 text-white" : "text-white/40"}`}>
+        <div className="text-center mb-14">
+          <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">Pricing</p>
+          <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4">Simple, credit-based pricing</h2>
+          <p className="text-white/35 text-lg mb-8">Pay for what you use. Credits reset monthly.</p>
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+            <button onClick={() => setAnnual(false)} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${!annual ? "bg-white/10 text-white" : "text-white/30 hover:text-white/50"}`}>
               Monthly
             </button>
-            <button onClick={() => setAnnual(true)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${annual ? "bg-violet-600 text-white" : "text-white/40"}`}>
-              Annual <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">🔥 Save 20%</span>
+            <button onClick={() => setAnnual(true)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${annual ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-white/30 hover:text-white/50"}`}>
+              Annual <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full font-bold">Save 20%</span>
             </button>
           </div>
         </div>
+
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           {PLANS.map((plan, i) => (
-            <div key={i} className={`relative rounded-2xl p-6 border transition-all ${plan.highlight ? "border-violet-500 bg-violet-500/5 shadow-lg shadow-violet-500/10" : "border-white/5 bg-white/[0.02]"}`}>
+            <div key={i} className={`relative rounded-2xl p-6 border transition-all hover:-translate-y-0.5 hover:shadow-xl ${
+              plan.highlight
+                ? "border-violet-500/60 bg-violet-500/[0.06] shadow-lg shadow-violet-500/10"
+                : "border-white/[0.06] bg-white/[0.02] hover:border-white/15"
+            }`}>
               {plan.highlight && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-violet-500 text-white text-xs font-bold rounded-full uppercase tracking-wider whitespace-nowrap">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-violet-500 text-white text-[10px] font-black rounded-full uppercase tracking-widest whitespace-nowrap shadow-lg shadow-violet-500/30">
                   Most Popular
                 </div>
               )}
-              <h3 className="font-bold text-white mb-1">{plan.name}</h3>
-              <p className="text-xs text-white/40 mb-4 h-8">{plan.desc}</p>
+              <div className="mb-5">
+                <h3 className="font-black text-white text-lg mb-0.5">{plan.name}</h3>
+                <p className="text-[11px] text-white/30 h-8">{plan.desc}</p>
+              </div>
               <div className="mb-1">
                 {plan.monthly === 0 ? (
-                  <span className="text-3xl font-black text-white">Free</span>
+                  <span className="text-4xl font-black text-white">Free</span>
                 ) : (
                   <>
-                    <span className="text-3xl font-black text-white">
+                    <span className="text-4xl font-black text-white">
                       ${annual && plan.annual ? Math.round(plan.annual / 12) : plan.monthly}
                     </span>
-                    <span className="text-white/40 text-sm">/mo</span>
+                    <span className="text-white/30 text-sm">/mo</span>
                   </>
                 )}
               </div>
-              {annual && plan.annual && (
-                <div className="text-xs text-green-400 mb-4">${plan.annual}/yr — save 20%</div>
+              {annual && plan.annual ? (
+                <div className="text-xs text-green-400 mb-5 font-semibold">${plan.annual}/yr — save ${(plan.monthly * 12) - plan.annual}</div>
+              ) : (
+                <div className="mb-5 h-4" />
               )}
-              {(!annual || !plan.annual) && <div className="mb-4 h-4" />}
-              <div className="p-3 rounded-lg bg-white/5 text-xs text-white/60 mb-5 text-center">
-                <span className="text-white font-semibold">{plan.credits} credits</span>/mo · {plan.videos}
+              <div className="p-3 rounded-xl bg-white/[0.04] text-[11px] text-white/50 mb-5 text-center border border-white/[0.06]">
+                <span className="text-white font-black">{plan.credits} credits</span>/mo · {plan.videos}
               </div>
               <ul className="space-y-2.5 mb-6">
                 {plan.features.map((f, fi) => (
-                  <li key={fi} className="flex items-start gap-2 text-xs text-white/50">
+                  <li key={fi} className="flex items-start gap-2 text-xs text-white/40">
                     <Check className="h-3.5 w-3.5 text-violet-400 mt-0.5 shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
-              <Link href="/signin" className={`w-full flex items-center justify-center h-10 rounded-xl text-sm font-semibold transition-all ${plan.highlight ? "bg-violet-600 hover:bg-violet-500 text-white" : "bg-white/5 hover:bg-white/10 text-white"}`}>
+              <Link
+                href="/signin"
+                className={`w-full flex items-center justify-center h-10 rounded-xl text-sm font-bold transition-all ${
+                  plan.highlight
+                    ? "bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20"
+                    : "bg-white/[0.05] hover:bg-white/10 text-white border border-white/[0.08] hover:border-white/15"
+                }`}
+              >
                 {plan.cta}
               </Link>
             </div>
           ))}
         </div>
-        <div className="mt-10 max-w-2xl mx-auto p-6 rounded-2xl bg-white/[0.02] border border-white/5">
-          <h4 className="text-sm font-semibold text-white/70 mb-4 text-center uppercase tracking-wider">Credit costs per video</h4>
+
+        <div className="mt-10 max-w-2xl mx-auto p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+          <h4 className="text-[10px] font-black text-white/30 mb-5 text-center uppercase tracking-[0.2em]">Credit costs per video</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { model: "Ovi", cost: "30", desc: "Video + audio" },
-              { model: "Wan 2.5", cost: "200", desc: "Cinematic" },
-              { model: "Kling 2.5", cost: "300", desc: "Ultra-realistic" },
-              { model: "Veo 3", cost: "1,500", desc: "Agency grade" },
+              { model: "Ovi", cost: "30", desc: "Video + audio", color: "#818cf8" },
+              { model: "Wan 2.5", cost: "200", desc: "Cinematic", color: "#a78bfa" },
+              { model: "Kling 2.5", cost: "300", desc: "Ultra-realistic", color: "#c084fc" },
+              { model: "Veo 3", cost: "1,500", desc: "Agency grade", color: "#e879f9" },
             ].map((m, i) => (
-              <div key={i} className="text-center p-3 rounded-lg bg-white/5">
-                <div className="text-sm font-bold text-white">{m.model}</div>
-                <div className="text-violet-400 font-black text-lg">{m.cost}</div>
-                <div className="text-xs text-white/30">credits · {m.desc}</div>
+              <div key={i} className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.05] hover:border-violet-500/20 transition-colors">
+                <div className="text-xs font-bold text-white mb-1">{m.model}</div>
+                <div className="font-black text-xl mb-0.5" style={{ color: m.color }}>{m.cost}</div>
+                <div className="text-[10px] text-white/25 uppercase tracking-wide">{m.desc}</div>
               </div>
             ))}
           </div>
@@ -370,31 +443,55 @@ function PricingSection() {
 }
 
 const TESTIMONIALS = [
-  { name: "Marcus T.", role: "Shopify Store Owner", text: "I used to spend $800/month on video editors. Now I spend $49 and get better content in minutes. This changed my whole ad strategy.", stars: 5 },
-  { name: "Priya K.", role: "TikTok Creator", text: "My hook rate went from 18% to 34% after using Quae's scripts. The AI actually understands what stops the scroll.", stars: 5 },
-  { name: "Derek N.", role: "eCommerce Agency", text: "We produce 40+ client videos per week with the Agency plan. The Kling model output is indistinguishable from human-shot content.", stars: 5 },
+  {
+    name: "Marcus T.",
+    role: "Shopify Store Owner",
+    text: "I used to spend $800/month on video editors. Now I spend $49 and get better content in minutes. This changed my whole ad strategy.",
+    stars: 5,
+    metric: "16× cheaper",
+  },
+  {
+    name: "Priya K.",
+    role: "TikTok Creator",
+    text: "My hook rate went from 18% to 34% after using Quae's scripts. The AI actually understands what stops the scroll.",
+    stars: 5,
+    metric: "+89% hook rate",
+  },
+  {
+    name: "Derek N.",
+    role: "eCommerce Agency",
+    text: "We produce 40+ client videos per week with the Agency plan. The Kling model output is indistinguishable from human-shot content.",
+    stars: 5,
+    metric: "40 videos/week",
+  },
 ];
 
 function TestimonialsSection() {
   return (
-    <section className="py-24 px-6 border-t border-white/5">
+    <section className="py-28 px-6 border-t border-white/[0.05]">
       <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-3">Brands growing with Quae.ai</h2>
-          <p className="text-white/40">Real results from real businesses</p>
+        <div className="text-center mb-16">
+          <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">Social Proof</p>
+          <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-3">Brands growing with Quae.ai</h2>
+          <p className="text-white/30">Real results from real businesses</p>
         </div>
         <div className="grid md:grid-cols-3 gap-5">
           {TESTIMONIALS.map((t, i) => (
-            <div key={i} className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
-              <div className="flex gap-0.5 mb-4">
-                {Array.from({ length: t.stars }).map((_, si) => (
-                  <Star key={si} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                ))}
+            <div key={i} className="p-7 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-violet-500/20 transition-all duration-300 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-violet-500/5">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex gap-0.5">
+                  {Array.from({ length: t.stars }).map((_, si) => (
+                    <Star key={si} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+                <span className="text-[11px] font-black text-violet-400 bg-violet-400/10 px-2.5 py-1 rounded-full border border-violet-400/20">
+                  {t.metric}
+                </span>
               </div>
-              <p className="text-sm text-white/60 leading-relaxed mb-5">"{t.text}"</p>
+              <p className="text-sm text-white/50 leading-relaxed mb-6">"{t.text}"</p>
               <div>
-                <div className="font-semibold text-white text-sm">{t.name}</div>
-                <div className="text-xs text-white/30">{t.role}</div>
+                <div className="font-bold text-white text-sm">{t.name}</div>
+                <div className="text-[11px] text-white/25 mt-0.5">{t.role}</div>
               </div>
             </div>
           ))}
@@ -406,13 +503,24 @@ function TestimonialsSection() {
 
 function CtaSection() {
   return (
-    <section className="py-24 px-6 border-t border-white/5">
+    <section className="py-28 px-6 border-t border-white/[0.05]">
       <div className="max-w-2xl mx-auto text-center">
-        <div className="text-4xl font-black mb-4">Ready to cut your video costs?</div>
-        <p className="text-white/50 mb-8 text-lg">Start free. No credit card. 3 videos included. Upgrade when you need more.</p>
-        <Link href="/signin" className="inline-flex items-center gap-2 h-13 px-8 py-3.5 bg-violet-600 hover:bg-violet-500 rounded-xl font-bold text-base transition-all shadow-lg shadow-violet-500/25">
-          Start Creating Free <ArrowRight className="h-4 w-4" />
+        <div className="text-5xl md:text-6xl font-black tracking-tight mb-5 leading-tight">
+          Ready to cut your<br />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">video costs by 97%?</span>
+        </div>
+        <p className="text-white/35 mb-10 text-lg leading-relaxed">Start free. No credit card. 3 videos included.<br />Upgrade when you need more.</p>
+        <Link
+          href="/signin"
+          className="inline-flex items-center gap-2.5 h-14 px-10 bg-violet-600 hover:bg-violet-500 rounded-2xl font-black text-base transition-all shadow-2xl shadow-violet-600/30 hover:shadow-violet-500/40 group"
+        >
+          Start Creating Free <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
         </Link>
+        <div className="mt-5 flex items-center justify-center gap-4 text-xs text-white/20">
+          <span className="flex items-center gap-1"><Check className="h-3 w-3 text-violet-400/50" /> No credit card</span>
+          <span className="flex items-center gap-1"><Check className="h-3 w-3 text-violet-400/50" /> 3 free videos</span>
+          <span className="flex items-center gap-1"><Check className="h-3 w-3 text-violet-400/50" /> Cancel anytime</span>
+        </div>
       </div>
     </section>
   );
@@ -420,15 +528,15 @@ function CtaSection() {
 
 function Footer() {
   return (
-    <footer className="py-10 border-t border-white/5 px-6">
+    <footer className="py-10 border-t border-white/[0.05] px-6">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
         <QuaeLogo size={28} />
-        <div className="flex gap-6 text-sm text-white/30">
-          <a href="#templates" className="hover:text-white transition-colors visited:text-white/30 active:text-white/30 outline-none">Templates</a>
-          <a href="#pricing" className="hover:text-white transition-colors visited:text-white/30 active:text-white/30 outline-none">Pricing</a>
-          <Link href="/signin" className="hover:text-white transition-colors">Sign In</Link>
+        <div className="flex gap-8 text-xs text-white/25">
+          <a href="#templates" className="hover:text-white transition-colors visited:text-white/25 outline-none">Templates</a>
+          <a href="#pricing" className="hover:text-white transition-colors visited:text-white/25 outline-none">Pricing</a>
+          <Link href="/signin" className="hover:text-white transition-colors visited:text-white/25">Sign In</Link>
         </div>
-        <p className="text-xs text-white/20">© {new Date().getFullYear()} Quae.ai. All rights reserved.</p>
+        <p className="text-xs text-white/15">© {new Date().getFullYear()} Quae.ai. All rights reserved.</p>
       </div>
     </footer>
   );

@@ -11,23 +11,38 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExpandedScript } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
-// Estimated render seconds per model (shown in the waiting UI)
+// Realistic estimates based on actual fal.ai queue times
 const MODEL_ESTIMATES: Record<string, number> = {
-  ovi:   120,
-  wan:   180,
-  kling: 240,
-  veo3:  480,
+  'ovi':      300,  // ~5 min
+  'quae-v1':  300,
+  'wan':      360,  // ~6 min
+  'kling':    420,  // ~7 min
+  'kling-1.6':420,
+  'veo3':     600,  // ~10 min
 };
 
-function useElapsed(active: boolean): number {
+// Actual clip output length — these are hard model limits, not configurable via prompt
+const MODEL_CLIP_LENGTH: Record<string, string> = {
+  'ovi':       '~5 sec clip',
+  'quae-v1':   '~5 sec clip',
+  'wan':       '~8–10 sec clip',
+  'kling':     '~10 sec clip',
+  'kling-1.6': '~10 sec clip',
+  'veo3':      '~8 sec clip',
+};
+
+// Elapsed time counted from the project's actual createdAt — not from page load
+function useElapsed(active: boolean, createdAt?: string): number {
   const [elapsed, setElapsed] = useState(0);
-  const startRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    if (!active) { setElapsed(0); startRef.current = Date.now(); return; }
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    if (!active) { setElapsed(0); return; }
+    const startMs = createdAt ? new Date(createdAt).getTime() : Date.now();
+    const tick = () => setElapsed(Math.floor((Date.now() - startMs) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [active]);
+  }, [active, createdAt]);
 
   return elapsed;
 }
@@ -50,7 +65,7 @@ export default function StudioProjectDetail() {
   const { toast } = useToast();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isProcessing = project?.status === "processing";
-  const elapsed = useElapsed(isProcessing);
+  const elapsed = useElapsed(isProcessing, project?.createdAt);
 
   // Poll every 10s while processing (was 3s — slower polling is fine, reduces server load)
   useEffect(() => {
@@ -83,9 +98,12 @@ export default function StudioProjectDetail() {
     if (project.expandedScript) expandedScript = JSON.parse(project.expandedScript);
   } catch (e) {}
 
-  const modelKey = (project as any).renderingModelId?.replace('quae-v1', 'ovi') ?? 'ovi';
-  const estimateSec = MODEL_ESTIMATES[modelKey] ?? 180;
-  const pct = Math.min(100, Math.round((elapsed / estimateSec) * 100));
+  const modelKey = (project as any).renderingModelId ?? 'ovi';
+  const estimateSec = MODEL_ESTIMATES[modelKey] ?? 360;
+  const clipLength = MODEL_CLIP_LENGTH[modelKey] ?? '~5 sec clip';
+  // Cap at 88% until done — never show a full bar while still rendering
+  const pct = isProcessing ? Math.min(88, Math.round((elapsed / estimateSec) * 100)) : 100;
+  const overEstimate = isProcessing && elapsed > estimateSec;
 
   const handleDelete = async () => {
     if (confirm("Delete this project?")) {
@@ -170,22 +188,36 @@ export default function StudioProjectDetail() {
                       </div>
 
                       <p className="text-white font-bold text-xl mb-1">Rendering your video…</p>
-                      <p className="text-white/50 text-sm mb-6">AI video generation takes a few minutes. You can leave this page — it'll be here when you come back.</p>
+                      <p className="text-white/50 text-sm mb-2">AI video generation takes several minutes. You can leave this page — it'll be here when you come back.</p>
+
+                      {/* Honest clip-length notice */}
+                      <div className="mb-5 px-4 py-2.5 rounded-lg bg-white/[0.04] border border-white/10 text-xs text-white/50 max-w-xs">
+                        <span className="text-white/80 font-semibold">Output: {clipLength}</span>
+                        {" "}— AI video models generate short clips regardless of script length.
+                        {modelKey !== 'kling' && modelKey !== 'kling-1.6' && (
+                          <span className="text-violet-400"> Upgrade to Kling for 10-sec clips.</span>
+                        )}
+                      </div>
 
                       {/* Progress bar */}
-                      <div className="w-full max-w-xs mb-3">
+                      <div className="w-full max-w-xs mb-2">
                         <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-primary rounded-full transition-all duration-1000"
+                            className={`h-full rounded-full transition-all duration-1000 ${overEstimate ? 'bg-amber-400' : 'bg-primary'}`}
                             style={{ width: `${Math.max(pct, 3)}%` }}
                           />
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between w-full max-w-xs text-xs text-white/40 mb-6">
-                        <span>Elapsed: {fmt(elapsed)}</span>
-                        <span>Est. ~{fmt(estimateSec)}</span>
+                      <div className="flex items-center justify-between w-full max-w-xs text-xs mb-1">
+                        <span className="text-white/40">Elapsed: {fmt(elapsed)}</span>
+                        <span className={overEstimate ? "text-amber-400 font-semibold" : "text-white/40"}>
+                          {overEstimate ? "Taking longer than usual…" : `Est. ~${fmt(estimateSec)}`}
+                        </span>
                       </div>
+                      {overEstimate && (
+                        <p className="text-[11px] text-white/30 mb-4 max-w-xs">Still in queue — fal.ai can be slower during peak hours. Hang tight.</p>
+                      )}
 
                       {/* Escape hatch */}
                       <div className="flex flex-col items-center gap-2">
