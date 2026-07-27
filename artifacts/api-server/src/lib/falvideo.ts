@@ -117,43 +117,60 @@ export async function pollFalVideoRender(
   const requestId = parts[parts.length - 1];
   const modelPath = parts.slice(0, -1).join(':');
 
-  const res = await fetch(
+  // Step 1: check status
+  const statusRes = await fetch(
     `https://queue.fal.run/${modelPath}/requests/${requestId}/status?logs=0`,
-    {
-      headers: { 'Authorization': `Key ${falKey}` },
-    }
+    { headers: { 'Authorization': `Key ${falKey}` } }
   );
 
-  if (!res.ok) {
-    console.error(`[fal-video] Poll error ${res.status}`);
+  if (!statusRes.ok) {
+    console.error(`[fal-video] Poll error ${statusRes.status}`);
     return { status: 'processing' };
   }
 
-  const data = await res.json() as {
-    status: string;
-    output?: { video?: { url: string }; url?: string };
-  };
+  const statusData = await statusRes.json() as { status: string };
+  console.log(`[fal-video] Poll status: ${statusData.status}`);
 
-  console.log(`[fal-video] Poll status: ${data.status}`);
+  if (statusData.status === 'FAILED') return { status: 'failed' };
 
-  if (data.status === 'COMPLETED') {
-    // fal.ai models return video URL in different shapes — try all known formats
-    const output = (data as any).output;
-    const url =
-      output?.video?.url ??       // { output: { video: { url } } }
-      output?.video_url ??        // { output: { video_url } }
-      output?.url ??              // { output: { url } }
-      output?.videos?.[0]?.url ?? // { output: { videos: [{ url }] } }
-      output?.video ??            // { output: { video: "url" } }  (string)
-      null;
-    if (url && typeof url === 'string') return { status: 'done', url };
-    console.error('[fal-video] COMPLETED but no URL found. output keys:', Object.keys(output ?? {}));
-    return { status: 'failed' };
+  if (statusData.status !== 'COMPLETED') return { status: 'processing' };
+
+  // Step 2: status is COMPLETED — fetch the actual result from the result endpoint.
+  // The status endpoint does NOT include output; the result endpoint does.
+  const resultRes = await fetch(
+    `https://queue.fal.run/${modelPath}/requests/${requestId}`,
+    { headers: { 'Authorization': `Key ${falKey}` } }
+  );
+
+  if (!resultRes.ok) {
+    console.error(`[fal-video] Result fetch error ${resultRes.status}`);
+    // Don't treat this as a permanent failure — result endpoint may be briefly unavailable
+    return { status: 'processing' };
   }
 
-  if (data.status === 'FAILED') return { status: 'failed' };
+  const result = await resultRes.json() as any;
 
-  return { status: 'processing' };
+  // fal.ai models return video URL in different shapes — try all known formats
+  const output = result?.output ?? result;
+  const url =
+    output?.video?.url ??       // { output: { video: { url } } }
+    output?.video_url ??        // { output: { video_url } }
+    output?.url ??              // { output: { url } }
+    output?.videos?.[0]?.url ?? // { output: { videos: [{ url }] } }
+    output?.video ??            // { output: { video: "url" } }  (string)
+    result?.video?.url ??       // top-level { video: { url } }
+    result?.video_url ??        // top-level { video_url }
+    null;
+
+  if (url && typeof url === 'string') {
+    console.log(`[fal-video] Got video URL from result endpoint`);
+    return { status: 'done', url };
+  }
+
+  console.error('[fal-video] COMPLETED but no URL found. result keys:', Object.keys(result ?? {}), 'output keys:', Object.keys(output ?? {}));
+  // Log the full result to diagnose unknown response shapes
+  console.error('[fal-video] Full result:', JSON.stringify(result).slice(0, 500));
+  return { status: 'failed' };
 }
 
 export function isFalToken(value: string | null): boolean {
