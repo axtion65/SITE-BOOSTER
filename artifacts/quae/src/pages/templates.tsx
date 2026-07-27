@@ -181,6 +181,8 @@ export default function Templates() {
       duration: t.duration,
       templateDesc: t.description,
     });
+    if (t.exampleHook) params.set("exampleHook", t.exampleHook);
+    if (t.structure?.length) params.set("structure", JSON.stringify(t.structure));
     setLocation(`/studio?${params.toString()}`);
   };
 

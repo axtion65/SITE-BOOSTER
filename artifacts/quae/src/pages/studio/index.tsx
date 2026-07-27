@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock } from "lucide-react";
+import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock, ChevronDown, LayoutTemplate, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { ExpandedScript } from "@workspace/api-client-react";
@@ -50,6 +50,9 @@ function Wizard() {
   const [templateId, setTemplateId] = useState<string | undefined>();
   const [templateType, setTemplateType] = useState<string | undefined>();
   const [templateName, setTemplateName] = useState<string | undefined>();
+  const [templateExampleHook, setTemplateExampleHook] = useState<string | undefined>();
+  const [templateStructure, setTemplateStructure] = useState<string[] | undefined>();
+  const [templateCardExpanded, setTemplateCardExpanded] = useState(false);
 
   // Pre-fill from template URL params
   const templateApplied = useRef(false);
@@ -62,6 +65,8 @@ function Wizard() {
     const tDesc = params.get("templateDesc");
     const tId = params.get("templateId");
     const tType = params.get("templateType");
+    const tHook = params.get("exampleHook");
+    const tStructureRaw = params.get("structure");
     if (tName || tPlatform || tDuration || tId) {
       templateApplied.current = true;
       if (tDesc) setDescription(tDesc.startsWith("http") ? "" : "");  // don't pre-fill desc with template desc
@@ -70,8 +75,9 @@ function Wizard() {
       if (tId) setTemplateId(tId);
       if (tType) setTemplateType(tType);
       if (tName) setTemplateName(tName);
-      if (tName) {
-        toast({ title: `Template: ${tName}`, description: "Enter your product details — the AI will write in this exact format." });
+      if (tHook) setTemplateExampleHook(tHook);
+      if (tStructureRaw) {
+        try { setTemplateStructure(JSON.parse(tStructureRaw)); } catch {}
       }
     }
   }, [search]);
@@ -161,6 +167,60 @@ function Wizard() {
                 <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Describe your product</h2>
                 <p className="text-muted-foreground">Tell us what you're selling. Our AI writes the cinematic script.</p>
               </div>
+
+              {/* Template context card — shown only when a template is active */}
+              {templateName && (
+                <div className="rounded-xl border border-primary/30 bg-primary/5 overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-primary/10 transition-colors"
+                    onClick={() => setTemplateCardExpanded(v => !v)}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <LayoutTemplate className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span className="text-sm font-semibold text-white">Template:</span>
+                      <span className="text-sm font-bold text-primary">{templateName}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <a
+                        href="/templates"
+                        onClick={e => { e.stopPropagation(); }}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-white transition-colors"
+                      >
+                        <ArrowLeft className="h-3 w-3" />
+                        Change template
+                      </a>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${templateCardExpanded ? "rotate-180" : ""}`} />
+                    </div>
+                  </button>
+
+                  {templateCardExpanded && (
+                    <div className="px-4 pb-4 pt-1 space-y-3 border-t border-primary/20">
+                      {templateExampleHook && (
+                        <div>
+                          <div className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Example Hook</div>
+                          <p className="text-sm italic text-white/80">"{templateExampleHook}"</p>
+                        </div>
+                      )}
+                      {templateStructure && templateStructure.length > 0 && (
+                        <div>
+                          <div className="text-[10px] font-bold text-primary uppercase tracking-wider mb-2">Structure</div>
+                          <div className="space-y-1.5">
+                            {templateStructure.slice(0, 3).map((step, i) => (
+                              <div key={i} className="flex items-start gap-2.5">
+                                <div className="h-5 w-5 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  <span className="text-[10px] font-bold text-primary">{i + 1}</span>
+                                </div>
+                                <span className="text-xs text-white/70 leading-relaxed">{step}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-6">
                 <div className="space-y-2">
