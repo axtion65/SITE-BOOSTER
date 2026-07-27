@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { ShieldCheck, Film, CheckCircle2, AlertCircle } from "lucide-react";
+import { ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function SetupAdmin() {
@@ -47,9 +47,7 @@ export default function SetupAdmin() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <Link href="/" className="flex items-center gap-2 font-bold text-2xl tracking-tight text-white mb-8 hover:opacity-80 transition-opacity">
-        <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center">
-          <Film className="h-5 w-5 text-white" />
-        </div>
+        <img src="/images/logo-icon.png" alt="Quae.ai" className="h-10 w-10 rounded-lg object-cover" />
         Quae.ai
       </Link>
 

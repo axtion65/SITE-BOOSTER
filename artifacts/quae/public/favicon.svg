@@ -1,3 +1,9 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <rect width="180" height="180" rx="36" fill="#0D0B1A"/>
+  <!-- Q ring -->
+  <circle cx="90" cy="86" r="44" stroke="#8B5CF6" stroke-width="14" fill="none"/>
+  <!-- Q tail -->
+  <line x1="114" y1="108" x2="136" y2="132" stroke="#8B5CF6" stroke-width="13" stroke-linecap="round"/>
+  <!-- Play triangle -->
+  <polygon points="80,72 80,100 104,86" fill="#A78BFA"/>
 </svg>

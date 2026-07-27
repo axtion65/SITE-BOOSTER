@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Film, Copy, Check, KeyRound } from "lucide-react";
+import { Copy, Check, KeyRound } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import emailjs from "@emailjs/browser";
@@ -211,9 +211,7 @@ export default function SignIn() {
 
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <Link href="/" className="flex items-center gap-2 font-bold text-2xl tracking-tight text-white mb-8 hover:opacity-80 transition-opacity">
-          <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center">
-            <Film className="h-5 w-5 text-white" />
-          </div>
+          <img src="/images/logo-icon.png" alt="Quae.ai" className="h-10 w-10 rounded-lg object-cover" />
           Quae.ai
         </Link>
 
