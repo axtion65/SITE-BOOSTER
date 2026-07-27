@@ -102,4 +102,38 @@ router.delete("/admin/users/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+// POST /admin/broadcast — send an email to a subset of users
+router.post("/admin/broadcast", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const { subject, message, audience } = req.body as {
+    subject?: string; message?: string; audience?: string;
+  };
+  if (!subject?.trim() || !message?.trim()) {
+    res.status(400).json({ error: "subject and message are required" });
+    return;
+  }
+
+  const allUsers = await db.select().from(usersTable);
+  const targets = allUsers.filter((u) => {
+    if (audience === "paid") return u.plan !== "free";
+    if (audience === "free") return u.plan === "free";
+    return true; // "all"
+  });
+
+  const { sendBroadcastEmail } = await import("../lib/email");
+
+  // Send with a small delay between each to respect rate limits
+  let sent = 0;
+  for (const user of targets) {
+    await sendBroadcastEmail(user.email, user.name ?? "", subject, message);
+    sent++;
+    if (sent % 5 === 0) await new Promise((r) => setTimeout(r, 500));
+  }
+
+  console.log(`[admin] Broadcast sent to ${sent} users — "${subject}"`);
+  res.json({ sent, audience: audience ?? "all" });
+});
+
 export default router;

@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, Film, PlayCircle, UserPlus, Shield, ShieldOff, Trash2, Copy, Download, Mail } from "lucide-react";
+import { Users, Film, PlayCircle, UserPlus, Shield, ShieldOff, Trash2, Copy, Download, Mail, Send } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
@@ -13,6 +13,7 @@ import { AdminUserUpdatePlan } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Admin() {
   return (
@@ -30,12 +31,16 @@ export default function Admin() {
             <TabsList className="mb-4">
               <TabsTrigger value="users"><Users className="h-4 w-4 mr-2" />Users</TabsTrigger>
               <TabsTrigger value="subscribers"><Mail className="h-4 w-4 mr-2" />Subscribers</TabsTrigger>
+              <TabsTrigger value="broadcast"><Send className="h-4 w-4 mr-2" />Broadcast</TabsTrigger>
             </TabsList>
             <TabsContent value="users">
               <AdminUsersTable />
             </TabsContent>
             <TabsContent value="subscribers">
               <SubscribersList />
+            </TabsContent>
+            <TabsContent value="broadcast">
+              <BroadcastPanel />
             </TabsContent>
           </Tabs>
         </div>
@@ -57,6 +62,114 @@ function AdminStats() {
       <StatCard title="Total Projects" value={stats.totalProjects} icon={<Film className="h-4 w-4" />} />
       <StatCard title="Videos Completed" value={stats.totalVideosCompleted} icon={<PlayCircle className="h-4 w-4" />} />
       <StatCard title="Recent Signups (7d)" value={stats.recentSignups} icon={<UserPlus className="h-4 w-4" />} />
+    </div>
+  );
+}
+
+function BroadcastPanel() {
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [audience, setAudience] = useState("all");
+  const [sending, setSending] = useState(false);
+  const { toast } = useToast();
+
+  const handleSend = async () => {
+    if (!subject.trim() || !message.trim()) {
+      toast({ title: "Fill in subject and message", variant: "destructive" });
+      return;
+    }
+    if (!confirm(`Send to all ${audience === "all" ? "users" : audience + " users"}? This cannot be undone.`)) return;
+
+    setSending(true);
+    try {
+      const token = localStorage.getItem("quae_token");
+      const res = await fetch("/api/admin/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ subject, message, audience }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      toast({ title: `✅ Sent to ${data.sent} users!`, description: `Subject: "${subject}"` });
+      setSubject("");
+      setMessage("");
+    } catch (err: any) {
+      toast({ title: "Broadcast failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5 text-primary" /> Send Email Broadcast</CardTitle>
+          <p className="text-sm text-muted-foreground">Emails are sent one-by-one via EmailJS. Allow a few minutes for large lists.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">Audience</label>
+            <Select value={audience} onValueChange={setAudience}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Users</SelectItem>
+                <SelectItem value="free">Free Plan Only</SelectItem>
+                <SelectItem value="paid">Paid Plans Only (Starter / Pro / Agency)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">Subject</label>
+            <Input
+              placeholder="e.g. Exciting new feature at Quae.ai 🎬"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">Message</label>
+            <Textarea
+              placeholder="Write your message here. Use blank lines between paragraphs."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={8}
+              className="resize-none"
+            />
+          </div>
+          <Button className="w-full font-bold" onClick={handleSend} disabled={sending}>
+            {sending ? <><span className="animate-spin mr-2">⏳</span> Sending…</> : <><Send className="h-4 w-4 mr-2" /> Send Broadcast</>}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Automatic Emails</CardTitle>
+          <p className="text-sm text-muted-foreground">These send automatically — no action needed.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {[
+            { label: "Welcome email", desc: "Sent when someone signs up", status: "active" },
+            { label: "Video ready", desc: "Sent when a render completes successfully", status: "active" },
+            { label: "Render failed", desc: "Sent when a render fails (includes credit refund notice)", status: "active" },
+            { label: "Plan upgrade", desc: "Sent when a user upgrades their subscription", status: "active" },
+          ].map((item) => (
+            <div key={item.label} className="flex items-start justify-between p-3 rounded-lg bg-secondary/30 border border-border">
+              <div>
+                <p className="text-sm font-medium text-white">{item.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+              </div>
+              <Badge variant="success" className="ml-3 shrink-0">Active</Badge>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground pt-2">
+            Requires <code className="bg-secondary px-1 rounded">EMAILJS_TEMPLATE_ID</code> secret to be set.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -65,6 +65,10 @@ router.post("/auth/signup", async (req, res) => {
     credits: 300,
     isAdmin: false,
   }).returning();
+  // Fire-and-forget welcome email
+  import("../lib/email").then(({ sendWelcomeEmail }) =>
+    sendWelcomeEmail(user.email, user.name ?? "").catch(() => {})
+  );
   res.status(201).json({ user: userToPublic(user), token: generateToken(user.id) });
 });
 

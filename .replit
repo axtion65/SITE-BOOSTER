@@ -21,3 +21,9 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+EMAILJS_FROM_NAME = "info@Quae.ai"
+EMAILJS_SERVICE_ID = "service_r89qfhw"

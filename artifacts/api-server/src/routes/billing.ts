@@ -88,6 +88,10 @@ router.post("/billing/sync", async (req, res) => {
   try {
     const updated = await stripeService.syncUserSubscription(userId);
     if (!updated) { res.json({ synced: false }); return; }
+    // Send plan upgrade confirmation email
+    import("../lib/email").then(({ sendPlanUpgradeEmail }) =>
+      sendPlanUpgradeEmail(updated.email, updated.name ?? "", updated.plan, updated.credits).catch(() => {})
+    );
     res.json({ synced: true, plan: updated.plan, credits: updated.credits });
   } catch (err: any) {
     console.error("[billing] sync error", err);

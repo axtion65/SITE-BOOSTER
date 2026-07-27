@@ -119,6 +119,13 @@ router.get("/projects/:id", async (req, res) => {
         const [updated] = await db.update(projectsTable)
           .set({ status: "completed", videoUrl: poll.url, thumbnailUrl: null, updatedAt: new Date() })
           .where(eq(projectsTable.id, project.id)).returning();
+        // Notify user their video is ready
+        const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
+        if (owner) {
+          import("../lib/email").then(({ sendRenderDoneEmail }) =>
+            sendRenderDoneEmail(owner.email, owner.name ?? "", project.title, project.id).catch(() => {})
+          );
+        }
         res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
         return;
       }
@@ -130,6 +137,10 @@ router.get("/projects/:id", async (req, res) => {
           await db.update(usersTable)
             .set({ credits: owner.credits + creditCost })
             .where(eq(usersTable.id, project.userId));
+          // Notify user of failure + refund
+          import("../lib/email").then(({ sendRenderFailedEmail }) =>
+            sendRenderFailedEmail(owner.email, owner.name ?? "", project.title, project.id, creditCost).catch(() => {})
+          );
         }
         const [updated] = await db.update(projectsTable)
           .set({ status: "failed", thumbnailUrl: null, updatedAt: new Date() })
