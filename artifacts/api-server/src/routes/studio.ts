@@ -245,7 +245,7 @@ The hook must stop the scroll in the first 2-3 seconds. Every scene must be purp
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Key ${falKey}` },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-sonnet-4.5",
         system_prompt: systemPrompt,
         prompt: userPrompt,
         max_tokens: 8192,
