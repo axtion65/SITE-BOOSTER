@@ -17,6 +17,7 @@ import StudioBilling from '@/pages/studio/billing';
 import Templates from '@/pages/templates';
 import Admin from '@/pages/admin';
 import SetupAdmin from '@/pages/setup-admin';
+import FeedbackWidget from '@/components/feedback-widget';
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ function App() {
             <Router />
           </WouterRouter>
           <Toaster />
+          <FeedbackWidget />
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
