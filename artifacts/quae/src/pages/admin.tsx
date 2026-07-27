@@ -153,7 +153,8 @@ function SubscribersList() {
             <SelectContent>
               <SelectItem value="all">All Plans</SelectItem>
               <SelectItem value="free">Free</SelectItem>
-              <SelectItem value="creator">Creator</SelectItem>
+              <SelectItem value="starter">Starter</SelectItem>
+              <SelectItem value="pro">Pro</SelectItem>
               <SelectItem value="agency">Agency</SelectItem>
             </SelectContent>
           </Select>
@@ -244,7 +245,8 @@ function AdminUsersTable() {
             <SelectContent>
               <SelectItem value="all">All Plans</SelectItem>
               <SelectItem value="free">Free</SelectItem>
-              <SelectItem value="creator">Creator</SelectItem>
+              <SelectItem value="starter">Starter</SelectItem>
+              <SelectItem value="pro">Pro</SelectItem>
               <SelectItem value="agency">Agency</SelectItem>
             </SelectContent>
           </Select>
@@ -277,7 +279,8 @@ function AdminUsersTable() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="free">Free</SelectItem>
-                      <SelectItem value="creator">Creator</SelectItem>
+                      <SelectItem value="starter">Starter</SelectItem>
+                      <SelectItem value="pro">Pro</SelectItem>
                       <SelectItem value="agency">Agency</SelectItem>
                     </SelectContent>
                   </Select>

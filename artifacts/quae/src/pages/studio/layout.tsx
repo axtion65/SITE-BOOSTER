@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Link as WouterLink, useLocation } from "wouter"
 import { cn } from "@/lib/utils"
-import { Zap, ShieldCheck, LogOut, CreditCard } from "lucide-react"
+import { ShieldCheck, LogOut, CreditCard } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 
@@ -14,9 +14,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
       <header className="h-14 border-b border-border bg-card/80 backdrop-blur-md flex items-center px-6 gap-6 shrink-0 z-20">
         {/* Logo */}
         <WouterLink href="/studio" className="flex items-center gap-2 font-bold text-base tracking-tight text-white hover:opacity-80 transition-opacity mr-2">
-          <div className="h-7 w-7 bg-primary rounded-md flex items-center justify-center">
-            <Zap className="h-4 w-4 text-white fill-white" />
-          </div>
+          <img src="/images/logo-icon.png" alt="Quae" className="h-7 w-7 rounded-md object-cover" />
           Quae
         </WouterLink>
 

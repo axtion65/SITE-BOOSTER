@@ -35,7 +35,7 @@ router.get("/admin/stats", async (req, res) => {
 
   const planCounts = await db.select({ plan: usersTable.plan, cnt: count() })
     .from(usersTable).groupBy(usersTable.plan);
-  const usersByPlan = { free: 0, creator: 0, agency: 0 };
+  const usersByPlan = { free: 0, starter: 0, pro: 0, agency: 0 };
   for (const row of planCounts) {
     if (row.plan in usersByPlan) usersByPlan[row.plan as keyof typeof usersByPlan] = Number(row.cnt);
   }
