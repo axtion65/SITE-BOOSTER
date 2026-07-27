@@ -1,0 +1,27 @@
+QUAE.AI — RESEND DNS RECORDS
+Add these 3 records in Namecheap → Advanced DNS
+
+════════════════════════════════════════════════
+RECORD 1 — TXT (DKIM)
+════════════════════════════════════════════════
+Type:  TXT
+Host:  resend._domainkey
+Value: p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDa/iFi1Hj7pRsKzu0ERaRJLBHNw2VdZu/nLlgTzH3psk3iAgqwh/7jnkCbMXAgVbQPrl9rcEJRR6hkd4T/pPxQKIaIzK5oaKGh/Wb5tS7xqSxuwjSYY3MQfxXIWXs+I7Zf2RxY32vAtMLnlmbD6FXeQRptuFQFXii4sz83Ur7A3QIDAQAB
+TTL:   Automatic
+
+════════════════════════════════════════════════
+RECORD 2 — MX (Bounce handling)
+════════════════════════════════════════════════
+Type:     MX
+Host:     send
+Value:    feedback-smtp.us-east-1.amazonses.com
+Priority: 10
+TTL:      Automatic
+
+════════════════════════════════════════════════
+RECORD 3 — TXT (SPF)
+════════════════════════════════════════════════
+Type:  TXT
+Host:  send
+Value: v=spf1 include:amazonses.com ~all
+TTL:   Automatic

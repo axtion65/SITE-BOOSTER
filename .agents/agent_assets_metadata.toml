@@ -6,3 +6,9 @@ id = "7IRRi-1enmoVTDismmweJ"
 uri = "file://artifacts/quae/public/images/logo-icon.png"
 type = "image"
 title = "Quae.ai Logo"
+
+[[outputs]]
+id = "IQsLvT0tA1Jlc-bqkmn7m"
+uri = "file://dns-records.txt"
+type = "text"
+title = "DNS Records for quae.ai"
