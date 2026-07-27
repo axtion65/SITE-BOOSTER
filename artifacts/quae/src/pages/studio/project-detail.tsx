@@ -66,14 +66,18 @@ export default function StudioProjectDetail() {
     setVideoError(false);
     try {
       const token = localStorage.getItem("quae_token");
-      await fetch(`/api/projects/${id}/rerender`, {
+      const res = await fetch(`/api/projects/${id}/rerender`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Server error ${res.status}`);
+      }
       await queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(id) });
       toast({ title: "Re-render started", description: "Your video is being rendered. This page will refresh automatically." });
-    } catch {
-      toast({ title: "Re-render failed", description: "Could not start the render. Please try again.", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Re-render failed", description: err.message || "Could not start the render. Please try again.", variant: "destructive" });
     } finally {
       setRerendering(false);
     }

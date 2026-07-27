@@ -105,7 +105,7 @@ function BroadcastPanel() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5 text-primary" /> Send Email Broadcast</CardTitle>
-          <p className="text-sm text-muted-foreground">Emails are sent one-by-one via EmailJS. Allow a few minutes for large lists.</p>
+          <p className="text-sm text-muted-foreground">Emails are sent via Resend. Allow a few minutes for large lists.</p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>

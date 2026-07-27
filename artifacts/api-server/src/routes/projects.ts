@@ -96,7 +96,10 @@ router.post("/projects", async (req, res) => {
       const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1");
       await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     } catch (err) {
-      console.error("[fal-video] submit error", err);
+      console.error("[fal-video] submit error — refunding credits", err);
+      // Refund immediately so the user isn't charged for a render that never started
+      await db.update(usersTable).set({ credits: user.credits }).where(eq(usersTable.id, userId));
+      await db.update(projectsTable).set({ status: "failed", updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     }
   }
 
@@ -180,7 +183,9 @@ router.post("/projects/:id/rerender", async (req, res) => {
     const token = await submitFalVideoRender(scriptObj, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1");
     await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   } catch (err) {
-    console.error("[fal-video] rerender error", err);
+    console.error("[fal-video] rerender submit error — refunding credits", err);
+    // Refund immediately: render never started so credits should come back
+    await db.update(usersTable).set({ credits: user.credits }).where(eq(usersTable.id, userId));
     await db.update(projectsTable).set({ status: "failed", updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   }
 

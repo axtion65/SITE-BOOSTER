@@ -28,7 +28,7 @@ function DashboardContent() {
   const maxCredits = maxCreditsMap[user?.plan ?? "free"] ?? 90;
   const creditsRemaining = user?.credits ?? 0;
   const creditsUsed = Math.max(0, maxCredits - creditsRemaining);
-  const creditPct = Math.round((creditsRemaining / maxCredits) * 100);
+  const creditPct = maxCredits > 0 ? Math.min(100, Math.round((creditsRemaining / maxCredits) * 100)) : 0;
 
   return (
     <div className="p-8 h-full overflow-y-auto bg-background">
@@ -38,7 +38,7 @@ function DashboardContent() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight">
-              Welcome back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+              Welcome back{user?.name?.trim() ? `, ${user.name.trim().split(" ")[0]}` : ""}
             </h1>
             <p className="text-muted-foreground mt-1">Here's what's happening with your projects.</p>
           </div>
