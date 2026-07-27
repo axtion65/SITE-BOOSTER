@@ -142,6 +142,9 @@ function DashboardContent() {
                           <p className="text-xs text-muted-foreground">
                             {new Date(p.createdAt).toLocaleDateString()} · {p.platform ?? "—"} · {p.duration ?? "—"}
                           </p>
+                          {p.status === "failed" && (
+                            <p className="text-xs text-destructive mt-0.5">Credits refunded · Click to retry</p>
+                          )}
                         </div>
                       </div>
                       <StatusBadge status={p.status} />

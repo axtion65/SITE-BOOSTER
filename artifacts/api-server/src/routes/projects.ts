@@ -123,6 +123,14 @@ router.get("/projects/:id", async (req, res) => {
         return;
       }
       if (poll.status === "failed") {
+        // Refund the credits so the user can retry for free
+        const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1");
+        const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
+        if (owner) {
+          await db.update(usersTable)
+            .set({ credits: owner.credits + creditCost })
+            .where(eq(usersTable.id, project.userId));
+        }
         const [updated] = await db.update(projectsTable)
           .set({ status: "failed", thumbnailUrl: null, updatedAt: new Date() })
           .where(eq(projectsTable.id, project.id)).returning();
