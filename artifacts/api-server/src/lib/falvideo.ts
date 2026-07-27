@@ -45,17 +45,37 @@ export const PLAN_CREDITS: Record<string, number> = {
 };
 
 function buildVideoPrompt(script: ExpandedScript, platform: string, duration: string): string {
-  const sceneParts = script.scenes.slice(0, 4).map(s => s.visualDirection).join('. ');
-  const format = platform === 'tiktok' || platform === 'instagram'
-    ? 'vertical format, fast-paced, social media style'
-    : 'widescreen, cinematic, professional';
+  const isVertical = platform === 'tiktok' || platform === 'instagram';
+  const format = isVertical
+    ? 'vertical 9:16 format, fast-paced, mobile-first social media style'
+    : 'widescreen 16:9, cinematic, professional production';
 
-  return [
-    script.hook,
-    sceneParts,
-    `Call to action: ${script.callToAction}`,
-    `Professional product advertisement. ${format}. High production value. ${duration} duration.`,
-  ].filter(Boolean).join('. ');
+  // Build a rich scene breakdown so the model understands what should appear when
+  const sceneLines = script.scenes.slice(0, 6).map((s, i) =>
+    `Scene ${i + 1} (${s.duration}): ${s.description}. Visuals: ${s.visualDirection}.`
+  ).join(' ');
+
+  const parts: string[] = [
+    // Opening hook — what grabs attention first
+    script.hook ? `Opening hook: ${script.hook}.` : '',
+
+    // Full scene breakdown
+    sceneLines ? `Scene breakdown: ${sceneLines}` : '',
+
+    // Voiceover narration — gives the model the narrative arc
+    script.voiceoverText ? `Narration/voiceover theme: "${script.voiceoverText.slice(0, 300)}"` : '',
+
+    // CTA
+    script.callToAction ? `Closing call to action: ${script.callToAction}.` : '',
+
+    // Style direction
+    `Style: professional product advertisement, ${format}, high production value, sharp visuals, ${duration} total duration.`,
+
+    // Music mood
+    script.suggestedMusic ? `Mood/music: ${script.suggestedMusic}.` : '',
+  ];
+
+  return parts.filter(Boolean).join(' ');
 }
 
 function getModelId(renderingModelId: string): string {
