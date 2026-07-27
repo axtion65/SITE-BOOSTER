@@ -20,10 +20,12 @@ export interface ExpandedScript {
 
 // Model IDs on fal.ai
 const FAL_MODEL_IDS: Record<string, string> = {
-  'ovi':   'fal-ai/ovi',
-  'wan':   'fal-ai/wan/v2.2/text-to-video',
-  'kling': 'fal-ai/kling-video/v2.5/standard/text-to-video',
-  'veo3':  'fal-ai/veo3',
+  'ovi':         'fal-ai/ovi',
+  'wan':         'fal-ai/wan/v2.2/text-to-video',
+  'wan-img':     'fal-ai/wan/v2.2/image-to-video',
+  'kling':       'fal-ai/kling-video/v2.5/standard/text-to-video',
+  'kling-img':   'fal-ai/kling-video/v2.5/standard/image-to-video',
+  'veo3':        'fal-ai/veo3',
 };
 
 // Credits charged per model (1 credit = $0.01)
@@ -177,9 +179,9 @@ function buildVideoPrompt(script: ExpandedScript, platform: string, duration: st
   return parts.filter(Boolean).join(' ');
 }
 
-function getModelId(renderingModelId: string): string {
-  if (renderingModelId === 'wan') return FAL_MODEL_IDS.wan;
-  if (renderingModelId === 'kling' || renderingModelId === 'kling-1.6') return FAL_MODEL_IDS.kling;
+function getModelId(renderingModelId: string, hasImage = false): string {
+  if (renderingModelId === 'wan') return hasImage ? FAL_MODEL_IDS['wan-img'] : FAL_MODEL_IDS.wan;
+  if (renderingModelId === 'kling' || renderingModelId === 'kling-1.6') return hasImage ? FAL_MODEL_IDS['kling-img'] : FAL_MODEL_IDS.kling;
   if (renderingModelId === 'veo3') return FAL_MODEL_IDS.veo3;
   return FAL_MODEL_IDS.ovi;
 }
@@ -191,26 +193,78 @@ function getModelKey(renderingModelId: string): string {
   return 'ovi';
 }
 
+// Upload a base64 data URL or regular URL image to fal.ai CDN storage.
+// Returns a fal.ai CDN URL suitable for use as image_url in model requests.
+async function uploadImageToFal(imageInput: string, falKey: string): Promise<string> {
+  // If it's already a https URL (not data:), return as-is
+  if (imageInput.startsWith('http://') || imageInput.startsWith('https://')) {
+    return imageInput;
+  }
+
+  // Parse base64 data URL
+  const match = imageInput.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) throw new Error('Invalid image format — expected data URL or https URL');
+  const [, mimeType, base64Data] = match;
+  const buffer = Buffer.from(base64Data, 'base64');
+
+  // Upload to fal.ai storage
+  const ext = mimeType.split('/')[1] ?? 'jpg';
+  const formData = new FormData();
+  const blob = new Blob([buffer], { type: mimeType });
+  formData.append('file', blob, `product-image.${ext}`);
+
+  const uploadRes = await fetch('https://storage.fal.run', {
+    method: 'POST',
+    headers: { 'Authorization': `Key ${falKey}` },
+    body: formData,
+  });
+
+  if (!uploadRes.ok) {
+    const err = await uploadRes.text();
+    console.error('[fal-video] Image upload error:', err);
+    throw new Error(`fal.ai image upload failed: ${uploadRes.status}`);
+  }
+
+  const uploadData = await uploadRes.json() as { url: string };
+  console.log('[fal-video] Image uploaded to fal.ai CDN');
+  return uploadData.url;
+}
+
 // Submit to fal.ai queue — returns `fal:<modelPath>:<requestId>`
 export async function submitFalVideoRender(
   script: ExpandedScript,
   platform: string,
   duration: string,
   renderingModelId: string = 'quae-v1',
-  templateType?: string
+  templateType?: string,
+  imageUrl?: string | null
 ): Promise<string> {
   const falKey = process.env.FAL_KEY;
   if (!falKey) throw new Error('FAL_KEY not configured');
 
-  const modelPath = getModelId(renderingModelId);
+  // Upload image to fal.ai CDN if provided
+  let falImageUrl: string | undefined;
+  if (imageUrl) {
+    try {
+      falImageUrl = await uploadImageToFal(imageUrl, falKey);
+    } catch (err) {
+      console.warn('[fal-video] Image upload failed, proceeding without image:', err);
+      falImageUrl = undefined;
+    }
+  }
+
+  const hasImage = !!falImageUrl;
+  const modelPath = getModelId(renderingModelId, hasImage);
   const modelKey  = getModelKey(renderingModelId);
   const durationSec = parseDurationSeconds(duration);
   const prompt = buildVideoPrompt(script, platform, duration, templateType);
   const modelParams = buildModelParams(modelKey, durationSec);
 
-  console.log(`[fal-video] Submitting ${modelPath} | template: ${templateType ?? 'generic'} | duration: ${duration} → model params:`, modelParams);
+  console.log(`[fal-video] Submitting ${modelPath} | template: ${templateType ?? 'generic'} | duration: ${duration} | image: ${hasImage} → model params:`, modelParams);
 
-  const body = { prompt, ...modelParams };
+  // image_url is the param name for both wan and kling image-to-video endpoints
+  const body: Record<string, unknown> = { prompt, ...modelParams };
+  if (falImageUrl) body.image_url = falImageUrl;
 
   const res = await fetch(`https://queue.fal.run/${modelPath}`, {
     method: 'POST',

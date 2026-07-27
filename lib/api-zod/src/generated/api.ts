@@ -138,8 +138,7 @@ export const ListRenderingModelsResponseItem = zod.object({
   "name": zod.string(),
   "description": zod.string(),
   "capabilities": zod.array(zod.string()),
-  "creditCost": zod.number().optional(),
-  "tier": zod.enum(['free', 'starter', 'pro', 'agency']),
+  "tier": zod.enum(['free', 'creator', 'agency']),
   "badge": zod.string().nullish()
 })
 export const ListRenderingModelsResponse = zod.array(ListRenderingModelsResponseItem)
@@ -201,6 +200,7 @@ export const ListProjectsResponseItem = zod.object({
   "videoUrl": zod.string().nullish(),
   "thumbnailUrl": zod.string().nullish(),
   "templateId": zod.string().nullish(),
+  "productImageUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -218,7 +218,8 @@ export const CreateProjectBody = zod.object({
   "expandedScript": zod.string().nullish(),
   "platform": zod.string().nullish(),
   "duration": zod.string().nullish(),
-  "templateId": zod.string().nullish()
+  "templateId": zod.string().nullish(),
+  "productImageUrl": zod.string().nullish()
 })
 
 export const CreateProjectResponse = zod.object({
@@ -235,6 +236,7 @@ export const CreateProjectResponse = zod.object({
   "videoUrl": zod.string().nullish(),
   "thumbnailUrl": zod.string().nullish(),
   "templateId": zod.string().nullish(),
+  "productImageUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -261,6 +263,7 @@ export const GetProjectResponse = zod.object({
   "videoUrl": zod.string().nullish(),
   "thumbnailUrl": zod.string().nullish(),
   "templateId": zod.string().nullish(),
+  "productImageUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -298,6 +301,7 @@ export const UpdateProjectResponse = zod.object({
   "videoUrl": zod.string().nullish(),
   "thumbnailUrl": zod.string().nullish(),
   "templateId": zod.string().nullish(),
+  "productImageUrl": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

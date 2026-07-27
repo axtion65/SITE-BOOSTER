@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock, ChevronDown, LayoutTemplate, ArrowLeft } from "lucide-react";
+import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock, ChevronDown, LayoutTemplate, ArrowLeft, ImagePlus, X, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { ExpandedScript } from "@workspace/api-client-react";
@@ -35,6 +35,11 @@ function Wizard() {
   const [targetAudience, setTargetAudience] = useState("");
   const [platform, setPlatform] = useState("tiktok");
   const [duration, setDuration] = useState("15s");
+
+  // Product image state
+  const [productImageDataUrl, setProductImageDataUrl] = useState<string | null>(null);
+  const [productImageFileName, setProductImageFileName] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Step 2 State
   const [expandedScript, setExpandedScript] = useState<ExpandedScript | null>(null);
@@ -82,6 +87,37 @@ function Wizard() {
     }
   }, [search]);
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please select an image file (JPG, PNG, WebP, etc.)", variant: "destructive" });
+      return;
+    }
+
+    // Validate file size — cap at 4 MB to keep base64 payload reasonable
+    if (file.size > 4 * 1024 * 1024) {
+      toast({ title: "Image too large", description: "Please use an image under 4 MB.", variant: "destructive" });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setProductImageDataUrl(dataUrl);
+      setProductImageFileName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setProductImageDataUrl(null);
+    setProductImageFileName(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
   const handleExpand = async () => {
     if (!productName || !description) {
       toast({ title: "Missing fields", description: "Product name and description are required.", variant: "destructive" });
@@ -113,6 +149,7 @@ function Wizard() {
           platform,
           duration,
           templateId: templateId ?? null,
+          productImageUrl: productImageDataUrl ?? null,
         }
       });
       toast({ title: "Rendering started!", description: "Your video is processing. We'll notify you when it's ready." });
@@ -135,6 +172,10 @@ function Wizard() {
   function canUseModel(modelTier: string) {
     return (planTierOrder[modelTier as keyof typeof planTierOrder] ?? 0) <= (planTierOrder[userPlan as keyof typeof planTierOrder] ?? 0);
   }
+
+  // Whether the selected model supports image conditioning
+  const imageModels = ["wan", "kling", "kling-1.6"];
+  const selectedModelSupportsImage = imageModels.includes(modelId);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background relative overflow-hidden">
@@ -240,6 +281,64 @@ function Wizard() {
                     className="min-h-[120px] text-base resize-none"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+
+                {/* Product image upload */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>
+                      Product Image{" "}
+                      <span className="text-muted-foreground font-normal text-xs ml-1">optional</span>
+                    </Label>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Info className="h-3 w-3" />
+                      <span>Used by Wan &amp; Kling models for image conditioning</span>
+                    </div>
+                  </div>
+
+                  {productImageDataUrl ? (
+                    <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
+                      <img
+                        src={productImageDataUrl}
+                        alt="Product preview"
+                        className="h-16 w-16 rounded-lg object-cover border border-white/10 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{productImageFileName}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Image ready — will be used with Wan &amp; Kling models</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-white transition-colors flex-shrink-0"
+                        title="Remove image"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => imageInputRef.current?.click()}
+                      className="w-full flex items-center gap-3 px-4 py-4 rounded-xl border border-dashed border-white/20 bg-white/[0.02] hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
+                    >
+                      <div className="h-10 w-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0 group-hover:border-primary/30 transition-colors">
+                        <ImagePlus className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">Upload product image</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to 4 MB. Enables image-to-video conditioning on Wan &amp; Kling.</p>
+                      </div>
+                    </button>
+                  )}
+
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageSelect}
                   />
                 </div>
 
@@ -356,6 +455,25 @@ function Wizard() {
                 </span>
               </div>
 
+              {/* Image conditioning notice */}
+              {productImageDataUrl && (
+                <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-white/70 flex items-start gap-2">
+                  <ImagePlus className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <span>
+                    <strong className="text-white">Product image attached.</strong> Select <span className="text-primary font-medium">Wan</span> or <span className="text-primary font-medium">Kling</span> to use image conditioning — your product image will be used as the reference frame. Ovi is text-only and will ignore the image.
+                  </span>
+                </div>
+              )}
+
+              {!productImageDataUrl && (
+                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-xs text-white/50 flex items-start gap-2">
+                  <Info className="h-4 w-4 text-white/30 mt-0.5 flex-shrink-0" />
+                  <span>
+                    No product image attached. <button type="button" onClick={() => setStep(1)} className="text-primary hover:underline">Go back to add one</button> — Wan &amp; Kling can use your product image as a reference for more accurate video output.
+                  </span>
+                </div>
+              )}
+
               {modelsLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Spinner className="h-8 w-8" />
@@ -369,6 +487,7 @@ function Wizard() {
                       ovi: '~5 sec', wan: '~8 sec', kling: '~10 sec', veo3: '~8 sec'
                     };
                     const clipLen = clipMap[model.id] ?? '~5 sec';
+                    const supportsImage = imageModels.includes(model.id);
                     return (
                       <button
                         key={model.id}
@@ -392,8 +511,24 @@ function Wizard() {
                           {canUse && isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
                           {canUse && !isSelected && <Activity className="h-4 w-4 text-muted-foreground" />}
                           <span className="font-bold text-white">{model.name}</span>
+                          {supportsImage && productImageDataUrl && (
+                            <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30 font-semibold">
+                              IMG
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-3 leading-relaxed">{model.description}</p>
+                        {/* Image conditioning badge */}
+                        {supportsImage ? (
+                          <div className="mb-2 text-xs text-primary/80 flex items-center gap-1">
+                            <ImagePlus className="h-3 w-3" />
+                            <span>Supports image conditioning</span>
+                          </div>
+                        ) : (
+                          <div className="mb-2 text-xs text-white/30 flex items-center gap-1">
+                            <span>Text-only — image not used</span>
+                          </div>
+                        )}
                         <div className="flex flex-wrap gap-1.5 mb-3">
                           {model.capabilities.slice(0, 3).map((cap, ci) => (
                             <span key={ci} className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-white/50 border border-white/10">{cap}</span>
@@ -425,6 +560,12 @@ function Wizard() {
                 <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
                     Selected: <span className="text-white font-semibold">{selectedModel.name}</span>
+                    {productImageDataUrl && selectedModelSupportsImage && (
+                      <span className="ml-2 text-xs text-primary">+ image conditioning</span>
+                    )}
+                    {productImageDataUrl && !selectedModelSupportsImage && (
+                      <span className="ml-2 text-xs text-amber-400">image not used by this model</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 text-sm">
                     <Zap className="h-4 w-4 text-primary" />
@@ -451,6 +592,18 @@ function Wizard() {
                 Your script is locked in and the model is selected. Hit render — we'll submit your video to{" "}
                 <span className="text-white font-semibold">{selectedModel?.name ?? "Ovi"}</span> and you can track progress in your projects.
               </p>
+              {productImageDataUrl && selectedModelSupportsImage && (
+                <div className="flex items-center justify-center gap-2 text-sm text-primary">
+                  <ImagePlus className="h-4 w-4" />
+                  <span>Your product image will be used as a reference frame</span>
+                </div>
+              )}
+              {productImageDataUrl && !selectedModelSupportsImage && (
+                <div className="flex items-center justify-center gap-2 text-sm text-amber-400">
+                  <Info className="h-4 w-4" />
+                  <span>Note: {selectedModel?.name ?? "Ovi"} is text-only — your product image won't be used</span>
+                </div>
+              )}
               {selectedModel && (
                 <p className="text-sm text-amber-400">
                   This will use <span className="font-bold">{(selectedModel as any).creditCost ?? 30} credits</span> from your balance ({userCredits} remaining)

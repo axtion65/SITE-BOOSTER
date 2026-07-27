@@ -640,6 +640,8 @@ components:
           type: ["string", "null"]
         templateId:
           type: ["string", "null"]
+        productImageUrl:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -666,6 +668,8 @@ components:
         duration:
           type: ["string", "null"]
         templateId:
+          type: ["string", "null"]
+        productImageUrl:
           type: ["string", "null"]
 
     ProjectUpdate:

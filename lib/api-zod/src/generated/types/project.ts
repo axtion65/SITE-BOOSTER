@@ -29,6 +29,8 @@ export interface Project {
   thumbnailUrl?: string | null;
   /** @nullable */
   templateId?: string | null;
+  /** @nullable */
+  productImageUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

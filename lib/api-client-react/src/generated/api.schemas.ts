@@ -165,6 +165,8 @@ export interface Project {
   thumbnailUrl?: string | null;
   /** @nullable */
   templateId?: string | null;
+  /** @nullable */
+  productImageUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -184,6 +186,8 @@ export interface ProjectInput {
   duration?: string | null;
   /** @nullable */
   templateId?: string | null;
+  /** @nullable */
+  productImageUrl?: string | null;
 }
 
 export type ProjectUpdateStatus = typeof ProjectUpdateStatus[keyof typeof ProjectUpdateStatus];

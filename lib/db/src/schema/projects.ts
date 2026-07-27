@@ -16,6 +16,7 @@ export const projectsTable = pgTable("projects", {
   videoUrl: text("video_url"),
   thumbnailUrl: text("thumbnail_url"),
   templateId: text("template_id"),
+  productImageUrl: text("product_image_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

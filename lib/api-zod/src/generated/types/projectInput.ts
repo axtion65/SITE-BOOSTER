@@ -21,4 +21,6 @@ export interface ProjectInput {
   duration?: string | null;
   /** @nullable */
   templateId?: string | null;
+  /** @nullable */
+  productImageUrl?: string | null;
 }

@@ -85,6 +85,7 @@ router.post("/projects", async (req, res) => {
     platform: parsed.data.platform ?? null,
     duration: parsed.data.duration ?? null,
     templateId: parsed.data.templateId ?? null,
+    productImageUrl: parsed.data.productImageUrl ?? null,
     status: "processing",
   }).returning();
 
@@ -95,7 +96,7 @@ router.post("/projects", async (req, res) => {
       const platform = parsed.data.platform ?? "youtube";
       const duration = parsed.data.duration ?? "30s";
       const templateType = TEMPLATES.find(t => t.id === parsed.data.templateId)?.templateType;
-      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1", templateType);
+      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1", templateType, parsed.data.productImageUrl);
       await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     } catch (err) {
       console.error("[fal-video] submit error — refunding credits", err);
@@ -183,7 +184,7 @@ router.post("/projects/:id/rerender", async (req, res) => {
   try {
     const scriptObj: ExpandedScript = JSON.parse(project.expandedScript);
     const templateType = TEMPLATES.find(t => t.id === project.templateId)?.templateType;
-    const token = await submitFalVideoRender(scriptObj, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType);
+    const token = await submitFalVideoRender(scriptObj, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType, project.productImageUrl);
     await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   } catch (err) {
     console.error("[fal-video] rerender submit error — refunding credits", err);
