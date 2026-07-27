@@ -10,7 +10,22 @@ if (!process.env.STRIPE_API_KEY) {
   logger.warn("STRIPE_API_KEY not set — billing endpoints will fail");
 }
 
-app.listen(port, (err) => {
+const server = app.listen(port, (err) => {
   if (err) { logger.error({ err }, "Error listening on port"); process.exit(1); }
   logger.info({ port }, "Server listening");
 });
+
+// Graceful shutdown — release the port cleanly before the process exits.
+// Without this, Replit restarts cause EADDRINUSE and the server fails to come back up.
+function shutdown(signal: string) {
+  logger.info({ signal }, "Shutting down gracefully");
+  server.close(() => {
+    logger.info("Server closed — exiting");
+    process.exit(0);
+  });
+  // Force-exit after 5s if connections don't drain
+  setTimeout(() => process.exit(1), 5000).unref();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT",  () => shutdown("SIGINT"));
