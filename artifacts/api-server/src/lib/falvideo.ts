@@ -96,30 +96,41 @@ function buildModelParams(modelKey: string, durationSec: number): Record<string,
 
 // Template-type specific cinematic direction
 const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
-  'tiktok-viral-hook':
-    'Vertical 9:16. Rapid cuts every 2-3 seconds. Bold text overlays in TikTok style. First frame is a pattern interrupt — something unexpected or shocking. High energy throughout. Trending audio feel.',
-  'ugc-review':
-    'Vertical 9:16. Handheld camera feel — slight shake, natural movement. Talking-to-camera framing. Natural home or outdoor lighting. Authentic, unpolished aesthetic. No product on white background. Real-life context throughout.',
-  'before-after':
-    'Vertical 9:16. Stark visual contrast between first half and second half. Before: muted colors, low energy. After: bright, warm, high energy. Hard cut at midpoint. Transformation is VISUAL, not just narrated.',
-  'product-demo':
-    'Widescreen 16:9 or vertical 9:16. Close-up hands-on product shots. Multiple angles — overhead, close macro, side profile. Show the product in actual use, not just display. Clean but not sterile. Professional lighting.',
-  'product-unboxing':
-    'Close-up macro shots of packaging details. Camera starts on the shipping box, reveals inner packaging, then product. Slow deliberate movements at key reveal moments. ASMR-adjacent — show texture, weight, material quality visually.',
-  'flash-sale':
-    'High contrast, high saturation. Red and bold colors suggest urgency. Big bold text for price/discount. Fast paced. Every frame communicates: LIMITED TIME.',
-  'amazon-listing':
-    'Clean, professional. White or neutral background for product shots. Multiple hero angles. Well-lit, color-accurate product representation.',
-  'brand-story':
-    'Cinematic 16:9. Warm, human-centered. Faces matter — authentic expressions, not model poses. Builds to sweeping, hopeful visual as mission is stated.',
-  'testimonial-compilation':
-    'Vertical 9:16. Quick cuts between different people in different settings. Each face centered, talking directly to camera. Text quote overlays on each clip.',
-  'shopify-promo':
-    'Lifestyle aesthetic. Product shown in aspirational real-world settings. Golden hour lighting preferred. Strong closing product hero shot with price/offer overlay.',
-  'tutorial':
-    'Step-by-step clarity. Overhead or close-up angles for technique shots. Hands prominently featured. Step number text overlays. Clean, well-lit.',
-  'instagram-reel':
-    'Aesthetic-first. Every frame is Instagram-worthy. Mix of lifestyle shots, product close-ups, and one hero moment. Trending Reel format pacing.',
+  "tiktok-viral-hook":
+    "Vertical 9:16. Rapid cuts every 2-3 seconds. Bold text overlays in TikTok style. First frame is a pattern interrupt — something unexpected or shocking. High energy throughout. Trending audio feel.",
+
+  "ugc-review":
+    "Vertical 9:16. Handheld camera feel — slight shake, natural movement. Talking-to-camera framing. Natural home or outdoor lighting. Authentic, unpolished aesthetic. No product on white background. Real-life context throughout.",
+
+  "before-after":
+    "Vertical 9:16. Stark visual contrast between first half and second half. Before: muted colors, low energy environment. After: bright, warm, high energy. Consider split-screen or hard cut at midpoint. Transformation is VISUAL, not just narrated.",
+
+  "product-demo":
+    "Widescreen 16:9 or vertical 9:16. Close-up hands-on product shots. Multiple angles — overhead, close macro, side profile. Show the product in actual use, not just display. Clean but not sterile. Professional lighting.",
+
+  "product-unboxing":
+    "Close-up macro shots of packaging details. Camera starts on the shipping box, reveals inner packaging, then product. Slow deliberate movements at key moments (first reveal), faster during secondary reveals. ASMR-adjacent — show texture, weight, material quality visually.",
+
+  "flash-sale":
+    "High contrast, high saturation. Red and bold colors suggest urgency. Big bold text for price/discount. Fast paced. Clock or countdown visual element if possible. Every frame communicates: LIMITED TIME.",
+
+  "amazon-listing":
+    "Clean, professional. White or neutral background for product shots. 360-degree product rotation implied. Scale reference shots (hand holding, next to common object). Multiple hero angles. Well-lit, color-accurate product representation.",
+
+  "brand-story":
+    "Cinematic 16:9. Warm, human-centered. Faces matter — authentic expressions, not model poses. Origin moment should feel intimate, like found footage or home video. Builds to sweeping, hopeful visual as mission is stated.",
+
+  "testimonial-compilation":
+    "Vertical 9:16. Quick cuts between different people in different settings — visual variety is key. Each face is centered, talking directly to camera. Text quote overlays on each clip. Builds to a montage crescendo of overlapping voices/faces.",
+
+  "shopify-promo":
+    "Lifestyle aesthetic. Product shown in aspirational real-world settings — kitchen, bedroom, outdoor. Golden hour lighting preferred. Model interaction with product (not just display). Strong closing product hero shot with price/offer overlay.",
+
+  "tutorial":
+    "Step-by-step clarity. Overhead or close-up angles for technique shots. Hands prominently featured. Step number text overlays on each new step. Before/during/after of each step shown. Clean, well-lit, distraction-free.",
+
+  "instagram-reel":
+    "Aesthetic-first. Every frame is Instagram-worthy on its own. Specific color grade direction matters. Mix of lifestyle shots, product close-ups, and one hero moment. Trending Reel format pacing — quick but deliberate.",
 };
 
 function buildVideoPrompt(script: ExpandedScript, platform: string, duration: string, templateType?: string): string {
@@ -128,33 +139,36 @@ function buildVideoPrompt(script: ExpandedScript, platform: string, duration: st
     ? 'vertical 9:16 format, mobile-first, designed for social media feeds'
     : 'widescreen 16:9, cinematic, professional production quality';
 
-  const templateDirection = templateType ? (TEMPLATE_VIDEO_DIRECTION[templateType] ?? '') : '';
+  // Pull template-specific visual direction if available
+  const templateDirection = templateType
+    ? (TEMPLATE_VIDEO_DIRECTION[templateType] ?? '')
+    : '';
 
-  // Use only first 4 scenes to keep prompt focused — more scenes dilute the model's attention
-  const sceneLines = script.scenes.slice(0, 4).map((s, i) =>
-    `Scene ${i + 1} (${s.duration}): ${s.description}. Visuals: ${s.visualDirection}.`
+  // Build scene breakdown
+  const sceneLines = script.scenes.slice(0, 6).map((s, i) =>
+    `Scene ${i + 1} (${s.duration}): ${s.description}. Camera/visuals: ${s.visualDirection}.`
   ).join(' ');
 
   const parts: string[] = [
-    // Template direction first — highest priority signal
-    templateDirection ? `Visual style: ${templateDirection}` : '',
+    // Template-specific direction takes priority
+    templateDirection ? `Video format directive: ${templateDirection}` : '',
 
-    // Hook — most critical for AI to represent
-    script.hook ? `HOOK (opening frame): ${script.hook}.` : '',
+    // Opening hook — most important for AI to prioritize
+    script.hook ? `Opening hook (first 2-3 seconds): ${script.hook}.` : '',
 
     // Scene breakdown
     sceneLines ? `Scene breakdown: ${sceneLines}` : '',
 
-    // Voiceover arc
-    script.voiceoverText ? `Narration arc: "${script.voiceoverText.slice(0, 300)}"` : '',
+    // Voiceover narrative arc
+    script.voiceoverText ? `Voiceover/narration: "${script.voiceoverText.slice(0, 400)}"` : '',
 
     // CTA
     script.callToAction ? `Closing CTA: ${script.callToAction}.` : '',
 
-    // Format
+    // Base format if no template direction
     !templateDirection
-      ? `Style: professional product advertisement, ${baseFormat}, high production value.`
-      : `Format: ${baseFormat}.`,
+      ? `Style: professional product advertisement, ${baseFormat}, high production value, ${duration} duration.`
+      : `Format: ${baseFormat}. Duration: ${duration}.`,
 
     // Music
     script.suggestedMusic ? `Music/mood: ${script.suggestedMusic}.` : '',

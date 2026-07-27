@@ -169,4 +169,13 @@ router.get("/templates", (req, res) => {
   res.json(filtered);
 });
 
+router.get("/templates/:id", (req, res) => {
+  const template = TEMPLATES.find(t => t.id === req.params.id);
+  if (!template) {
+    res.status(404).json({ error: "Template not found" });
+    return;
+  }
+  res.json(template);
+});
+
 export default router;

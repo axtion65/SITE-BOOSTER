@@ -1,0 +1,23 @@
+kind = "mobile"
+previewPath = "/quae-mobile/"
+title = "Quae Mobile"
+version = "1.0.0"
+id = "artifacts/quae-mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/quae-mobile/" ]
+localPort = 19182
+
+[services.development]
+run = "pnpm --filter @workspace/quae-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/quae-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/quae-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "19182"
+BASE_PATH = "/quae-mobile/"
