@@ -6,6 +6,7 @@ import {
   submitFalVideoRender, pollFalVideoRender, isFalToken,
   MODEL_CREDIT_COSTS, type ExpandedScript
 } from "../lib/falvideo";
+import { TEMPLATES } from "./templates";
 
 const router = Router();
 
@@ -93,7 +94,8 @@ router.post("/projects", async (req, res) => {
       const scriptObj: ExpandedScript = JSON.parse(parsed.data.expandedScript);
       const platform = parsed.data.platform ?? "youtube";
       const duration = parsed.data.duration ?? "30s";
-      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1");
+      const templateType = TEMPLATES.find(t => t.id === parsed.data.templateId)?.templateType;
+      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1", templateType);
       await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     } catch (err) {
       console.error("[fal-video] submit error — refunding credits", err);
@@ -180,7 +182,8 @@ router.post("/projects/:id/rerender", async (req, res) => {
 
   try {
     const scriptObj: ExpandedScript = JSON.parse(project.expandedScript);
-    const token = await submitFalVideoRender(scriptObj, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1");
+    const templateType = TEMPLATES.find(t => t.id === project.templateId)?.templateType;
+    const token = await submitFalVideoRender(scriptObj, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType);
     await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   } catch (err) {
     console.error("[fal-video] rerender submit error — refunding credits", err);

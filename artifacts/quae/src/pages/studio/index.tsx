@@ -47,7 +47,11 @@ function Wizard() {
   const [, setLocation] = useLocation();
   const search = useSearch();
 
-  // Pre-fill from template URL params (e.g. ?templateId=t2&platform=tiktok&duration=15s&templateName=TikTok+Ad)
+  const [templateId, setTemplateId] = useState<string | undefined>();
+  const [templateType, setTemplateType] = useState<string | undefined>();
+  const [templateName, setTemplateName] = useState<string | undefined>();
+
+  // Pre-fill from template URL params
   const templateApplied = useRef(false);
   useEffect(() => {
     if (templateApplied.current) return;
@@ -56,13 +60,18 @@ function Wizard() {
     const tPlatform = params.get("platform");
     const tDuration = params.get("duration");
     const tDesc = params.get("templateDesc");
-    if (tName || tPlatform || tDuration) {
+    const tId = params.get("templateId");
+    const tType = params.get("templateType");
+    if (tName || tPlatform || tDuration || tId) {
       templateApplied.current = true;
-      if (tDesc) setDescription(tDesc);
+      if (tDesc) setDescription(tDesc.startsWith("http") ? "" : "");  // don't pre-fill desc with template desc
       if (tPlatform) setPlatform(tPlatform.toLowerCase().replace(" ", ""));
       if (tDuration) setDuration(tDuration);
+      if (tId) setTemplateId(tId);
+      if (tType) setTemplateType(tType);
+      if (tName) setTemplateName(tName);
       if (tName) {
-        toast({ title: `Template loaded: ${tName}`, description: "Fill in your product name and description, then click Generate Script." });
+        toast({ title: `Template: ${tName}`, description: "Enter your product details — the AI will write in this exact format." });
       }
     }
   }, [search]);
@@ -74,7 +83,7 @@ function Wizard() {
     }
     try {
       const res = await expandMutation.mutateAsync({
-        data: { productName, description, targetAudience, platform, duration }
+        data: { productName, description, targetAudience, platform, duration, templateType, templateName } as any
       });
       setExpandedScript(res);
       setStep(2);
@@ -97,6 +106,7 @@ function Wizard() {
           expandedScript: JSON.stringify(expandedScript),
           platform,
           duration,
+          templateId: templateId ?? null,
         }
       });
       toast({ title: "Rendering started!", description: "Your video is processing. We'll notify you when it's ready." });

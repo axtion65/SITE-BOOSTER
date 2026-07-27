@@ -1,6 +1,6 @@
-// fal.ai video generation — replaces Shotstack entirely
+// fal.ai video generation
 // Ovi: $0.20/video flat (video + native audio)
-// Wan 2.5: $0.05/sec (higher quality, ~10s clip)
+// Wan 2.5: $0.05/sec
 // Kling 2.5: $0.07/sec (premium)
 
 export interface ExpandedScript {
@@ -28,12 +28,12 @@ const FAL_MODEL_IDS: Record<string, string> = {
 
 // Credits charged per model (1 credit = $0.01)
 export const MODEL_CREDIT_COSTS: Record<string, number> = {
-  'quae-v1':  30,  // Ovi default
-  'ovi':      30,
+  'quae-v1':   30,
+  'ovi':       30,
   'wan':      200,
   'kling':    300,
-  'kling-1.6': 300, // legacy alias stored in older projects
-  'veo3':     1500,
+  'kling-1.6': 300,
+  'veo3':    1500,
 };
 
 // Plan credit allocations
@@ -44,63 +44,159 @@ export const PLAN_CREDITS: Record<string, number> = {
   'agency':  6000,
 };
 
-function buildVideoPrompt(script: ExpandedScript, platform: string, duration: string): string {
-  const isVertical = platform === 'tiktok' || platform === 'instagram';
-  const format = isVertical
-    ? 'vertical 9:16 format, fast-paced, mobile-first social media style'
-    : 'widescreen 16:9, cinematic, professional production';
+// Estimated render time in seconds — shown in the waiting UI
+export const MODEL_RENDER_ESTIMATE: Record<string, number> = {
+  'ovi':   120,  // ~2 min
+  'wan':   180,  // ~3 min
+  'kling': 240,  // ~4 min
+  'veo3':  480,  // ~8 min
+};
 
-  // Build a rich scene breakdown so the model understands what should appear when
-  const sceneLines = script.scenes.slice(0, 6).map((s, i) =>
+// What each model actually outputs (max clip duration the API will honour)
+// These are hard model limits — duration in prompt text is ignored by the AI video models
+const MODEL_MAX_SECONDS: Record<string, number> = {
+  'ovi':   10,
+  'wan':   10,   // ~81-129 frames @ ~13fps
+  'kling': 10,   // "5" or "10" string param
+  'veo3':  8,    // Google Veo3 default output
+};
+
+// Parse "15s" → 15, "1m" → 60
+function parseDurationSeconds(d: string): number {
+  const s = d.toLowerCase().trim();
+  if (s.endsWith('m')) return parseInt(s) * 60;
+  if (s.endsWith('s')) return parseInt(s);
+  return parseInt(s) || 10;
+}
+
+// Build model-specific body params beyond `prompt`
+function buildModelParams(modelKey: string, durationSec: number): Record<string, unknown> {
+  const capped = Math.min(durationSec, MODEL_MAX_SECONDS[modelKey] ?? 10);
+
+  switch (modelKey) {
+    case 'kling':
+      // Kling only accepts "5" or "10" as a string
+      return { duration: capped >= 8 ? '10' : '5' };
+
+    case 'wan':
+      // Wan uses num_frames; ~13 fps, max 129 frames (~10s)
+      // 5s→65 frames, 10s→129 frames
+      return { num_frames: Math.min(Math.round(capped * 13), 129) };
+
+    case 'veo3':
+      // Veo3 uses duration_seconds (float)
+      return { duration_seconds: Math.min(capped, 8) };
+
+    case 'ovi':
+    default:
+      // Ovi has no documented duration param — max is inherent in the model (~10s)
+      return {};
+  }
+}
+
+// Template-type specific cinematic direction
+const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
+  'tiktok-viral-hook':
+    'Vertical 9:16. Rapid cuts every 2-3 seconds. Bold text overlays in TikTok style. First frame is a pattern interrupt — something unexpected or shocking. High energy throughout. Trending audio feel.',
+  'ugc-review':
+    'Vertical 9:16. Handheld camera feel — slight shake, natural movement. Talking-to-camera framing. Natural home or outdoor lighting. Authentic, unpolished aesthetic. No product on white background. Real-life context throughout.',
+  'before-after':
+    'Vertical 9:16. Stark visual contrast between first half and second half. Before: muted colors, low energy. After: bright, warm, high energy. Hard cut at midpoint. Transformation is VISUAL, not just narrated.',
+  'product-demo':
+    'Widescreen 16:9 or vertical 9:16. Close-up hands-on product shots. Multiple angles — overhead, close macro, side profile. Show the product in actual use, not just display. Clean but not sterile. Professional lighting.',
+  'product-unboxing':
+    'Close-up macro shots of packaging details. Camera starts on the shipping box, reveals inner packaging, then product. Slow deliberate movements at key reveal moments. ASMR-adjacent — show texture, weight, material quality visually.',
+  'flash-sale':
+    'High contrast, high saturation. Red and bold colors suggest urgency. Big bold text for price/discount. Fast paced. Every frame communicates: LIMITED TIME.',
+  'amazon-listing':
+    'Clean, professional. White or neutral background for product shots. Multiple hero angles. Well-lit, color-accurate product representation.',
+  'brand-story':
+    'Cinematic 16:9. Warm, human-centered. Faces matter — authentic expressions, not model poses. Builds to sweeping, hopeful visual as mission is stated.',
+  'testimonial-compilation':
+    'Vertical 9:16. Quick cuts between different people in different settings. Each face centered, talking directly to camera. Text quote overlays on each clip.',
+  'shopify-promo':
+    'Lifestyle aesthetic. Product shown in aspirational real-world settings. Golden hour lighting preferred. Strong closing product hero shot with price/offer overlay.',
+  'tutorial':
+    'Step-by-step clarity. Overhead or close-up angles for technique shots. Hands prominently featured. Step number text overlays. Clean, well-lit.',
+  'instagram-reel':
+    'Aesthetic-first. Every frame is Instagram-worthy. Mix of lifestyle shots, product close-ups, and one hero moment. Trending Reel format pacing.',
+};
+
+function buildVideoPrompt(script: ExpandedScript, platform: string, duration: string, templateType?: string): string {
+  const isVertical = platform === 'tiktok' || platform === 'instagram';
+  const baseFormat = isVertical
+    ? 'vertical 9:16 format, mobile-first, designed for social media feeds'
+    : 'widescreen 16:9, cinematic, professional production quality';
+
+  const templateDirection = templateType ? (TEMPLATE_VIDEO_DIRECTION[templateType] ?? '') : '';
+
+  // Use only first 4 scenes to keep prompt focused — more scenes dilute the model's attention
+  const sceneLines = script.scenes.slice(0, 4).map((s, i) =>
     `Scene ${i + 1} (${s.duration}): ${s.description}. Visuals: ${s.visualDirection}.`
   ).join(' ');
 
   const parts: string[] = [
-    // Opening hook — what grabs attention first
-    script.hook ? `Opening hook: ${script.hook}.` : '',
+    // Template direction first — highest priority signal
+    templateDirection ? `Visual style: ${templateDirection}` : '',
 
-    // Full scene breakdown
+    // Hook — most critical for AI to represent
+    script.hook ? `HOOK (opening frame): ${script.hook}.` : '',
+
+    // Scene breakdown
     sceneLines ? `Scene breakdown: ${sceneLines}` : '',
 
-    // Voiceover narration — gives the model the narrative arc
-    script.voiceoverText ? `Narration/voiceover theme: "${script.voiceoverText.slice(0, 300)}"` : '',
+    // Voiceover arc
+    script.voiceoverText ? `Narration arc: "${script.voiceoverText.slice(0, 300)}"` : '',
 
     // CTA
-    script.callToAction ? `Closing call to action: ${script.callToAction}.` : '',
+    script.callToAction ? `Closing CTA: ${script.callToAction}.` : '',
 
-    // Style direction
-    `Style: professional product advertisement, ${format}, high production value, sharp visuals, ${duration} total duration.`,
+    // Format
+    !templateDirection
+      ? `Style: professional product advertisement, ${baseFormat}, high production value.`
+      : `Format: ${baseFormat}.`,
 
-    // Music mood
-    script.suggestedMusic ? `Mood/music: ${script.suggestedMusic}.` : '',
+    // Music
+    script.suggestedMusic ? `Music/mood: ${script.suggestedMusic}.` : '',
   ];
 
   return parts.filter(Boolean).join(' ');
 }
 
 function getModelId(renderingModelId: string): string {
-  // Map renderingModelId from projects to fal model
-  // Also handle legacy IDs (e.g. "kling-1.6" stored in DB before model rename)
   if (renderingModelId === 'wan') return FAL_MODEL_IDS.wan;
   if (renderingModelId === 'kling' || renderingModelId === 'kling-1.6') return FAL_MODEL_IDS.kling;
   if (renderingModelId === 'veo3') return FAL_MODEL_IDS.veo3;
-  return FAL_MODEL_IDS.ovi; // default
+  return FAL_MODEL_IDS.ovi;
 }
 
-// Submit to fal.ai queue — returns `fal:<modelId>:<requestId>`
+function getModelKey(renderingModelId: string): string {
+  if (renderingModelId === 'wan') return 'wan';
+  if (renderingModelId === 'kling' || renderingModelId === 'kling-1.6') return 'kling';
+  if (renderingModelId === 'veo3') return 'veo3';
+  return 'ovi';
+}
+
+// Submit to fal.ai queue — returns `fal:<modelPath>:<requestId>`
 export async function submitFalVideoRender(
   script: ExpandedScript,
   platform: string,
   duration: string,
-  renderingModelId: string = 'quae-v1'
+  renderingModelId: string = 'quae-v1',
+  templateType?: string
 ): Promise<string> {
   const falKey = process.env.FAL_KEY;
   if (!falKey) throw new Error('FAL_KEY not configured');
 
   const modelPath = getModelId(renderingModelId);
-  const prompt = buildVideoPrompt(script, platform, duration);
+  const modelKey  = getModelKey(renderingModelId);
+  const durationSec = parseDurationSeconds(duration);
+  const prompt = buildVideoPrompt(script, platform, duration, templateType);
+  const modelParams = buildModelParams(modelKey, durationSec);
 
-  console.log(`[fal-video] Submitting ${modelPath} render`);
+  console.log(`[fal-video] Submitting ${modelPath} | template: ${templateType ?? 'generic'} | duration: ${duration} → model params:`, modelParams);
+
+  const body = { prompt, ...modelParams };
 
   const res = await fetch(`https://queue.fal.run/${modelPath}`, {
     method: 'POST',
@@ -108,7 +204,7 @@ export async function submitFalVideoRender(
       'Authorization': `Key ${falKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -132,12 +228,9 @@ export async function pollFalVideoRender(
 
   // token = "fal:<modelPath>:<requestId>"
   const parts = token.slice('fal:'.length).split(':');
-  // modelPath may contain colons (e.g. fal-ai/kling-video/v2.5/...)
-  // requestId is the last segment (UUID)
   const requestId = parts[parts.length - 1];
   const modelPath = parts.slice(0, -1).join(':');
 
-  // Step 1: check status
   const statusRes = await fetch(
     `https://queue.fal.run/${modelPath}/requests/${requestId}/status?logs=0`,
     { headers: { 'Authorization': `Key ${falKey}` } }
@@ -152,11 +245,9 @@ export async function pollFalVideoRender(
   console.log(`[fal-video] Poll status: ${statusData.status}`);
 
   if (statusData.status === 'FAILED') return { status: 'failed' };
-
   if (statusData.status !== 'COMPLETED') return { status: 'processing' };
 
-  // Step 2: status is COMPLETED — fetch the actual result from the result endpoint.
-  // The status endpoint does NOT include output; the result endpoint does.
+  // COMPLETED — fetch result
   const resultRes = await fetch(
     `https://queue.fal.run/${modelPath}/requests/${requestId}`,
     { headers: { 'Authorization': `Key ${falKey}` } }
@@ -164,31 +255,27 @@ export async function pollFalVideoRender(
 
   if (!resultRes.ok) {
     console.error(`[fal-video] Result fetch error ${resultRes.status}`);
-    // Don't treat this as a permanent failure — result endpoint may be briefly unavailable
     return { status: 'processing' };
   }
 
   const result = await resultRes.json() as any;
-
-  // fal.ai models return video URL in different shapes — try all known formats
   const output = result?.output ?? result;
   const url =
-    output?.video?.url ??       // { output: { video: { url } } }
-    output?.video_url ??        // { output: { video_url } }
-    output?.url ??              // { output: { url } }
-    output?.videos?.[0]?.url ?? // { output: { videos: [{ url }] } }
-    output?.video ??            // { output: { video: "url" } }  (string)
-    result?.video?.url ??       // top-level { video: { url } }
-    result?.video_url ??        // top-level { video_url }
+    output?.video?.url ??
+    output?.video_url ??
+    output?.url ??
+    output?.videos?.[0]?.url ??
+    output?.video ??
+    result?.video?.url ??
+    result?.video_url ??
     null;
 
   if (url && typeof url === 'string') {
-    console.log(`[fal-video] Got video URL from result endpoint`);
+    console.log(`[fal-video] Got video URL`);
     return { status: 'done', url };
   }
 
-  console.error('[fal-video] COMPLETED but no URL found. result keys:', Object.keys(result ?? {}), 'output keys:', Object.keys(output ?? {}));
-  // Log the full result to diagnose unknown response shapes
+  console.error('[fal-video] COMPLETED but no URL. result keys:', Object.keys(result ?? {}));
   console.error('[fal-video] Full result:', JSON.stringify(result).slice(0, 500));
   return { status: 'failed' };
 }
