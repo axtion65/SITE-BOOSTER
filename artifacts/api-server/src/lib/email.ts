@@ -1,44 +1,34 @@
-// EmailJS server-side email service
-// Requires ONE template in EmailJS dashboard with these variables:
-//   {{to_name}}, {{to_email}}, {{subject}}, {{{body_html}}} (triple braces for raw HTML), {{from_name}}
+// Resend email service — zero template setup, fully automated
+// Sign up free at resend.com → get an API key → add as RESEND_API_KEY secret
+// Free tier: 3,000 emails/month, 100/day
 
-const EMAILJS_URL = "https://api.emailjs.com/api/v1.0/email/send";
+const RESEND_URL = "https://api.resend.com/emails";
 
 function isConfigured() {
-  return !!(
-    process.env.EMAILJS_SERVICE_ID &&
-    process.env.EMAILJS_TEMPLATE_ID &&
-    process.env.EMAILJS_PUBLIC_KEY &&
-    process.env.EMAILJS_PRIVATE_KEY
-  );
+  return !!process.env.RESEND_API_KEY;
 }
 
 async function sendEmail(to_email: string, to_name: string, subject: string, body_html: string) {
   if (!isConfigured()) {
-    console.log("[email] Not configured — skipping send to", to_email);
+    console.log("[email] RESEND_API_KEY not set — skipping send to", to_email);
     return;
   }
   try {
-    const res = await fetch(EMAILJS_URL, {
+    const from = process.env.EMAILJS_FROM_NAME
+      ? `${process.env.EMAILJS_FROM_NAME} <${process.env.EMAIL_FROM_ADDRESS ?? "noreply@quae.ai"}>`
+      : `Quae.ai <noreply@quae.ai>`;
+
+    const res = await fetch(RESEND_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID,
-        user_id: process.env.EMAILJS_PUBLIC_KEY,
-        accessToken: process.env.EMAILJS_PRIVATE_KEY,
-        template_params: {
-          from_name: process.env.EMAILJS_FROM_NAME ?? "Quae.ai",
-          to_name: to_name || "there",
-          to_email,
-          subject,
-          body_html,
-        },
-      }),
+      headers: {
+        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to: [to_email], subject, html: body_html }),
     });
     if (!res.ok) {
       const text = await res.text();
-      console.error("[email] EmailJS error:", res.status, text);
+      console.error("[email] Resend error:", res.status, text);
     } else {
       console.log("[email] Sent:", subject, "→", to_email);
     }
