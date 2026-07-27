@@ -8,7 +8,7 @@ export const projectsTable = pgTable("projects", {
   title: text("title").notNull(),
   description: text("description"),
   status: text("status").notNull().default("draft"),
-  renderingModelId: text("rendering_model_id").notNull().default("kling-1.6"),
+  renderingModelId: text("rendering_model_id").notNull().default("ovi"),
   script: text("script"),
   expandedScript: text("expanded_script"),
   platform: text("platform"),

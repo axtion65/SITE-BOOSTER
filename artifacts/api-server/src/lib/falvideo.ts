@@ -28,11 +28,12 @@ const FAL_MODEL_IDS: Record<string, string> = {
 
 // Credits charged per model (1 credit = $0.01)
 export const MODEL_CREDIT_COSTS: Record<string, number> = {
-  'quae-v1': 30,  // Ovi default
-  'ovi':     30,
-  'wan':     200,
-  'kling':   300,
-  'veo3':    1500,
+  'quae-v1':  30,  // Ovi default
+  'ovi':      30,
+  'wan':      200,
+  'kling':    300,
+  'kling-1.6': 300, // legacy alias stored in older projects
+  'veo3':     1500,
 };
 
 // Plan credit allocations
@@ -59,8 +60,9 @@ function buildVideoPrompt(script: ExpandedScript, platform: string, duration: st
 
 function getModelId(renderingModelId: string): string {
   // Map renderingModelId from projects to fal model
+  // Also handle legacy IDs (e.g. "kling-1.6" stored in DB before model rename)
   if (renderingModelId === 'wan') return FAL_MODEL_IDS.wan;
-  if (renderingModelId === 'kling') return FAL_MODEL_IDS.kling;
+  if (renderingModelId === 'kling' || renderingModelId === 'kling-1.6') return FAL_MODEL_IDS.kling;
   if (renderingModelId === 'veo3') return FAL_MODEL_IDS.veo3;
   return FAL_MODEL_IDS.ovi; // default
 }
@@ -135,8 +137,17 @@ export async function pollFalVideoRender(
   console.log(`[fal-video] Poll status: ${data.status}`);
 
   if (data.status === 'COMPLETED') {
-    const url = data.output?.video?.url ?? data.output?.url;
-    if (url) return { status: 'done', url };
+    // fal.ai models return video URL in different shapes — try all known formats
+    const output = (data as any).output;
+    const url =
+      output?.video?.url ??       // { output: { video: { url } } }
+      output?.video_url ??        // { output: { video_url } }
+      output?.url ??              // { output: { url } }
+      output?.videos?.[0]?.url ?? // { output: { videos: [{ url }] } }
+      output?.video ??            // { output: { video: "url" } }  (string)
+      null;
+    if (url && typeof url === 'string') return { status: 'done', url };
+    console.error('[fal-video] COMPLETED but no URL found. output keys:', Object.keys(output ?? {}));
     return { status: 'failed' };
   }
 
