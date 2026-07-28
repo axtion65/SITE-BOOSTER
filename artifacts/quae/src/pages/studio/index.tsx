@@ -9,11 +9,63 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock, ChevronDown, LayoutTemplate, ArrowLeft, ImagePlus, X, Info, Pencil } from "lucide-react";
+import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock, ChevronDown, LayoutTemplate, ArrowLeft, ImagePlus, X, Info, Pencil, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { ExpandedScript } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+
+const STORAGE_KEY = "quae_studio_draft";
+
+interface StudioDraft {
+  step: number;
+  modelId: string;
+  productName: string;
+  description: string;
+  targetAudience: string;
+  platform: string;
+  duration: string;
+  productImageDataUrl: string | null;
+  productImageFileName: string | null;
+  expandedScript: ExpandedScript | null;
+  templateId?: string;
+  templateType?: string;
+  templateName?: string;
+  templateExampleHook?: string;
+  templateStructure?: string[];
+}
+
+function loadDraft(): StudioDraft | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as StudioDraft;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(draft: StudioDraft) {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // sessionStorage quota exceeded (likely due to large image); retry without image data
+    try {
+      const withoutImage: StudioDraft = { ...draft, productImageDataUrl: null, productImageFileName: null };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(withoutImage));
+    } catch {
+      // silently ignore if storage is unavailable
+    }
+  }
+}
+
+function clearDraft() {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 export default function StudioIndex() {
   return (
@@ -26,23 +78,44 @@ export default function StudioIndex() {
 }
 
 function Wizard() {
-  const [step, setStep] = useState(1);
-  const [modelId, setModelId] = useState<string>("ovi");
+  const search = useSearch();
+
+  // Detect template URL params — when present, start fresh (don't restore draft)
+  const hasTemplateParams = (() => {
+    const params = new URLSearchParams(search);
+    return !!(params.get("templateName") || params.get("templateId") || params.get("platform"));
+  })();
+
+  // Load saved draft once (before state initialisation)
+  const savedDraft = hasTemplateParams ? null : loadDraft();
+
+  const [step, setStep] = useState(savedDraft?.step ?? 1);
+  const [modelId, setModelId] = useState<string>(savedDraft?.modelId ?? "ovi");
 
   // Step 1 State
-  const [productName, setProductName] = useState("");
-  const [description, setDescription] = useState("");
-  const [targetAudience, setTargetAudience] = useState("");
-  const [platform, setPlatform] = useState("tiktok");
-  const [duration, setDuration] = useState("15s");
+  const [productName, setProductName] = useState(savedDraft?.productName ?? "");
+  const [description, setDescription] = useState(savedDraft?.description ?? "");
+  const [targetAudience, setTargetAudience] = useState(savedDraft?.targetAudience ?? "");
+  const [platform, setPlatform] = useState(savedDraft?.platform ?? "tiktok");
+  const [duration, setDuration] = useState(savedDraft?.duration ?? "15s");
 
   // Product image state
-  const [productImageDataUrl, setProductImageDataUrl] = useState<string | null>(null);
-  const [productImageFileName, setProductImageFileName] = useState<string | null>(null);
+  const [productImageDataUrl, setProductImageDataUrl] = useState<string | null>(savedDraft?.productImageDataUrl ?? null);
+  const [productImageFileName, setProductImageFileName] = useState<string | null>(savedDraft?.productImageFileName ?? null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Step 2 State
-  const [expandedScript, setExpandedScript] = useState<ExpandedScript | null>(null);
+  const [expandedScript, setExpandedScript] = useState<ExpandedScript | null>(savedDraft?.expandedScript ?? null);
+
+  const [templateId, setTemplateId] = useState<string | undefined>(savedDraft?.templateId);
+  const [templateType, setTemplateType] = useState<string | undefined>(savedDraft?.templateType);
+  const [templateName, setTemplateName] = useState<string | undefined>(savedDraft?.templateName);
+  const [templateExampleHook, setTemplateExampleHook] = useState<string | undefined>(savedDraft?.templateExampleHook);
+  const [templateStructure, setTemplateStructure] = useState<string[] | undefined>(savedDraft?.templateStructure);
+  const [templateCardExpanded, setTemplateCardExpanded] = useState(false);
+
+  // Track whether there was a restored draft (so we can show a "clear draft" affordance)
+  const [draftRestored, setDraftRestored] = useState(!!savedDraft && savedDraft.step > 1);
 
   const updateHook = (value: string) => {
     setExpandedScript(prev => prev ? { ...prev, hook: value } : prev);
@@ -66,16 +139,8 @@ function Wizard() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
-  const search = useSearch();
 
-  const [templateId, setTemplateId] = useState<string | undefined>();
-  const [templateType, setTemplateType] = useState<string | undefined>();
-  const [templateName, setTemplateName] = useState<string | undefined>();
-  const [templateExampleHook, setTemplateExampleHook] = useState<string | undefined>();
-  const [templateStructure, setTemplateStructure] = useState<string[] | undefined>();
-  const [templateCardExpanded, setTemplateCardExpanded] = useState(false);
-
-  // Pre-fill from template URL params
+  // Pre-fill from template URL params (only when navigating from template picker)
   const templateApplied = useRef(false);
   useEffect(() => {
     if (templateApplied.current) return;
@@ -102,6 +167,52 @@ function Wizard() {
       }
     }
   }, [search]);
+
+  // Persist draft to sessionStorage whenever relevant state changes
+  useEffect(() => {
+    saveDraft({
+      step,
+      modelId,
+      productName,
+      description,
+      targetAudience,
+      platform,
+      duration,
+      productImageDataUrl,
+      productImageFileName,
+      expandedScript,
+      templateId,
+      templateType,
+      templateName,
+      templateExampleHook,
+      templateStructure,
+    });
+  }, [
+    step, modelId, productName, description, targetAudience, platform, duration,
+    productImageDataUrl, productImageFileName, expandedScript,
+    templateId, templateType, templateName, templateExampleHook, templateStructure,
+  ]);
+
+  const handleClearDraft = () => {
+    clearDraft();
+    setStep(1);
+    setModelId("ovi");
+    setProductName("");
+    setDescription("");
+    setTargetAudience("");
+    setPlatform("tiktok");
+    setDuration("15s");
+    setProductImageDataUrl(null);
+    setProductImageFileName(null);
+    setExpandedScript(null);
+    setTemplateId(undefined);
+    setTemplateType(undefined);
+    setTemplateName(undefined);
+    setTemplateExampleHook(undefined);
+    setTemplateStructure(undefined);
+    setDraftRestored(false);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -176,6 +287,8 @@ function Wizard() {
           productImageUrl: productImageDataUrl ?? null,
         }
       });
+      // Clear the saved draft — render has started, work is done
+      clearDraft();
       toast({ title: "Rendering started!", description: "Your video is processing. We'll notify you when it's ready." });
       setLocation(`/studio/projects/${res.id}`);
     } catch (err: any) {
@@ -228,10 +341,32 @@ function Wizard() {
           {/* STEP 1 — Describe */}
           {step === 1 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div>
-                <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Describe your product</h2>
-                <p className="text-muted-foreground">Tell us what you're selling. Our AI writes the cinematic script.</p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Describe your product</h2>
+                  <p className="text-muted-foreground">Tell us what you're selling. Our AI writes the cinematic script.</p>
+                </div>
+                {/* Show "start fresh" only when there's a meaningful saved draft */}
+                {draftRestored && (
+                  <button
+                    type="button"
+                    onClick={handleClearDraft}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-white transition-colors px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20 bg-white/[0.02] hover:bg-white/5"
+                    title="Discard saved draft and start over"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Start fresh
+                  </button>
+                )}
               </div>
+
+              {/* Draft restored banner */}
+              {draftRestored && (
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-primary/20 bg-primary/5 text-sm text-white/80">
+                  <span className="text-primary text-base">↩</span>
+                  <span>Your previous session was restored. Continue where you left off, or <button type="button" onClick={handleClearDraft} className="text-primary hover:underline">start fresh</button>.</span>
+                </div>
+              )}
 
               {/* Template context card — shown only when a template is active */}
               {templateName && (
