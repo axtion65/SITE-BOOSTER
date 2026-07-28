@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { ExpandPromptBody } from "@workspace/api-zod";
+import { anthropic } from "@workspace/integrations-anthropic-ai";
 
 const router = Router();
 
@@ -191,16 +192,12 @@ router.get("/studio/models", (_req, res) => {
   res.json(RENDERING_MODELS);
 });
 
-// Script generation via fal.ai any-llm — bills your fal.ai account, zero Replit credits
+// Script generation via Replit Anthropic integration — reliable, no fal.ai model name dependency
 router.post("/studio/expand-prompt", async (req, res) => {
   const parsed = ExpandPromptBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
 
-  const falKey = process.env.FAL_KEY;
-  if (!falKey) { res.status(500).json({ error: "FAL_KEY not configured" }); return; }
-
   const { description, productName, targetAudience, platform, duration } = parsed.data;
-  // templateType comes in as an extra field — pull it directly from body since zod strips extras
   const templateType = (req.body as any).templateType as string | undefined;
   const templateName = (req.body as any).templateName as string | undefined;
 
@@ -239,38 +236,26 @@ ${templateContext}
 The hook must stop the scroll in the first 2-3 seconds. Every scene must be purposeful. The script must feel like it was made FOR this specific template format — not a generic ad.`;
 
   try {
-    console.log(`[fal-llm] Generating script — template: ${templateType ?? "generic"}, platform: ${platform}, duration: ${duration}`);
+    console.log(`[claude] Generating script — template: ${templateType ?? "generic"}, platform: ${platform}, duration: ${duration}`);
 
-    const falRes = await fetch("https://fal.run/fal-ai/any-llm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Key ${falKey}` },
-      body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4.5",
-        system_prompt: systemPrompt,
-        prompt: userPrompt,
-        max_tokens: 8192,
-      }),
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
     });
 
-    if (!falRes.ok) {
-      const errText = await falRes.text();
-      console.error("[fal-llm] error:", falRes.status, errText);
-      res.status(500).json({ error: "AI generation failed" });
-      return;
-    }
-
-    const data = await falRes.json() as { output?: string };
-    const text = data.output ?? "";
+    const text = message.content[0]?.type === "text" ? message.content[0].text : "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error("[fal-llm] no JSON found in response:", text.slice(0, 300));
+      console.error("[claude] no JSON found in response:", text.slice(0, 300));
       res.status(500).json({ error: "Failed to parse AI response" });
       return;
     }
     res.json(JSON.parse(jsonMatch[0]));
-  } catch (err) {
-    console.error("[fal-llm] error:", err);
-    res.status(500).json({ error: "AI generation failed" });
+  } catch (err: any) {
+    console.error("[claude] error:", err?.message ?? err);
+    res.status(500).json({ error: "AI generation failed — please try again in a moment" });
   }
 });
 
