@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock, ChevronDown, LayoutTemplate, ArrowLeft, ImagePlus, X, Info } from "lucide-react";
+import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock, ChevronDown, LayoutTemplate, ArrowLeft, ImagePlus, X, Info, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { ExpandedScript } from "@workspace/api-client-react";
@@ -43,6 +43,22 @@ function Wizard() {
 
   // Step 2 State
   const [expandedScript, setExpandedScript] = useState<ExpandedScript | null>(null);
+
+  const updateHook = (value: string) => {
+    setExpandedScript(prev => prev ? { ...prev, hook: value } : prev);
+  };
+
+  const updateVoiceover = (value: string) => {
+    setExpandedScript(prev => prev ? { ...prev, voiceoverText: value } : prev);
+  };
+
+  const updateScene = (idx: number, field: "description" | "visualDirection", value: string) => {
+    setExpandedScript(prev => {
+      if (!prev) return prev;
+      const scenes = prev.scenes.map((s, i) => i === idx ? { ...s, [field]: value } : s);
+      return { ...prev, scenes };
+    });
+  };
 
   const { data: models, isLoading: modelsLoading } = useListRenderingModels();
   const expandMutation = useExpandPrompt();
@@ -397,34 +413,69 @@ function Wizard() {
             </div>
           )}
 
-          {/* STEP 2 — Script Review */}
+          {/* STEP 2 — Script Review & Edit */}
           {step === 2 && expandedScript && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Cinematic Script Generated</h2>
-                  <p className="text-muted-foreground">Review the scenes and voiceover. Looks good? Let's pick the model.</p>
+                  <p className="text-muted-foreground">Fine-tune any scene or the hook — your edits carry forward to the render.</p>
                 </div>
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
               </div>
 
               <Card className="border-primary/20 bg-primary/5">
+                {/* Hook — editable */}
                 <div className="p-6 border-b border-primary/10">
-                  <div className="text-xs font-bold text-primary uppercase tracking-wider mb-2">The Hook</div>
-                  <div className="text-xl font-medium italic">"{expandedScript.hook}"</div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="text-xs font-bold text-primary uppercase tracking-wider">The Hook</div>
+                    <Pencil className="h-3 w-3 text-primary/60" />
+                  </div>
+                  <Textarea
+                    value={expandedScript.hook}
+                    onChange={(e) => updateHook(e.target.value)}
+                    className="text-lg font-medium italic bg-black/20 border-white/10 focus:border-primary/50 resize-none min-h-[60px] leading-relaxed"
+                    rows={2}
+                  />
                 </div>
+
+                {/* Scenes — editable */}
                 <div className="p-0">
                   {expandedScript.scenes.map((scene, idx) => (
                     <div key={idx} className="flex border-b border-primary/10 last:border-0">
                       <div className="w-16 flex-shrink-0 flex items-center justify-center border-r border-primary/10 bg-black/20 font-mono text-muted-foreground text-sm">
                         {scene.duration}
                       </div>
-                      <div className="p-4 flex-1">
-                        <div className="text-sm font-semibold text-white mb-1">Scene {scene.sceneNumber}</div>
-                        <p className="text-sm text-muted-foreground mb-2">{scene.description}</p>
-                        <div className="flex items-start gap-2 bg-black/40 rounded p-2 text-xs">
-                          <Film className="h-3 w-3 text-primary mt-0.5 shrink-0" />
-                          <span className="text-white/80">{scene.visualDirection}</span>
+                      <div className="p-4 flex-1 space-y-3">
+                        <div className="text-sm font-semibold text-white">Scene {scene.sceneNumber}</div>
+
+                        {/* Scene description */}
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Description</span>
+                            <Pencil className="h-2.5 w-2.5 text-muted-foreground/60" />
+                          </div>
+                          <Textarea
+                            value={scene.description}
+                            onChange={(e) => updateScene(idx, "description", e.target.value)}
+                            className="text-sm bg-black/20 border-white/10 focus:border-primary/50 resize-none min-h-[56px]"
+                            rows={2}
+                          />
+                        </div>
+
+                        {/* Visual direction */}
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <Film className="h-3 w-3 text-primary" />
+                            <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Visual Direction</span>
+                            <Pencil className="h-2.5 w-2.5 text-primary/60" />
+                          </div>
+                          <Textarea
+                            value={scene.visualDirection}
+                            onChange={(e) => updateScene(idx, "visualDirection", e.target.value)}
+                            className="text-sm bg-black/40 border-white/10 focus:border-primary/50 resize-none min-h-[56px] text-white/80"
+                            rows={2}
+                          />
                         </div>
                       </div>
                     </div>
@@ -432,13 +483,22 @@ function Wizard() {
                 </div>
               </Card>
 
+              {/* Voiceover — editable */}
               <div className="bg-card border border-border rounded-xl p-6">
-                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Full Voiceover</div>
-                <p className="text-sm leading-relaxed">{expandedScript.voiceoverText}</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Full Voiceover</div>
+                  <Pencil className="h-3 w-3 text-muted-foreground/60" />
+                </div>
+                <Textarea
+                  value={expandedScript.voiceoverText}
+                  onChange={(e) => updateVoiceover(e.target.value)}
+                  className="text-sm leading-relaxed bg-transparent border-white/10 focus:border-primary/50 resize-none min-h-[80px]"
+                  rows={4}
+                />
               </div>
 
               <Button size="lg" className="w-full h-14 text-lg font-bold" onClick={() => setStep(3)}>
-                Looks Good — Choose Model <ChevronRight className="ml-2 h-5 w-5" />
+                Script Ready — Choose Model <ChevronRight className="ml-2 h-5 w-5" />
               </Button>
             </div>
           )}
