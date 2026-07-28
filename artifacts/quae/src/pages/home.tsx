@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
-import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign, Sparkles, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign, Sparkles, ChevronRight, Wand2, Film, Download } from "lucide-react";
 
 export default function Home() {
   return (
@@ -53,9 +53,254 @@ function Navbar() {
   );
 }
 
+// ─── Animated studio mockup phases ───────────────────────────────────────────
+
+const MOCKUP_PHASES = [
+  { id: "describe", label: "Describe product", icon: Wand2 },
+  { id: "script",   label: "AI writes script",  icon: Sparkles },
+  { id: "render",   label: "Rendering video",   icon: Film },
+  { id: "done",     label: "Video ready!",      icon: Download },
+] as const;
+
+type MockupPhase = typeof MOCKUP_PHASES[number]["id"];
+
+const PHASE_DURATION = 2800; // ms per phase
+
+function AnimatedStudioMockup() {
+  const [phase, setPhase] = useState<MockupPhase>("describe");
+  const [progress, setProgress] = useState(0);
+  const [scriptLines, setScriptLines] = useState(0);
+
+  useEffect(() => {
+    const order: MockupPhase[] = ["describe", "script", "render", "done"];
+    let tick: ReturnType<typeof setInterval>;
+    let phaseTimer: ReturnType<typeof setTimeout>;
+
+    function startPhase(p: MockupPhase) {
+      setPhase(p);
+      setProgress(0);
+      setScriptLines(0);
+
+      // Animate progress bar / script lines within each phase
+      if (p === "render") {
+        let pct = 0;
+        tick = setInterval(() => {
+          pct += 100 / (PHASE_DURATION / 60);
+          setProgress(Math.min(pct, 100));
+        }, 60);
+      } else if (p === "script") {
+        let lines = 0;
+        tick = setInterval(() => {
+          lines += 1;
+          setScriptLines(l => Math.min(l + 1, 5));
+        }, PHASE_DURATION / 6);
+      }
+
+      phaseTimer = setTimeout(() => {
+        clearInterval(tick);
+        const next = order[(order.indexOf(p) + 1) % order.length];
+        startPhase(next);
+      }, PHASE_DURATION);
+    }
+
+    startPhase("describe");
+    return () => { clearInterval(tick); clearTimeout(phaseTimer); };
+  }, []);
+
+  return (
+    <div className="relative w-full max-w-[420px] mx-auto lg:mx-0 select-none">
+      {/* Glow behind card */}
+      <div className="absolute -inset-6 bg-violet-600/10 rounded-3xl blur-2xl pointer-events-none" />
+
+      {/* Main card */}
+      <div className="relative rounded-2xl border border-white/[0.08] bg-[#0c0c10] shadow-2xl overflow-hidden">
+
+        {/* Title bar */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
+          <div className="flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+            <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+            <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+          </div>
+          <span className="text-[11px] text-white/25 font-medium mx-auto pr-6">Quae Studio</span>
+        </div>
+
+        {/* Phase stepper */}
+        <div className="flex items-center gap-0 border-b border-white/[0.06] px-4 py-2.5">
+          {MOCKUP_PHASES.map((p, i) => {
+            const order: MockupPhase[] = ["describe", "script", "render", "done"];
+            const phaseIdx = order.indexOf(phase);
+            const done = i < phaseIdx;
+            const active = i === phaseIdx;
+            return (
+              <div key={p.id} className="flex items-center gap-1">
+                <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-all duration-500 ${
+                  active ? "bg-violet-500/15 text-violet-300" :
+                  done  ? "text-white/20" : "text-white/10"
+                }`}>
+                  <p.icon className="h-2.5 w-2.5" />
+                  <span className="hidden sm:inline">{p.label}</span>
+                </div>
+                {i < MOCKUP_PHASES.length - 1 && (
+                  <ChevronRight className="h-2.5 w-2.5 text-white/[0.08] mx-0.5 shrink-0" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Phase body */}
+        <div className="p-5 min-h-[240px] flex flex-col">
+          <AnimatePresence mode="wait">
+
+            {phase === "describe" && (
+              <motion.div key="describe"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.35 }}
+                className="flex flex-col gap-3 flex-1"
+              >
+                <p className="text-[11px] text-white/30 uppercase tracking-widest font-bold">Product Details</p>
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3">
+                  <p className="text-[11px] text-white/20 mb-1">Product name</p>
+                  <p className="text-sm text-white/70 font-medium">HydroGlow Face Serum</p>
+                </div>
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3">
+                  <p className="text-[11px] text-white/20 mb-1">Target audience</p>
+                  <p className="text-sm text-white/70 font-medium">Women 25–40, skincare-focused</p>
+                </div>
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3">
+                  <p className="text-[11px] text-white/20 mb-1">Template</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-white/70 font-medium">TikTok Viral Hook</span>
+                    <span className="text-[9px] text-violet-400 bg-violet-400/10 px-1.5 py-0.5 rounded-full border border-violet-400/20 font-bold">15s</span>
+                  </div>
+                </div>
+                <motion.div
+                  animate={{ opacity: [0.4, 1, 0.4] }}
+                  transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+                  className="mt-auto flex items-center gap-2 text-[11px] text-violet-400/70"
+                >
+                  <Sparkles className="h-3 w-3" /> Generating script…
+                </motion.div>
+              </motion.div>
+            )}
+
+            {phase === "script" && (
+              <motion.div key="script"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.35 }}
+                className="flex flex-col gap-2.5 flex-1"
+              >
+                <p className="text-[11px] text-white/30 uppercase tracking-widest font-bold mb-1">AI Script</p>
+                {[
+                  'HOOK: "You\'ve been washing your face wrong\u2014"',
+                  "Scene 1: Close-up of glowing skin transformation",
+                  "Scene 2: Product drop into water, slow-mo",
+                  "Scene 3: UGC-style testimonial reaction",
+                  'CTA: "Get yours \u2014 link in bio"',
+                ].slice(0, scriptLines).map((line, i) => (
+                  <motion.div key={i}
+                    initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="text-[11px] text-white/55 leading-relaxed bg-white/[0.025] rounded-lg px-3 py-2 border border-white/[0.05]"
+                  >
+                    {line}
+                  </motion.div>
+                ))}
+                {scriptLines < 5 && (
+                  <motion.div
+                    animate={{ opacity: [0, 1, 0] }}
+                    transition={{ repeat: Infinity, duration: 0.8 }}
+                    className="w-5 h-0.5 bg-violet-400/60 rounded-full mt-1"
+                  />
+                )}
+              </motion.div>
+            )}
+
+            {phase === "render" && (
+              <motion.div key="render"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.35 }}
+                className="flex flex-col gap-4 flex-1 justify-center"
+              >
+                {/* Fake video preview */}
+                <div className="relative rounded-xl overflow-hidden bg-gradient-to-br from-violet-900/30 via-purple-950/20 to-fuchsia-950/20 border border-white/[0.06]" style={{ aspectRatio: "9/16", maxHeight: 140 }}>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <motion.div
+                      animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.7, 0.4] }}
+                      transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                      className="h-10 w-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center"
+                    >
+                      <Film className="h-4 w-4 text-violet-400" />
+                    </motion.div>
+                  </div>
+                  {/* Scan line animation */}
+                  <motion.div
+                    animate={{ y: ["0%", "100%"] }}
+                    transition={{ repeat: Infinity, duration: 1.8, ease: "linear" }}
+                    className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-violet-400/40 to-transparent"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[11px] text-white/30">
+                    <span className="text-violet-400/80 font-medium">Kling 2.5 rendering…</span>
+                    <span>{Math.round(progress)}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-white/20">Estimated time: ~2 min</p>
+                </div>
+              </motion.div>
+            )}
+
+            {phase === "done" && (
+              <motion.div key="done"
+                initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.4 }}
+                className="flex flex-col gap-4 flex-1 justify-center items-center text-center"
+              >
+                {/* Fake finished video thumbnail */}
+                <div className="relative rounded-xl overflow-hidden bg-gradient-to-br from-violet-800/40 via-purple-900/30 to-fuchsia-900/30 border border-violet-500/25 shadow-lg shadow-violet-500/10" style={{ aspectRatio: "9/16", maxHeight: 148, width: "100%" }}>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <motion.div
+                      initial={{ scale: 0.7, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.15, duration: 0.4, type: "spring" }}
+                      className="h-14 w-14 rounded-full bg-white/15 border border-white/25 backdrop-blur-sm flex items-center justify-center shadow-xl"
+                    >
+                      <Play className="h-5 w-5 text-white fill-white ml-0.5" />
+                    </motion.div>
+                  </div>
+                  <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+                    <span className="text-[9px] text-white/60 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded font-semibold">15s · TikTok</span>
+                    <span className="text-[9px] text-green-400 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded font-bold">READY</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 w-full">
+                  <div className="flex-1 h-8 rounded-lg bg-violet-600/20 border border-violet-500/30 flex items-center justify-center gap-1.5 text-[11px] text-violet-300 font-semibold">
+                    <Download className="h-3 w-3" /> Download
+                  </div>
+                  <div className="flex-1 h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center gap-1.5 text-[11px] text-white/40 font-semibold">
+                    New Video
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HeroSection() {
   return (
-    <section className="pt-36 pb-24 px-6 relative overflow-hidden">
+    <section className="pt-32 pb-20 px-6 relative overflow-hidden">
       {/* Multi-layer bg */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_-10%,rgba(124,58,237,0.18),transparent)]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_30%_at_80%_20%,rgba(139,92,246,0.08),transparent)]" />
@@ -66,55 +311,72 @@ function HeroSection() {
         backgroundSize: "60px 60px"
       }} />
 
-      <div className="max-w-5xl mx-auto text-center relative z-10">
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: "easeOut" }}>
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[11px] font-bold mb-8 uppercase tracking-[0.15em]">
-            <Sparkles className="h-3 w-3" /> AI Video Ads — Powered by Kling, Veo 3 & Ovi
-          </div>
-          <h1 className="text-5xl md:text-[80px] font-black tracking-tight mb-6 leading-[1.0]">
-            Create TikTok Ads,{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400">
-              Shopify Videos
-            </span>{" "}
-            &{" "}UGC Content<br className="hidden md:block" /> in Minutes
-          </h1>
-          <p className="text-lg md:text-xl text-white/40 mb-10 max-w-2xl mx-auto leading-relaxed">
-            Describe your product. Pick a template. Get a polished, ready-to-post video ad — without a camera, editor, or agency.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/signin" className="h-14 px-8 bg-violet-600 hover:bg-violet-500 rounded-2xl font-black text-base transition-all shadow-2xl shadow-violet-600/30 hover:shadow-violet-500/40 flex items-center gap-2.5 group">
-              Start Free — 3 Videos Included
-              <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-            <Link href="/templates" className="h-14 px-8 border border-white/10 hover:border-white/20 rounded-2xl font-semibold text-base text-white/60 hover:text-white transition-all flex items-center gap-2">
-              View Templates <ChevronRight className="h-4 w-4" />
-            </Link>
-          </div>
-          <div className="mt-5 flex items-center justify-center gap-1.5 text-sm text-white/25">
-            <Check className="h-3.5 w-3.5 text-violet-400/60" /> No credit card required · Cancel anytime
-          </div>
-        </motion.div>
+      <div className="max-w-6xl mx-auto relative z-10">
+        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
 
-        {/* Platform pills */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mt-16 flex flex-wrap items-center justify-center gap-6 text-sm text-white/25"
-        >
-          {[
-            { icon: ShoppingBag, label: "Shopify Ads" },
-            { icon: TrendingUp, label: "TikTok Hooks" },
-            { icon: Video, label: "UGC Style" },
-            { icon: Users, label: "Instagram Reels" },
-            { icon: Star, label: "Product Demos" },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <item.icon className="h-3.5 w-3.5 text-violet-400/50" />
-              <span>{item.label}</span>
+          {/* Left: copy */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: "easeOut" }}
+            className="flex-1 text-center lg:text-left"
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[11px] font-bold mb-8 uppercase tracking-[0.15em]">
+              <Sparkles className="h-3 w-3" /> AI Video Ads — Powered by Kling, Veo 3 & Ovi
             </div>
-          ))}
-        </motion.div>
+            <h1 className="text-5xl md:text-6xl lg:text-[68px] font-black tracking-tight mb-6 leading-[1.02]">
+              Create TikTok Ads,{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400">
+                Shopify Videos
+              </span>{" "}
+              &{" "}UGC Content{" "}
+              <span className="whitespace-nowrap">in Minutes</span>
+            </h1>
+            <p className="text-lg md:text-xl text-white/40 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+              Describe your product. Pick a template. Get a polished, ready-to-post video ad — without a camera, editor, or agency.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+              <Link href="/signin" className="h-14 px-8 bg-violet-600 hover:bg-violet-500 rounded-2xl font-black text-base transition-all shadow-2xl shadow-violet-600/30 hover:shadow-violet-500/40 flex items-center gap-2.5 group">
+                Start Free — 3 Videos Included
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+              <Link href="/templates" className="h-14 px-8 border border-white/10 hover:border-white/20 rounded-2xl font-semibold text-base text-white/60 hover:text-white transition-all flex items-center gap-2">
+                View Templates <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <div className="mt-5 flex items-center justify-center lg:justify-start gap-1.5 text-sm text-white/25">
+              <Check className="h-3.5 w-3.5 text-violet-400/60" /> No credit card required · Cancel anytime
+            </div>
+
+            {/* Platform pills */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="mt-12 flex flex-wrap items-center justify-center lg:justify-start gap-5 text-sm text-white/25"
+            >
+              {[
+                { icon: ShoppingBag, label: "Shopify Ads" },
+                { icon: TrendingUp, label: "TikTok Hooks" },
+                { icon: Video, label: "UGC Style" },
+                { icon: Users, label: "Instagram Reels" },
+                { icon: Star, label: "Product Demos" },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <item.icon className="h-3.5 w-3.5 text-violet-400/50" />
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </motion.div>
+          </motion.div>
+
+          {/* Right: animated studio mockup */}
+          <motion.div
+            initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
+            className="w-full lg:w-auto lg:flex-shrink-0 lg:w-[420px]"
+          >
+            <AnimatedStudioMockup />
+          </motion.div>
+
+        </div>
       </div>
     </section>
   );
