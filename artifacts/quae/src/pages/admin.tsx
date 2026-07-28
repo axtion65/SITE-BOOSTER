@@ -5,10 +5,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, Film, PlayCircle, UserPlus, Shield, ShieldOff, Trash2, Copy, Download, Mail, Send } from "lucide-react";
+import { Users, Film, PlayCircle, UserPlus, Shield, ShieldOff, Trash2, Copy, Download, Mail, Send, MessageSquare, AlertCircle, ThumbsUp, Lightbulb } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdminUserUpdatePlan } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -27,12 +27,16 @@ export default function Admin() {
 
           <AdminStats />
 
-          <Tabs defaultValue="users">
+          <Tabs defaultValue="feedback">
             <TabsList className="mb-4">
+              <TabsTrigger value="feedback"><MessageSquare className="h-4 w-4 mr-2" />Feedback</TabsTrigger>
               <TabsTrigger value="users"><Users className="h-4 w-4 mr-2" />Users</TabsTrigger>
               <TabsTrigger value="subscribers"><Mail className="h-4 w-4 mr-2" />Subscribers</TabsTrigger>
               <TabsTrigger value="broadcast"><Send className="h-4 w-4 mr-2" />Broadcast</TabsTrigger>
             </TabsList>
+            <TabsContent value="feedback">
+              <FeedbackPanel />
+            </TabsContent>
             <TabsContent value="users">
               <AdminUsersTable />
             </TabsContent>
@@ -307,6 +311,81 @@ function SubscribersList() {
             )}
           </TableBody>
         </Table>
+      </div>
+    </Card>
+  );
+}
+
+const FEEDBACK_TYPE_ICON: Record<string, React.ReactNode> = {
+  bug:         <AlertCircle className="h-4 w-4 text-red-400" />,
+  suggestion:  <Lightbulb className="h-4 w-4 text-yellow-400" />,
+  compliment:  <ThumbsUp className="h-4 w-4 text-green-400" />,
+  other:       <MessageSquare className="h-4 w-4 text-white/40" />,
+};
+
+function FeedbackPanel() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("quae_token");
+      const res = await fetch("/api/admin/feedback", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      setItems(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="h-64 rounded-xl bg-card border border-border animate-pulse" />;
+  if (error) return <div className="p-6 text-red-400">Failed to load feedback: {error}</div>;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between border-b border-border py-4">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" /> Customer Feedback
+          </CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            {items.length} submission{items.length !== 1 ? "s" : ""} — newest first
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={load}>Refresh</Button>
+      </CardHeader>
+      <div className="divide-y divide-border">
+        {items.length === 0 && (
+          <div className="py-16 text-center text-muted-foreground">No feedback yet.</div>
+        )}
+        {items.map((item: any) => (
+          <div key={item.id} className="p-5 flex gap-4 hover:bg-white/[0.02] transition-colors">
+            <div className="mt-0.5 flex-shrink-0">
+              {FEEDBACK_TYPE_ICON[item.type] ?? FEEDBACK_TYPE_ICON.other}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-1.5">
+                <Badge variant="outline" className="capitalize text-[10px]">{item.type ?? "other"}</Badge>
+                {item.email && (
+                  <span className="text-xs text-muted-foreground">{item.email}</span>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {new Date(item.created_at).toLocaleString()}
+                </span>
+              </div>
+              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{item.message}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </Card>
   );
