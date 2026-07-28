@@ -7,6 +7,7 @@ import projectsRouter from "./projects";
 import adminRouter from "./admin";
 import billingRouter from "./billing";
 import feedbackRouter from "./feedback";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(projectsRouter);
 router.use(adminRouter);
 router.use(billingRouter);
 router.use(feedbackRouter);
+router.use(storageRouter);
 
 export default router;

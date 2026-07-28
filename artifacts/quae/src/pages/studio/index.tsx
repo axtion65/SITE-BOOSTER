@@ -25,7 +25,7 @@ interface StudioDraft {
   targetAudience: string;
   platform: string;
   duration: string;
-  productImageDataUrl: string | null;
+  productImageObjectPath: string | null;
   productImageFileName: string | null;
   expandedScript: ExpandedScript | null;
   templateId?: string;
@@ -39,7 +39,13 @@ function loadDraft(): StudioDraft | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as StudioDraft;
+    const parsed = JSON.parse(raw) as any;
+    // Migrate old base64 drafts — drop the data URL, keep the filename
+    if (parsed.productImageDataUrl !== undefined) {
+      parsed.productImageObjectPath = null;
+      delete parsed.productImageDataUrl;
+    }
+    return parsed as StudioDraft;
   } catch {
     return null;
   }
@@ -49,13 +55,7 @@ function saveDraft(draft: StudioDraft) {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
   } catch {
-    // sessionStorage quota exceeded (likely due to large image); retry without image data
-    try {
-      const withoutImage: StudioDraft = { ...draft, productImageDataUrl: null, productImageFileName: null };
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(withoutImage));
-    } catch {
-      // silently ignore if storage is unavailable
-    }
+    // silently ignore
   }
 }
 
@@ -99,9 +99,10 @@ function Wizard() {
   const [platform, setPlatform] = useState(savedDraft?.platform ?? "tiktok");
   const [duration, setDuration] = useState(savedDraft?.duration ?? "15s");
 
-  // Product image state
-  const [productImageDataUrl, setProductImageDataUrl] = useState<string | null>(savedDraft?.productImageDataUrl ?? null);
+  // Product image state — stored as GCS object path, not base64
+  const [productImageObjectPath, setProductImageObjectPath] = useState<string | null>(savedDraft?.productImageObjectPath ?? null);
   const [productImageFileName, setProductImageFileName] = useState<string | null>(savedDraft?.productImageFileName ?? null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Step 2 State
@@ -178,7 +179,7 @@ function Wizard() {
       targetAudience,
       platform,
       duration,
-      productImageDataUrl,
+      productImageObjectPath,
       productImageFileName,
       expandedScript,
       templateId,
@@ -189,7 +190,7 @@ function Wizard() {
     });
   }, [
     step, modelId, productName, description, targetAudience, platform, duration,
-    productImageDataUrl, productImageFileName, expandedScript,
+    productImageObjectPath, productImageFileName, expandedScript,
     templateId, templateType, templateName, templateExampleHook, templateStructure,
   ]);
 
@@ -202,7 +203,7 @@ function Wizard() {
     setTargetAudience("");
     setPlatform("tiktok");
     setDuration("15s");
-    setProductImageDataUrl(null);
+    setProductImageObjectPath(null);
     setProductImageFileName(null);
     setExpandedScript(null);
     setTemplateId(undefined);
@@ -214,33 +215,51 @@ function Wizard() {
     if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       toast({ title: "Invalid file", description: "Please select an image file (JPG, PNG, WebP, etc.)", variant: "destructive" });
       return;
     }
-
-    // Validate file size — cap at 4 MB to keep base64 payload reasonable
-    if (file.size > 4 * 1024 * 1024) {
-      toast({ title: "Image too large", description: "Please use an image under 4 MB.", variant: "destructive" });
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Image too large", description: "Please use an image under 10 MB.", variant: "destructive" });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setProductImageDataUrl(dataUrl);
-      setProductImageFileName(file.name);
-    };
-    reader.readAsDataURL(file);
+    setIsUploadingImage(true);
+    setProductImageFileName(file.name);
+    try {
+      // Step 1: request presigned URL
+      const metaRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!metaRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await metaRes.json() as { uploadURL: string; objectPath: string };
+
+      // Step 2: upload directly to GCS
+      const uploadRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+
+      setProductImageObjectPath(objectPath);
+    } catch (err) {
+      toast({ title: "Image upload failed", description: "Please try again.", variant: "destructive" });
+      setProductImageFileName(null);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const handleRemoveImage = () => {
-    setProductImageDataUrl(null);
+    setProductImageObjectPath(null);
     setProductImageFileName(null);
     if (imageInputRef.current) imageInputRef.current.value = "";
   };
@@ -284,7 +303,7 @@ function Wizard() {
           platform,
           duration,
           templateId: templateId ?? null,
-          productImageUrl: productImageDataUrl ?? null,
+          productImageUrl: productImageObjectPath ?? null,
         }
       });
       // Clear the saved draft — render has started, work is done
@@ -456,10 +475,20 @@ function Wizard() {
                     </div>
                   </div>
 
-                  {productImageDataUrl ? (
+                  {isUploadingImage ? (
+                    <div className="flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-white/[0.02]">
+                      <div className="h-16 w-16 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                        <Spinner className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white/70">Uploading {productImageFileName}…</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Uploading to storage</p>
+                      </div>
+                    </div>
+                  ) : productImageObjectPath ? (
                     <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
                       <img
-                        src={productImageDataUrl}
+                        src={`/api/storage${productImageObjectPath}`}
                         alt="Product preview"
                         className="h-16 w-16 rounded-lg object-cover border border-white/10 flex-shrink-0"
                       />
@@ -487,7 +516,7 @@ function Wizard() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">Upload product image</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to 4 MB. Enables image-to-video conditioning on Wan &amp; Kling.</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to 10 MB. Enables image-to-video conditioning on Wan &amp; Kling.</p>
                       </div>
                     </button>
                   )}
@@ -659,7 +688,7 @@ function Wizard() {
               </div>
 
               {/* Image conditioning notice */}
-              {productImageDataUrl && (
+              {productImageObjectPath && (
                 <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-white/70 flex items-start gap-2">
                   <ImagePlus className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                   <span>
@@ -668,7 +697,7 @@ function Wizard() {
                 </div>
               )}
 
-              {!productImageDataUrl && (
+              {!productImageObjectPath && (
                 <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-xs text-white/50 flex items-start gap-2">
                   <Info className="h-4 w-4 text-white/30 mt-0.5 flex-shrink-0" />
                   <span>
@@ -714,7 +743,7 @@ function Wizard() {
                           {canUse && isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
                           {canUse && !isSelected && <Activity className="h-4 w-4 text-muted-foreground" />}
                           <span className="font-bold text-white">{model.name}</span>
-                          {supportsImage && productImageDataUrl && (
+                          {supportsImage && productImageObjectPath && (
                             <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30 font-semibold">
                               IMG
                             </span>
@@ -763,10 +792,10 @@ function Wizard() {
                 <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
                     Selected: <span className="text-white font-semibold">{selectedModel.name}</span>
-                    {productImageDataUrl && selectedModelSupportsImage && (
+                    {productImageObjectPath && selectedModelSupportsImage && (
                       <span className="ml-2 text-xs text-primary">+ image conditioning</span>
                     )}
-                    {productImageDataUrl && !selectedModelSupportsImage && (
+                    {productImageObjectPath && !selectedModelSupportsImage && (
                       <span className="ml-2 text-xs text-amber-400">image not used by this model</span>
                     )}
                   </div>
@@ -795,13 +824,13 @@ function Wizard() {
                 Your script is locked in and the model is selected. Hit render — we'll submit your video to{" "}
                 <span className="text-white font-semibold">{selectedModel?.name ?? "Ovi"}</span> and you can track progress in your projects.
               </p>
-              {productImageDataUrl && selectedModelSupportsImage && (
+              {productImageObjectPath && selectedModelSupportsImage && (
                 <div className="flex items-center justify-center gap-2 text-sm text-primary">
                   <ImagePlus className="h-4 w-4" />
                   <span>Your product image will be used as a reference frame</span>
                 </div>
               )}
-              {productImageDataUrl && !selectedModelSupportsImage && (
+              {productImageObjectPath && !selectedModelSupportsImage && (
                 <div className="flex items-center justify-center gap-2 text-sm text-amber-400">
                   <Info className="h-4 w-4" />
                   <span>Note: {selectedModel?.name ?? "Ovi"} is text-only — your product image won't be used</span>
