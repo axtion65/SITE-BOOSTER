@@ -130,7 +130,15 @@ function Wizard() {
       setExpandedScript(res);
       setStep(2);
     } catch (err: any) {
-      toast({ title: "Script generation failed", description: err.message || "AI failed to generate script", variant: "destructive" });
+      const msg = err.message || "";
+      const isServer = msg.includes("500") || msg.includes("Internal");
+      toast({
+        title: "Script generation failed",
+        description: isServer
+          ? "Our AI is overloaded — please wait 30 seconds and try again. Your credits were not charged."
+          : (msg || "Something went wrong. Please try again."),
+        variant: "destructive",
+      });
     }
   };
 

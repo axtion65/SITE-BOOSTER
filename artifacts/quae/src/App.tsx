@@ -18,6 +18,7 @@ import Templates from '@/pages/templates';
 import Admin from '@/pages/admin';
 import SetupAdmin from '@/pages/setup-admin';
 import FeedbackWidget from '@/components/feedback-widget';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 const queryClient = new QueryClient();
 
@@ -46,17 +47,19 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-          <FeedbackWidget />
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AuthProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+            <FeedbackWidget />
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
