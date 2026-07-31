@@ -193,24 +193,12 @@ function getModelKey(renderingModelId: string): string {
   return 'ovi';
 }
 
-// Upload a base64 data URL or regular URL image to fal.ai CDN storage.
+// Upload image bytes (as Buffer + mimeType) to fal.ai CDN storage.
 // Returns a fal.ai CDN URL suitable for use as image_url in model requests.
-async function uploadImageToFal(imageInput: string, falKey: string): Promise<string> {
-  // If it's already a https URL (not data:), return as-is
-  if (imageInput.startsWith('http://') || imageInput.startsWith('https://')) {
-    return imageInput;
-  }
-
-  // Parse base64 data URL
-  const match = imageInput.match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) throw new Error('Invalid image format — expected data URL or https URL');
-  const [, mimeType, base64Data] = match;
-  const buffer = Buffer.from(base64Data, 'base64');
-
-  // Upload to fal.ai storage
-  const ext = mimeType.split('/')[1] ?? 'jpg';
+async function uploadBytesToFal(buffer: Buffer, mimeType: string, falKey: string): Promise<string> {
+  const ext = mimeType.split('/')[1]?.replace(/[^a-z0-9]/g, '') ?? 'jpg';
   const formData = new FormData();
-  const blob = new Blob([buffer], { type: mimeType });
+  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
   formData.append('file', blob, `product-image.${ext}`);
 
   const uploadRes = await fetch('https://storage.fal.run', {
@@ -230,6 +218,41 @@ async function uploadImageToFal(imageInput: string, falKey: string): Promise<str
   return uploadData.url;
 }
 
+// Upload a product image to fal.ai CDN storage.
+// Accepts: https URLs, base64 data URLs, or internal GCS object paths (/objects/... or /api/storage/objects/...).
+// Returns a fal.ai CDN URL suitable for use as image_url in model requests.
+async function uploadImageToFal(imageInput: string, falKey: string): Promise<string> {
+  // If it's already a public https URL, return as-is (fal.ai can fetch it directly)
+  if (imageInput.startsWith('http://') || imageInput.startsWith('https://')) {
+    return imageInput;
+  }
+
+  // Internal GCS object path — stream bytes from object storage and re-upload to fal.ai
+  // Paths look like: /objects/uploads/uuid  OR  /api/storage/objects/uploads/uuid
+  if (imageInput.startsWith('/objects/') || imageInput.startsWith('/api/storage/objects/')) {
+    const { ObjectStorageService } = await import('./objectStorage');
+    const svc = new ObjectStorageService();
+    // Normalise to the /objects/... form that getObjectEntityFile expects
+    const objectPath = imageInput.startsWith('/api/storage')
+      ? imageInput.slice('/api/storage'.length)
+      : imageInput;
+    const file = await svc.getObjectEntityFile(objectPath);
+    const response = await svc.downloadObject(file);
+    const arrayBuf = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuf);
+    const mimeType = response.headers.get('content-type') ?? 'image/jpeg';
+    console.log(`[fal-video] Streaming GCS object to fal.ai (${buffer.length} bytes, ${mimeType})`);
+    return uploadBytesToFal(buffer, mimeType, falKey);
+  }
+
+  // base64 data URL
+  const match = imageInput.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) throw new Error('Invalid image format — expected https URL, GCS object path, or data URL');
+  const [, mimeType, base64Data] = match;
+  const buffer = Buffer.from(base64Data as string, 'base64');
+  return uploadBytesToFal(buffer, mimeType as string, falKey);
+}
+
 // Submit to fal.ai queue — returns `fal:<modelPath>:<requestId>`
 export async function submitFalVideoRender(
   script: ExpandedScript,
@@ -242,15 +265,13 @@ export async function submitFalVideoRender(
   const falKey = process.env.FAL_KEY;
   if (!falKey) throw new Error('FAL_KEY not configured');
 
-  // Upload image to fal.ai CDN if provided
+  // Upload image to fal.ai CDN if provided.
+  // We intentionally do NOT silently swallow failures — if the caller supplied an image
+  // and it can't be ingested, throw so the project gets marked failed (and credits refunded)
+  // rather than silently rendering a text-only video when the user expected image conditioning.
   let falImageUrl: string | undefined;
   if (imageUrl) {
-    try {
-      falImageUrl = await uploadImageToFal(imageUrl, falKey);
-    } catch (err) {
-      console.warn('[fal-video] Image upload failed, proceeding without image:', err);
-      falImageUrl = undefined;
-    }
+    falImageUrl = await uploadImageToFal(imageUrl, falKey);
   }
 
   const hasImage = !!falImageUrl;

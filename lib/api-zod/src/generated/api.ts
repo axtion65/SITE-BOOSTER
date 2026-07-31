@@ -17,24 +17,30 @@ import * as zod from 'zod';
 
 
 export const RequestUploadUrlBody = zod.object({
-  "name": zod.string().min(1).describe('Original file name.'),
-  "size": zod.number().min(1).describe('File size in bytes.'),
-  "contentType": zod.string().min(1).describe('MIME type of the file (e.g. image\/jpeg).')
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string().min(1)
 })
-
-
-
-
-
 
 export const RequestUploadUrlResponse = zod.object({
   "uploadURL": zod.string().describe('Presigned GCS URL for PUT upload.'),
   "objectPath": zod.string().describe('Normalized object path (e.g. \/objects\/uploads\/uuid). Store this in the database.'),
-  "metadata": zod.object({
-  "name": zod.string().min(1).describe('Original file name.'),
-  "size": zod.number().min(1).describe('File size in bytes.'),
-  "contentType": zod.string().min(1).describe('MIME type of the file (e.g. image\/jpeg).')
-}).optional()
+  "finalizeToken": zod.string().describe('Single-use server token. Must be passed to POST \/storage\/uploads\/finalize to claim ownership of the object. Expires in 15 minutes.')
+})
+
+
+/**
+ * Step 2 of the two-step upload flow. Call after the PUT to GCS succeeds. The `finalizeToken` from the request-url response is single-use and bound to the original caller + objectPath + expiry; it prevents ownership hijack by any other user.
+ * @summary Finalize a presigned upload and claim ownership
+ */
+export const FinalizeUploadBody = zod.object({
+  "objectPath": zod.string().describe('The object path returned by request-url (e.g. \/objects\/uploads\/uuid).'),
+  "finalizeToken": zod.string().describe('Single-use server token from the request-url response.')
+})
+
+export const FinalizeUploadResponse = zod.object({
+  "ok": zod.boolean(),
+  "objectPath": zod.string()
 })
 
 

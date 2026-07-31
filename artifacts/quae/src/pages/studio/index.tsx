@@ -25,7 +25,8 @@ interface StudioDraft {
   targetAudience: string;
   platform: string;
   duration: string;
-  productImageObjectPath: string | null;
+  /** GCS serving URL (e.g. /api/storage/objects/uploads/uuid). Short path — safe to persist. */
+  productImageUrl: string | null;
   productImageFileName: string | null;
   expandedScript: ExpandedScript | null;
   templateId?: string;
@@ -42,8 +43,15 @@ function loadDraft(): StudioDraft | null {
     const parsed = JSON.parse(raw) as any;
     // Migrate old base64 drafts — drop the data URL, keep the filename
     if (parsed.productImageDataUrl !== undefined) {
-      parsed.productImageObjectPath = null;
+      parsed.productImageUrl = null;
       delete parsed.productImageDataUrl;
+    }
+    // Migrate old productImageObjectPath field name
+    if (parsed.productImageObjectPath !== undefined && parsed.productImageUrl === undefined) {
+      parsed.productImageUrl = parsed.productImageObjectPath
+        ? `/api/storage${parsed.productImageObjectPath}`
+        : null;
+      delete parsed.productImageObjectPath;
     }
     return parsed as StudioDraft;
   } catch {
@@ -55,10 +63,54 @@ function saveDraft(draft: StudioDraft) {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
   } catch {
-    // silently ignore
+    // silently ignore if storage is unavailable
   }
 }
 
+/**
+ * Upload an image file to GCS via the two-step presigned URL flow.
+ * Step 1: request a presigned URL + objectPath from the API.
+ * Step 2: PUT the file directly to GCS.
+ * Step 3: call finalize to set ACL ownership on the now-existing object.
+ * Returns the serving URL (e.g. /api/storage/objects/uploads/uuid) on success.
+ */
+async function uploadImageToStorage(file: File): Promise<string> {
+  const token = localStorage.getItem("quae_token");
+  const authHeaders: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
+
+  // Step 1: Request presigned URL
+  const res = await fetch("/api/storage/uploads/request-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders },
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "image/jpeg" }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as any;
+    throw new Error(err.error || "Failed to get upload URL");
+  }
+  const { uploadURL, objectPath, finalizeToken } = await res.json() as { uploadURL: string; objectPath: string; finalizeToken: string };
+
+  // Step 2: PUT file directly to GCS
+  const uploadRes = await fetch(uploadURL, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": file.type || "image/jpeg" },
+  });
+  if (!uploadRes.ok) throw new Error("Failed to upload image to storage");
+
+  // Step 3: Finalize — set ACL ownership using the server-issued single-use token
+  const finalizeRes = await fetch("/api/storage/uploads/finalize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders },
+    body: JSON.stringify({ objectPath, finalizeToken }),
+  });
+  if (!finalizeRes.ok) {
+    const err = await finalizeRes.json().catch(() => ({})) as any;
+    throw new Error(err.error || "Failed to finalize upload");
+  }
+
+  return `/api/storage${objectPath}`;
+}
 function clearDraft() {
   try {
     sessionStorage.removeItem(STORAGE_KEY);
@@ -99,10 +151,13 @@ function Wizard() {
   const [platform, setPlatform] = useState(savedDraft?.platform ?? "tiktok");
   const [duration, setDuration] = useState(savedDraft?.duration ?? "15s");
 
-  // Product image state — stored as GCS object path, not base64
-  const [productImageObjectPath, setProductImageObjectPath] = useState<string | null>(savedDraft?.productImageObjectPath ?? null);
+  // Product image state
+  // productImageUrl: GCS serving URL stored in DB and draft (short path, no bloat)
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(savedDraft?.productImageUrl ?? null);
+  // imagePreviewUrl: local data URL for thumbnail display only — NOT persisted in draft
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [productImageFileName, setProductImageFileName] = useState<string | null>(savedDraft?.productImageFileName ?? null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Step 2 State
@@ -170,6 +225,7 @@ function Wizard() {
   }, [search]);
 
   // Persist draft to sessionStorage whenever relevant state changes
+  // productImageUrl is a short GCS path (safe to persist); imagePreviewUrl is local only
   useEffect(() => {
     saveDraft({
       step,
@@ -179,7 +235,7 @@ function Wizard() {
       targetAudience,
       platform,
       duration,
-      productImageObjectPath,
+      productImageUrl,
       productImageFileName,
       expandedScript,
       templateId,
@@ -190,7 +246,7 @@ function Wizard() {
     });
   }, [
     step, modelId, productName, description, targetAudience, platform, duration,
-    productImageObjectPath, productImageFileName, expandedScript,
+    productImageUrl, productImageFileName, expandedScript,
     templateId, templateType, templateName, templateExampleHook, templateStructure,
   ]);
 
@@ -203,7 +259,8 @@ function Wizard() {
     setTargetAudience("");
     setPlatform("tiktok");
     setDuration("15s");
-    setProductImageObjectPath(null);
+    setProductImageUrl(null);
+    setImagePreviewUrl(null);
     setProductImageFileName(null);
     setExpandedScript(null);
     setTemplateId(undefined);
@@ -223,43 +280,35 @@ function Wizard() {
       toast({ title: "Invalid file", description: "Please select an image file (JPG, PNG, WebP, etc.)", variant: "destructive" });
       return;
     }
+
     if (file.size > 10 * 1024 * 1024) {
       toast({ title: "Image too large", description: "Please use an image under 10 MB.", variant: "destructive" });
       return;
     }
 
-    setIsUploadingImage(true);
+    // Show a local preview immediately while uploading
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreviewUrl(ev.target?.result as string);
+    reader.readAsDataURL(file);
+
     setProductImageFileName(file.name);
+    setImageUploading(true);
     try {
-      // Step 1: request presigned URL
-      const metaRes = await fetch("/api/storage/uploads/request-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-      });
-      if (!metaRes.ok) throw new Error("Failed to get upload URL");
-      const { uploadURL, objectPath } = await metaRes.json() as { uploadURL: string; objectPath: string };
-
-      // Step 2: upload directly to GCS
-      const uploadRes = await fetch(uploadURL, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!uploadRes.ok) throw new Error("Upload failed");
-
-      setProductImageObjectPath(objectPath);
-    } catch (err) {
-      toast({ title: "Image upload failed", description: "Please try again.", variant: "destructive" });
+      const servingUrl = await uploadImageToStorage(file);
+      setProductImageUrl(servingUrl);
+    } catch (err: any) {
+      toast({ title: "Image upload failed", description: err.message || "Could not upload image. Please try again.", variant: "destructive" });
+      setImagePreviewUrl(null);
       setProductImageFileName(null);
       if (imageInputRef.current) imageInputRef.current.value = "";
     } finally {
-      setIsUploadingImage(false);
+      setImageUploading(false);
     }
   };
 
   const handleRemoveImage = () => {
-    setProductImageObjectPath(null);
+    setProductImageUrl(null);
+    setImagePreviewUrl(null);
     setProductImageFileName(null);
     if (imageInputRef.current) imageInputRef.current.value = "";
   };
@@ -303,7 +352,7 @@ function Wizard() {
           platform,
           duration,
           templateId: templateId ?? null,
-          productImageUrl: productImageObjectPath ?? null,
+          productImageUrl: productImageUrl ?? null,
         }
       });
       // Clear the saved draft — render has started, work is done
@@ -475,20 +524,27 @@ function Wizard() {
                     </div>
                   </div>
 
-                  {isUploadingImage ? (
-                    <div className="flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-white/[0.02]">
-                      <div className="h-16 w-16 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
-                        <Spinner className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white/70">Uploading {productImageFileName}…</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Uploading to storage</p>
+                  {imageUploading ? (
+                    <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/20 bg-primary/5">
+                      {imagePreviewUrl && (
+                        <img
+                          src={imagePreviewUrl}
+                          alt="Product preview"
+                          className="h-16 w-16 rounded-lg object-cover border border-white/10 flex-shrink-0 opacity-60"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{productImageFileName}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Spinner className="h-3 w-3" />
+                          <p className="text-xs text-muted-foreground">Uploading…</p>
+                        </div>
                       </div>
                     </div>
-                  ) : productImageObjectPath ? (
+                  ) : (productImageUrl || imagePreviewUrl) ? (
                     <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
                       <img
-                        src={`/api/storage${productImageObjectPath}`}
+                        src={imagePreviewUrl ?? productImageUrl!}
                         alt="Product preview"
                         className="h-16 w-16 rounded-lg object-cover border border-white/10 flex-shrink-0"
                       />
@@ -688,7 +744,7 @@ function Wizard() {
               </div>
 
               {/* Image conditioning notice */}
-              {productImageObjectPath && (
+              {productImageUrl && (
                 <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-white/70 flex items-start gap-2">
                   <ImagePlus className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                   <span>
@@ -697,7 +753,7 @@ function Wizard() {
                 </div>
               )}
 
-              {!productImageObjectPath && (
+              {!productImageUrl && (
                 <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-xs text-white/50 flex items-start gap-2">
                   <Info className="h-4 w-4 text-white/30 mt-0.5 flex-shrink-0" />
                   <span>
@@ -743,7 +799,7 @@ function Wizard() {
                           {canUse && isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
                           {canUse && !isSelected && <Activity className="h-4 w-4 text-muted-foreground" />}
                           <span className="font-bold text-white">{model.name}</span>
-                          {supportsImage && productImageObjectPath && (
+                          {supportsImage && productImageUrl && (
                             <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30 font-semibold">
                               IMG
                             </span>
@@ -792,10 +848,10 @@ function Wizard() {
                 <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
                     Selected: <span className="text-white font-semibold">{selectedModel.name}</span>
-                    {productImageObjectPath && selectedModelSupportsImage && (
+                    {productImageUrl && selectedModelSupportsImage && (
                       <span className="ml-2 text-xs text-primary">+ image conditioning</span>
                     )}
-                    {productImageObjectPath && !selectedModelSupportsImage && (
+                    {productImageUrl && !selectedModelSupportsImage && (
                       <span className="ml-2 text-xs text-amber-400">image not used by this model</span>
                     )}
                   </div>
@@ -824,13 +880,13 @@ function Wizard() {
                 Your script is locked in and the model is selected. Hit render — we'll submit your video to{" "}
                 <span className="text-white font-semibold">{selectedModel?.name ?? "Ovi"}</span> and you can track progress in your projects.
               </p>
-              {productImageObjectPath && selectedModelSupportsImage && (
+              {productImageUrl && selectedModelSupportsImage && (
                 <div className="flex items-center justify-center gap-2 text-sm text-primary">
                   <ImagePlus className="h-4 w-4" />
                   <span>Your product image will be used as a reference frame</span>
                 </div>
               )}
-              {productImageObjectPath && !selectedModelSupportsImage && (
+              {productImageUrl && !selectedModelSupportsImage && (
                 <div className="flex items-center justify-center gap-2 text-sm text-amber-400">
                   <Info className="h-4 w-4" />
                   <span>Note: {selectedModel?.name ?? "Ovi"} is text-only — your product image won't be used</span>

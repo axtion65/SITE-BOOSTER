@@ -1,9 +1,12 @@
+import crypto from 'crypto';
 import { Readable } from 'stream';
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from '@workspace/api-zod';
 import { Router, type IRouter, type Request, type Response } from 'express';
+import { db, usersTable } from '@workspace/db';
+import { eq } from 'drizzle-orm';
 
 import { ObjectPermission } from '../lib/objectAcl';
 import {
@@ -14,33 +17,98 @@ import {
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
-function hasAuthenticatedSession(
-  req: Request,
-): req is Request & { isAuthenticated: () => boolean } {
-  if (
-    !('isAuthenticated' in req) ||
-    typeof req.isAuthenticated !== 'function'
-  ) {
-    return false;
-  }
-
-  return req.isAuthenticated();
+// ---------------------------------------------------------------------------
+// Upload intent token store — single-use, server-issued, short-lived
+// ---------------------------------------------------------------------------
+interface UploadIntent {
+  userId: string;
+  objectPath: string;
+  expiresAt: number; // unix ms
 }
+
+// In-memory map: token (UUID) -> intent
+const uploadIntents = new Map<string, UploadIntent>();
+const INTENT_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+function issueUploadIntent(userId: string, objectPath: string): string {
+  const token = crypto.randomUUID();
+  const expiresAt = Date.now() + INTENT_TTL_MS;
+  uploadIntents.set(token, { userId, objectPath, expiresAt });
+  return token;
+}
+
+/** Consume a token. Returns the intent if valid & matching, or null. */
+function consumeUploadIntent(
+  token: string,
+  userId: string,
+  objectPath: string,
+): UploadIntent | null {
+  const intent = uploadIntents.get(token);
+  if (!intent) return null;
+  // Always remove — token is single-use regardless of outcome
+  uploadIntents.delete(token);
+  if (Date.now() > intent.expiresAt) return null;
+  if (intent.userId !== userId) return null;
+  if (intent.objectPath !== objectPath) return null;
+  return intent;
+}
+
+// ---------------------------------------------------------------------------
+// Auth helpers
+// ---------------------------------------------------------------------------
+
+/** Extract userId from the project's custom Bearer JWT auth header. */
+function getUserIdFromAuthHeader(authHeader: string | undefined): string | null {
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const decoded = Buffer.from(authHeader.slice(7), 'base64url').toString('utf-8');
+    return decoded.split(':')[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve a Bearer token to a verified DB user id, or return null. */
+async function resolveVerifiedUserId(authHeader: string | undefined): Promise<string | null> {
+  const userId = getUserIdFromAuthHeader(authHeader);
+  if (!userId) return null;
+  const [user] = await db.select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId as string));
+  return user?.id ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Upload constraints
+// ---------------------------------------------------------------------------
+
+const ALLOWED_UPLOAD_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+// ---------------------------------------------------------------------------
+// Routes
+// ---------------------------------------------------------------------------
 
 /**
  * POST /storage/uploads/request-url
  *
- * Request a presigned URL for file upload.
- * The client sends JSON metadata (name, size, contentType) — NOT the file.
- * Then uploads the file directly to the returned presigned URL.
- * Requires auth middleware so public callers cannot mint write-capable URLs.
+ * Step 1 of the two-step presigned upload flow.
+ * Returns a short-lived presigned GCS PUT URL, a normalized objectPath,
+ * and a single-use `finalizeToken` bound to this caller + objectPath.
+ * The client PUTs the file directly to GCS, then calls
+ * POST /storage/uploads/finalize with the finalizeToken to claim ownership.
  */
 router.post(
   '/storage/uploads/request-url',
   async (req: Request, res: Response) => {
-    if (!hasAuthenticatedSession(req)) {
+    const userId = await resolveVerifiedUserId(req.headers.authorization);
+    if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
-
       return;
     }
 
@@ -50,17 +118,34 @@ router.post(
       return;
     }
 
-    try {
-      const { name, size, contentType } = parsed.data;
+    const { name, size, contentType } = parsed.data;
 
+    // Server-side constraints — reject oversized files and disallowed MIME types.
+    if (size > MAX_UPLOAD_SIZE_BYTES) {
+      res.status(400).json({
+        error: `File too large. Maximum upload size is ${MAX_UPLOAD_SIZE_BYTES / 1024 / 1024} MB.`,
+      });
+      return;
+    }
+    if (!ALLOWED_UPLOAD_MIME_TYPES.has(contentType)) {
+      res.status(400).json({
+        error: `Unsupported file type "${contentType}". Allowed: ${[...ALLOWED_UPLOAD_MIME_TYPES].join(', ')}.`,
+      });
+      return;
+    }
+
+    try {
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      const objectPath =
-        objectStorageService.normalizeObjectEntityPath(uploadURL);
+      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+      // Issue a single-use intent token: binds this caller + objectPath + expiry
+      const finalizeToken = issueUploadIntent(userId, objectPath);
 
       res.json(
         RequestUploadUrlResponse.parse({
           uploadURL,
           objectPath,
+          finalizeToken,
           metadata: { name, size, contentType },
         }),
       );
@@ -72,11 +157,62 @@ router.post(
 );
 
 /**
+ * POST /storage/uploads/finalize
+ *
+ * Step 2 of the two-step presigned upload flow.
+ * Caller must supply the `finalizeToken` returned by request-url.
+ * The token is single-use, expires in 15 minutes, and is bound to
+ * the original caller's userId + objectPath — preventing ownership hijack.
+ * Body: { objectPath: string; finalizeToken: string }
+ */
+router.post(
+  '/storage/uploads/finalize',
+  async (req: Request, res: Response) => {
+    const userId = await resolveVerifiedUserId(req.headers.authorization);
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { objectPath, finalizeToken } = req.body as {
+      objectPath?: unknown;
+      finalizeToken?: unknown;
+    };
+
+    if (typeof objectPath !== 'string' || !objectPath.startsWith('/objects/')) {
+      res.status(400).json({ error: 'Invalid objectPath' });
+      return;
+    }
+    if (typeof finalizeToken !== 'string' || !finalizeToken) {
+      res.status(400).json({ error: 'finalizeToken is required' });
+      return;
+    }
+
+    // Verify the token: single-use, bound to this user + this objectPath
+    const intent = consumeUploadIntent(finalizeToken, userId, objectPath);
+    if (!intent) {
+      res.status(403).json({ error: 'Invalid or expired finalizeToken' });
+      return;
+    }
+
+    try {
+      await objectStorageService.trySetObjectEntityAclPolicy(objectPath, {
+        owner: userId,
+        visibility: 'private',
+      });
+      res.json({ ok: true, objectPath });
+    } catch (error) {
+      req.log.error({ err: error }, 'Error setting ACL on uploaded object');
+      res.status(500).json({ error: 'Failed to finalize upload permissions' });
+    }
+  },
+);
+
+/**
  * GET /storage/public-objects/*
  *
  * Serve public assets from PUBLIC_OBJECT_SEARCH_PATHS.
- * These are unconditionally public — no authentication or ACL checks.
- * IMPORTANT: Always provide this endpoint when object storage is set up.
+ * Unconditionally public — no authentication or ACL checks.
  */
 router.get(
   '/storage/public-objects/*filePath',
@@ -113,32 +249,32 @@ router.get(
 /**
  * GET /storage/objects/*
  *
- * Serve object entities from PRIVATE_OBJECT_DIR.
- * These are served from a separate path from /public-objects and can optionally
- * be protected with authentication or ACL checks based on the use case.
+ * Serve private object entities from PRIVATE_OBJECT_DIR.
+ * Requires authentication. Access is enforced via ACL metadata (owner check).
  */
 router.get('/storage/objects/*path', async (req: Request, res: Response) => {
+  const userId = await resolveVerifiedUserId(req.headers.authorization);
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
   try {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join('/') : raw;
     const objectPath = `/objects/${wildcardPath}`;
-    const objectFile =
-      await objectStorageService.getObjectEntityFile(objectPath);
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
-    // --- Protected route example (uncomment when using replit-auth) ---
-    // if (!req.isAuthenticated()) {
-    //   res.status(401).json({ error: "Unauthorized" });
-    //   return;
-    // }
-    // const canAccess = await objectStorageService.canAccessObjectEntity({
-    //   userId: req.user.id,
-    //   objectFile,
-    //   requestedPermission: ObjectPermission.READ,
-    // });
-    // if (!canAccess) {
-    //   res.status(403).json({ error: "Forbidden" });
-    //   return;
-    // }
+    // Enforce ownership: only the object owner (or an explicit ACL rule) may read.
+    const allowed = await objectStorageService.canAccessObjectEntity({
+      userId,
+      objectFile,
+      requestedPermission: ObjectPermission.READ,
+    });
+    if (!allowed) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
 
     const response = await objectStorageService.downloadObject(objectFile);
 

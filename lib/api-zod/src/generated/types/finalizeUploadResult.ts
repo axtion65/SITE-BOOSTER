@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ErrorEnvelope {
-  error: string;
+export interface FinalizeUploadResult {
+  ok: boolean;
+  objectPath: string;
 }

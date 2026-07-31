@@ -5,12 +5,12 @@
  * Quae.ai API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { UploadUrlRequest } from './uploadUrlRequest';
 
 export interface UploadUrlResponse {
   /** Presigned GCS URL for PUT upload. */
   uploadURL: string;
   /** Normalized object path (e.g. /objects/uploads/uuid). Store this in the database. */
   objectPath: string;
-  metadata?: UploadUrlRequest;
+  /** Single-use server token. Must be passed to POST /storage/uploads/finalize to claim ownership of the object. Expires in 15 minutes. */
+  finalizeToken: string;
 }

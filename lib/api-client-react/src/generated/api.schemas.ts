@@ -266,6 +266,36 @@ export interface AdminUser {
   createdAt: string;
 }
 
+export interface FinalizeUploadRequest {
+  /** The object path returned by request-url (e.g. /objects/uploads/uuid). */
+  objectPath: string;
+  /** Single-use server token from the request-url response. */
+  finalizeToken: string;
+}
+
+export interface FinalizeUploadResult {
+  ok: boolean;
+  objectPath: string;
+}
+
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  /** Presigned GCS URL for PUT upload. */
+  uploadURL: string;
+  /** Normalized object path (e.g. /objects/uploads/uuid). Store this in the database. */
+  objectPath: string;
+  /** Single-use server token. Must be passed to POST /storage/uploads/finalize to claim ownership of the object. Expires in 15 minutes. */
+  finalizeToken: string;
+}
+
 export type AdminUserUpdatePlan = typeof AdminUserUpdatePlan[keyof typeof AdminUserUpdatePlan];
 
 
@@ -279,36 +309,6 @@ export interface AdminUserUpdate {
   plan?: AdminUserUpdatePlan;
   credits?: number;
   isAdmin?: boolean;
-}
-
-export interface UploadUrlRequest {
-  /**
-     * Original file name.
-     * @minLength 1
-     */
-  name: string;
-  /**
-     * File size in bytes.
-     * @minimum 1
-     */
-  size: number;
-  /**
-     * MIME type of the file (e.g. image/jpeg).
-     * @minLength 1
-     */
-  contentType: string;
-}
-
-export interface UploadUrlResponse {
-  /** Presigned GCS URL for PUT upload. */
-  uploadURL: string;
-  /** Normalized object path (e.g. /objects/uploads/uuid). Store this in the database. */
-  objectPath: string;
-  metadata?: UploadUrlRequest;
-}
-
-export interface ErrorEnvelope {
-  error: string;
 }
 
 export type ListTemplatesParams = {

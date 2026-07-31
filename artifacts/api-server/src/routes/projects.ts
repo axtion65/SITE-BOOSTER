@@ -63,6 +63,23 @@ router.post("/projects", async (req, res) => {
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
 
+  // Reject base64 data URLs and oversized image strings — product images must be
+  // uploaded via the presigned URL flow; only short GCS object paths or https URLs
+  // are accepted. This is the server-side enforcement point for the anti-bloat policy.
+  const imageUrl = parsed.data.productImageUrl;
+  if (imageUrl) {
+    if (imageUrl.startsWith("data:")) {
+      res.status(400).json({
+        error: "productImageUrl must be a storage object path or https URL, not a base64 data URL. Upload via POST /api/storage/uploads/request-url first.",
+      });
+      return;
+    }
+    if (imageUrl.length > 2048) {
+      res.status(400).json({ error: "productImageUrl is too long. Expected a short object path or URL (max 2048 chars)." });
+      return;
+    }
+  }
+
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
 

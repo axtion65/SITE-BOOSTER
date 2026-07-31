@@ -45,6 +45,37 @@ paths:
           description: Missing or invalid required fields.
         '500':
           description: Failed to generate upload URL.
+  /storage/uploads/finalize:
+    post:
+      tags: [Storage]
+      operationId: finalizeUpload
+      summary: Finalize a presigned upload and claim ownership
+      description: >
+        Step 2 of the two-step upload flow. Call after the PUT to GCS succeeds.
+        The `finalizeToken` from the request-url response is single-use and
+        bound to the original caller + objectPath + expiry; it prevents
+        ownership hijack by any other user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalizeUploadRequest'
+      responses:
+        '200':
+          description: Ownership set. Object is now accessible to the owner via GET /storage/objects/*.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinalizeUploadResult'
+        '400':
+          description: Invalid objectPath or missing finalizeToken.
+        '401':
+          description: Unauthorized.
+        '403':
+          description: Invalid or expired finalizeToken.
+        '500':
+          description: Failed to set ACL.
   /storage/objects/{objectPath}:
     get:
       tags: [Storage]
@@ -810,6 +841,51 @@ components:
           type: string
           format: date-time
 
+    FinalizeUploadRequest:
+      type: object
+      required: [objectPath, finalizeToken]
+      properties:
+        objectPath:
+          type: string
+          description: The object path returned by request-url (e.g. /objects/uploads/uuid).
+        finalizeToken:
+          type: string
+          description: Single-use server token from the request-url response.
+    FinalizeUploadResult:
+      type: object
+      required: [ok, objectPath]
+      properties:
+        ok:
+          type: boolean
+        objectPath:
+          type: string
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        size:
+          type: integer
+          minimum: 1
+        contentType:
+          type: string
+          minLength: 1
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath, finalizeToken]
+      properties:
+        uploadURL:
+          type: string
+          description: Presigned GCS URL for PUT upload.
+        objectPath:
+          type: string
+          description: Normalized object path (e.g. /objects/uploads/uuid). Store this in the database.
+        finalizeToken:
+          type: string
+          description: Single-use server token. Must be passed to POST /storage/uploads/finalize to claim ownership of the object. Expires in 15 minutes.
+
     AdminUserUpdate:
       type: object
       properties:
@@ -821,37 +897,3 @@ components:
         isAdmin:
           type: boolean
 
-    UploadUrlRequest:
-      type: object
-      required: [name, size, contentType]
-      properties:
-        name:
-          type: string
-          minLength: 1
-          description: Original file name.
-        size:
-          type: integer
-          minimum: 1
-          description: File size in bytes.
-        contentType:
-          type: string
-          minLength: 1
-          description: MIME type of the file (e.g. image/jpeg).
-    UploadUrlResponse:
-      type: object
-      required: [uploadURL, objectPath]
-      properties:
-        uploadURL:
-          type: string
-          description: Presigned GCS URL for PUT upload.
-        objectPath:
-          type: string
-          description: Normalized object path (e.g. /objects/uploads/uuid). Store this in the database.
-        metadata:
-          $ref: '#/components/schemas/UploadUrlRequest'
-    ErrorEnvelope:
-      type: object
-      required: [error]
-      properties:
-        error:
-          type: string
