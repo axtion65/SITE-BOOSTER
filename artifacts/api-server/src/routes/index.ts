@@ -8,6 +8,7 @@ import adminRouter from "./admin";
 import billingRouter from "./billing";
 import feedbackRouter from "./feedback";
 import storageRouter from "./storage";
+import webhooksRouter from "./webhooks";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(adminRouter);
 router.use(billingRouter);
 router.use(feedbackRouter);
 router.use(storageRouter);
+router.use(webhooksRouter);
 
 export default router;

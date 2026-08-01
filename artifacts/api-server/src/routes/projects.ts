@@ -4,7 +4,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
 import {
   submitFalVideoRender, pollFalVideoRender, isFalToken,
-  MODEL_CREDIT_COSTS, type ExpandedScript
+  MODEL_CREDIT_COSTS, buildFalWebhookUrl, type ExpandedScript
 } from "../lib/falvideo";
 import { TEMPLATES } from "./templates";
 
@@ -116,7 +116,8 @@ router.post("/projects", async (req, res) => {
       const platform = parsed.data.platform ?? "youtube";
       const duration = parsed.data.duration ?? "30s";
       const templateType = TEMPLATES.find(t => t.id === parsed.data.templateId)?.templateType;
-      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1", templateType, parsed.data.productImageUrl);
+      const webhookUrl = buildFalWebhookUrl();
+      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1", templateType, parsed.data.productImageUrl, webhookUrl || undefined);
       await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     } catch (err) {
       console.error("[fal-video] submit error — refunding credits", err);
@@ -209,7 +210,8 @@ router.post("/projects/:id/rerender", async (req, res) => {
   try {
     const scriptObj: ExpandedScript = JSON.parse(project.expandedScript);
     const templateType = TEMPLATES.find(t => t.id === project.templateId)?.templateType;
-    const token = await submitFalVideoRender(scriptObj, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType, project.productImageUrl);
+    const webhookUrl = buildFalWebhookUrl();
+    const token = await submitFalVideoRender(scriptObj, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType, project.productImageUrl, webhookUrl || undefined);
     await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   } catch (err) {
     console.error("[fal-video] rerender submit error — refunding credits", err);

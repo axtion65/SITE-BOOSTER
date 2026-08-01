@@ -7,6 +7,15 @@ const router = Router();
 // Real fal.ai models — credits shown to users
 const RENDERING_MODELS = [
   {
+    id: "ltx",
+    name: "LTX Video",
+    description: "Ultra-fast renders in ~60 seconds. Best for quick iteration — 15 credits per video.",
+    capabilities: ["~60s render", "Great for testing", "All platforms", "Commercial use"],
+    creditCost: 15,
+    tier: "free",
+    badge: "Fastest",
+  },
+  {
     id: "ovi",
     name: "Ovi",
     description: "AI video with native audio. Best value — 30 credits per video.",

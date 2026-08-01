@@ -20,6 +20,7 @@ export interface ExpandedScript {
 
 // Model IDs on fal.ai
 const FAL_MODEL_IDS: Record<string, string> = {
+  'ltx':         'fal-ai/ltx-video',
   'ovi':         'fal-ai/ovi',
   'wan':         'fal-ai/wan/v2.2/text-to-video',
   'wan-img':     'fal-ai/wan/v2.2/image-to-video',
@@ -29,7 +30,10 @@ const FAL_MODEL_IDS: Record<string, string> = {
 };
 
 // Credits charged per model (1 credit = $0.01)
+// LTX costs ~$0.015/clip → 15 credits = $0.15 → ~10x margin
+// Ovi costs $0.20/clip flat → 30 credits = $0.30 → 1.5x margin
 export const MODEL_CREDIT_COSTS: Record<string, number> = {
+  'ltx':       15,
   'quae-v1':   30,
   'ovi':       30,
   'wan':      200,
@@ -48,6 +52,7 @@ export const PLAN_CREDITS: Record<string, number> = {
 
 // Estimated render time in seconds — shown in the waiting UI
 export const MODEL_RENDER_ESTIMATE: Record<string, number> = {
+  'ltx':    60,  // ~1 min (very fast)
   'ovi':   120,  // ~2 min
   'wan':   180,  // ~3 min
   'kling': 240,  // ~4 min
@@ -57,6 +62,7 @@ export const MODEL_RENDER_ESTIMATE: Record<string, number> = {
 // What each model actually outputs (max clip duration the API will honour)
 // These are hard model limits — duration in prompt text is ignored by the AI video models
 const MODEL_MAX_SECONDS: Record<string, number> = {
+  'ltx':   5,    // LTX: 121 frames @ 24fps ≈ 5s
   'ovi':   10,
   'wan':   10,   // ~81-129 frames @ ~13fps
   'kling': 10,   // "5" or "10" string param
@@ -76,6 +82,13 @@ function buildModelParams(modelKey: string, durationSec: number): Record<string,
   const capped = Math.min(durationSec, MODEL_MAX_SECONDS[modelKey] ?? 10);
 
   switch (modelKey) {
+    case 'ltx':
+      // LTX Video: 24fps, 121 frames ≈ 5 seconds (model default)
+      return {
+        num_frames: 121,
+        negative_prompt: 'low quality, blurry, watermark, text overlay, distorted faces',
+      };
+
     case 'kling':
       // Kling only accepts "5" or "10" as a string
       return { duration: capped >= 8 ? '10' : '5' };
@@ -180,6 +193,7 @@ function buildVideoPrompt(script: ExpandedScript, platform: string, duration: st
 }
 
 function getModelId(renderingModelId: string, hasImage = false): string {
+  if (renderingModelId === 'ltx') return FAL_MODEL_IDS.ltx;
   if (renderingModelId === 'wan') return hasImage ? FAL_MODEL_IDS['wan-img'] : FAL_MODEL_IDS.wan;
   if (renderingModelId === 'kling' || renderingModelId === 'kling-1.6') return hasImage ? FAL_MODEL_IDS['kling-img'] : FAL_MODEL_IDS.kling;
   if (renderingModelId === 'veo3') return FAL_MODEL_IDS.veo3;
@@ -187,10 +201,30 @@ function getModelId(renderingModelId: string, hasImage = false): string {
 }
 
 function getModelKey(renderingModelId: string): string {
+  if (renderingModelId === 'ltx') return 'ltx';
   if (renderingModelId === 'wan') return 'wan';
   if (renderingModelId === 'kling' || renderingModelId === 'kling-1.6') return 'kling';
   if (renderingModelId === 'veo3') return 'veo3';
   return 'ovi';
+}
+
+// Returns a publicly reachable base URL for this server (used for fal.ai webhooks)
+function getPublicBaseUrl(): string {
+  // REPLIT_DOMAINS is comma-separated list of deployed domains
+  const domains = process.env.REPLIT_DOMAINS;
+  if (domains) {
+    const first = domains.split(',')[0]?.trim();
+    if (first) return `https://${first}`;
+  }
+  // Fall back to the dev preview domain
+  const devDomain = process.env.REPLIT_DEV_DOMAIN;
+  if (devDomain) return `https://${devDomain}`;
+  return '';
+}
+
+export function buildFalWebhookUrl(): string {
+  const base = getPublicBaseUrl();
+  return base ? `${base}/api/webhooks/fal` : '';
 }
 
 // Upload image bytes (as Buffer + mimeType) to fal.ai CDN storage.
@@ -260,7 +294,8 @@ export async function submitFalVideoRender(
   duration: string,
   renderingModelId: string = 'quae-v1',
   templateType?: string,
-  imageUrl?: string | null
+  imageUrl?: string | null,
+  webhookUrl?: string
 ): Promise<string> {
   const falKey = process.env.FAL_KEY;
   if (!falKey) throw new Error('FAL_KEY not configured');
@@ -286,6 +321,7 @@ export async function submitFalVideoRender(
   // image_url is the param name for both wan and kling image-to-video endpoints
   const body: Record<string, unknown> = { prompt, ...modelParams };
   if (falImageUrl) body.image_url = falImageUrl;
+  if (webhookUrl) body.webhook_url = webhookUrl;
 
   const res = await fetch(`https://queue.fal.run/${modelPath}`, {
     method: 'POST',
