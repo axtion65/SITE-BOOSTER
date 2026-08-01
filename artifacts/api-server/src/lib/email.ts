@@ -14,9 +14,12 @@ async function sendEmail(to_email: string, to_name: string, subject: string, bod
     return;
   }
   try {
-    const from = process.env.EMAILJS_FROM_NAME
-      ? `${process.env.EMAILJS_FROM_NAME} <${process.env.EMAIL_FROM_ADDRESS ?? "noreply@quae.ai"}>`
-      : `Quae.ai <noreply@quae.ai>`;
+    // EMAIL_FROM_ADDRESS can be overridden via env var.
+    // Use onboarding@resend.dev as a fallback while quae.ai DNS is being verified —
+    // it only delivers to the Resend account owner's address but prevents hard 403s.
+    const fromAddress = process.env.EMAIL_FROM_ADDRESS ?? "noreply@quae.ai";
+    const fromName = process.env.EMAILJS_FROM_NAME ?? "Quae.ai";
+    const from = `${fromName} <${fromAddress}>`;
 
     const res = await fetch(RESEND_URL, {
       method: "POST",
