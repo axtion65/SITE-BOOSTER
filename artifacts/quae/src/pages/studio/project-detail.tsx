@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowLeft, Clock, Trash2, Code, AlignLeft, RefreshCw, Download, VideoOff, RotateCcw, Mail, Zap, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Clock, Trash2, Code, AlignLeft, RefreshCw, Download, VideoOff, RotateCcw, Mail, Zap, CheckCircle2, ImageIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExpandedScript } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -355,6 +355,31 @@ export default function StudioProjectDetail() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Product image thumbnail */}
+              {project.productImageUrl && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4" /> Product Image
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="rounded-lg overflow-hidden border border-border bg-secondary/20">
+                      <img
+                        src={project.productImageUrl}
+                        alt="Product image used for this render"
+                        className="w-full object-contain max-h-48"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <ImageIcon className="h-3 w-3 flex-shrink-0" />
+                      Image conditioning was applied to this render
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
 
