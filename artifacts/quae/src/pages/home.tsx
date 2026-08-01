@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
-import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign, Sparkles, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign, Sparkles, ChevronRight, Wand2, Film, ChevronDown } from "lucide-react";
 
 export default function Home() {
   return (
@@ -53,15 +53,124 @@ function Navbar() {
   );
 }
 
-// ─── Hero demo video ──────────────────────────────────────────────────────────
+// ─── Animated Studio Mockup ───────────────────────────────────────────────────
 
-function HeroDemoVideo() {
-  const [status, setStatus] = useState<"loading" | "playing" | "error">("loading");
+const PRODUCT_PRESETS = [
+  {
+    product: "HydroGlow Face Serum",
+    category: "Skincare · E-Commerce",
+    audience: "Women 25–40 interested in anti-aging",
+    template: "Shopify Product Ad",
+    templateColor: "#4ade80",
+    duration: "15s",
+    scriptLines: [
+      "Your skin is telling you something. Are you listening?",
+      "HydroGlow delivers 10× more hydration in just 7 days —",
+      "clinically proven, dermatologist-approved.",
+      "Tap to claim your starter kit. Free shipping today only.",
+    ],
+    accent: "from-pink-500/20 to-violet-500/20",
+    dot: "#f9a8d4",
+  },
+  {
+    product: "Streamline Pro",
+    category: "SaaS · Productivity",
+    audience: "Startup founders & remote teams",
+    template: "Product Demo",
+    templateColor: "#34d399",
+    duration: "30s",
+    scriptLines: [
+      "Your team has 14 open tabs and still misses deadlines.",
+      "Streamline Pro collapses your entire workflow into one view —",
+      "tasks, docs, and async standups, all in sync.",
+      "Trusted by 4,000+ remote teams. Start free today.",
+    ],
+    accent: "from-emerald-500/20 to-cyan-500/20",
+    dot: "#6ee7b7",
+  },
+  {
+    product: "BrewCraft Cold Brew",
+    category: "Food & Beverage",
+    audience: "Coffee lovers & busy professionals",
+    template: "TikTok Viral Hook",
+    templateColor: "#69C9D0",
+    duration: "15s",
+    scriptLines: [
+      "I switched to cold brew and my 2pm crash disappeared.",
+      "BrewCraft uses 100% single-origin beans, steeped 20 hours.",
+      "Smooth, bold, zero bitterness — every single time.",
+      "Order your first bag. Use code BREW20 for 20% off.",
+    ],
+    accent: "from-amber-500/20 to-orange-500/20",
+    dot: "#fcd34d",
+  },
+  {
+    product: "Apex Leather Jacket",
+    category: "Fashion · Apparel",
+    audience: "Fashion-forward men 22–35",
+    template: "UGC Review Style",
+    templateColor: "#f0f0f0",
+    duration: "30s",
+    scriptLines: [
+      "I've owned this jacket for 6 months. Here's my honest take.",
+      "Full-grain leather, Italian hardware, built to last a decade.",
+      "It replaced three cheaper jackets I bought in two years.",
+      "Ships in 48 hours. Free returns. Link in bio.",
+    ],
+    accent: "from-slate-500/20 to-zinc-500/20",
+    dot: "#cbd5e1",
+  },
+] as const;
+
+// How long each phase lasts (ms)
+const PHASE_DURATION = 5000;
+// How many script lines are revealed per preset before cycling
+const LINES_PER_PRESET = PRODUCT_PRESETS[0].scriptLines.length;
+
+function AnimatedStudioMockup() {
+  const [presetIdx, setPresetIdx] = useState(0);
+  const [visibleLines, setVisibleLines] = useState(0);
+  const [transitioning, setTransitioning] = useState(false);
+
+  const preset = PRODUCT_PRESETS[presetIdx];
+
+  // Reveal lines one by one, then cycle to next preset
+  useEffect(() => {
+    setVisibleLines(0);
+
+    let lineTimer: ReturnType<typeof setTimeout>;
+    let cycleTimer: ReturnType<typeof setTimeout>;
+
+    // Stagger each line by 900ms
+    for (let i = 0; i < LINES_PER_PRESET; i++) {
+      lineTimer = setTimeout(() => setVisibleLines(i + 1), 600 + i * 900);
+    }
+
+    // After all lines shown, wait then cycle
+    cycleTimer = setTimeout(() => {
+      setTransitioning(true);
+      setTimeout(() => {
+        setPresetIdx((p) => (p + 1) % PRODUCT_PRESETS.length);
+        setTransitioning(false);
+      }, 500);
+    }, PHASE_DURATION);
+
+    return () => {
+      clearTimeout(lineTimer);
+      clearTimeout(cycleTimer);
+    };
+  }, [presetIdx]);
 
   return (
     <div className="relative w-full max-w-[420px] mx-auto lg:mx-0 select-none">
-      {/* Ambient glow */}
-      <div className="absolute -inset-6 bg-violet-600/10 rounded-3xl blur-2xl pointer-events-none" />
+      {/* Ambient glow — shifts colour with preset */}
+      <motion.div
+        key={presetIdx}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        className={`absolute -inset-6 bg-gradient-to-br ${preset.accent} rounded-3xl blur-2xl pointer-events-none`}
+      />
 
       {/* Card shell */}
       <div className="relative rounded-2xl border border-white/[0.08] bg-[#0c0c10] shadow-2xl overflow-hidden">
@@ -73,55 +182,103 @@ function HeroDemoVideo() {
             <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
             <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
           </div>
-          <span className="text-[11px] text-white/25 font-medium mx-auto pr-6">Quae Studio — Example Output</span>
+          <span className="text-[11px] text-white/25 font-medium mx-auto pr-6">Quae Studio</span>
         </div>
 
-        {/* Video container — 9:16 portrait */}
-        <div className="relative overflow-hidden bg-[#08080c]" style={{ aspectRatio: "9/16" }}>
+        {/* Body */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={presetIdx}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: transitioning ? 0 : 1, y: transitioning ? -8 : 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.45, ease: "easeInOut" }}
+            className="p-5 space-y-4"
+          >
+            {/* Product name field */}
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Product</label>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+                <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: preset.dot }} />
+                <span className="text-sm font-bold text-white">{preset.product}</span>
+                <span className="ml-auto text-[10px] text-white/25">{preset.category}</span>
+              </div>
+            </div>
 
-          {/* Poster image — always rendered, fades out when video plays */}
-          <img
-            src="/videos/hero-demo-poster.jpg"
-            alt="AI-generated product ad preview"
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${status === "playing" ? "opacity-0" : "opacity-100"}`}
-          />
+            {/* Audience field */}
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Target Audience</label>
+              <div className="px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+                <span className="text-xs text-white/60">{preset.audience}</span>
+              </div>
+            </div>
 
-          {/* Actual video — fades in when ready */}
-          <video
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${status === "playing" ? "opacity-100" : "opacity-0"}`}
-            src="/videos/hero-demo.mp4"
-            poster="/videos/hero-demo-poster.jpg"
-            autoPlay
-            muted
-            loop
-            playsInline
-            onCanPlay={() => setStatus("playing")}
-            onError={() => setStatus("error")}
-          />
-
-          {/* Play-button overlay — shown until video starts (not on error since poster shows) */}
-          {status === "loading" && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-violet-900/20 via-transparent to-transparent">
-              <motion.div
-                animate={{ scale: [1, 1.06, 1], opacity: [0.5, 0.8, 0.5] }}
-                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                className="h-16 w-16 rounded-full bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-sm"
+            {/* Template row */}
+            <div className="flex items-center gap-2">
+              <Film className="h-3.5 w-3.5 text-white/25 flex-shrink-0" />
+              <span className="text-[11px] text-white/35">Template:</span>
+              <span
+                className="text-[11px] font-bold px-2 py-0.5 rounded-full border"
+                style={{ color: preset.templateColor, borderColor: `${preset.templateColor}40`, backgroundColor: `${preset.templateColor}15` }}
               >
-                <Play className="h-6 w-6 text-white fill-white ml-1" />
+                {preset.template}
+              </span>
+              <span className="ml-auto text-[10px] text-white/25 font-medium">{preset.duration}</span>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-white/[0.06]" />
+
+            {/* AI Script preview */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-3">
+                <Wand2 className="h-3 w-3 text-violet-400" />
+                <span className="text-[10px] text-violet-400 font-bold uppercase tracking-wider">AI-Generated Script</span>
+              </div>
+              <div className="space-y-2 min-h-[108px]">
+                {preset.scriptLines.map((line, i) => (
+                  <AnimatePresence key={`${presetIdx}-${i}`}>
+                    {visibleLines > i && (
+                      <motion.div
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.35, ease: "easeOut" }}
+                        className="flex items-start gap-2"
+                      >
+                        <span className="text-[10px] text-violet-400/50 font-bold mt-0.5 flex-shrink-0 w-4">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="text-[11px] text-white/55 leading-relaxed">{line}</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                ))}
+              </div>
+            </div>
+
+            {/* Progress dots */}
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex gap-1.5">
+                {PRODUCT_PRESETS.map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-1 rounded-full transition-all duration-500"
+                    style={{
+                      width: i === presetIdx ? 20 : 6,
+                      backgroundColor: i === presetIdx ? preset.dot : "rgba(255,255,255,0.12)",
+                    }}
+                  />
+                ))}
+              </div>
+              <motion.div
+                animate={{ opacity: [0.4, 1, 0.4] }}
+                transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
+                className="flex items-center gap-1 text-[10px] text-violet-400/60 font-semibold"
+              >
+                <div className="h-1.5 w-1.5 rounded-full bg-violet-400/60" />
+                Generating…
               </motion.div>
             </div>
-          )}
-
-          {/* Overlay labels — always visible */}
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-            <span className="text-[9px] text-white/70 bg-black/50 backdrop-blur-sm px-2 py-1 rounded font-semibold">
-              15s · TikTok Hook
-            </span>
-            <span className="text-[9px] text-violet-300 bg-black/50 backdrop-blur-sm px-2 py-1 rounded font-bold">
-              QUAE.AI
-            </span>
-          </div>
-        </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -197,12 +354,12 @@ function HeroSection() {
             </motion.div>
           </motion.div>
 
-          {/* Right: example output video */}
+          {/* Right: animated studio mockup */}
           <motion.div
             initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
             className="w-full lg:w-auto lg:flex-shrink-0 lg:w-[420px]"
           >
-            <HeroDemoVideo />
+            <AnimatedStudioMockup />
           </motion.div>
 
         </div>
