@@ -84,13 +84,16 @@ router.post("/projects", async (req, res) => {
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
 
   const creditCost = getCreditCost(parsed.data.renderingModelId ?? "quae-v1");
-  if (user.credits < creditCost) {
-    res.status(402).json({ error: `Not enough credits. This render costs ${creditCost} credits. You have ${user.credits}.` });
-    return;
-  }
 
-  // Deduct credits
-  await db.update(usersTable).set({ credits: user.credits - creditCost }).where(eq(usersTable.id, userId));
+  // Admins bypass credit checks so they can test all tiers freely
+  if (!user.isAdmin) {
+    if (user.credits < creditCost) {
+      res.status(402).json({ error: `Not enough credits. This render costs ${creditCost} credits. You have ${user.credits}.` });
+      return;
+    }
+    // Deduct credits
+    await db.update(usersTable).set({ credits: user.credits - creditCost }).where(eq(usersTable.id, userId));
+  }
 
   const [project] = await db.insert(projectsTable).values({
     userId,
@@ -117,8 +120,8 @@ router.post("/projects", async (req, res) => {
       await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     } catch (err) {
       console.error("[fal-video] submit error — refunding credits", err);
-      // Refund immediately so the user isn't charged for a render that never started
-      await db.update(usersTable).set({ credits: user.credits }).where(eq(usersTable.id, userId));
+      // Refund immediately so the user isn't charged for a render that never started (skip for admins)
+      if (!user.isAdmin) await db.update(usersTable).set({ credits: user.credits }).where(eq(usersTable.id, userId));
       await db.update(projectsTable).set({ status: "failed", updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     }
   }
@@ -188,11 +191,16 @@ router.post("/projects/:id/rerender", async (req, res) => {
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1");
-  if (!user || user.credits < creditCost) {
-    res.status(402).json({ error: `Not enough credits. Re-render costs ${creditCost} credits.` });
-    return;
+  if (!user) { res.status(401).json({ error: "User not found" }); return; }
+
+  // Admins bypass credit checks
+  if (!user.isAdmin) {
+    if (user.credits < creditCost) {
+      res.status(402).json({ error: `Not enough credits. Re-render costs ${creditCost} credits.` });
+      return;
+    }
+    await db.update(usersTable).set({ credits: user.credits - creditCost }).where(eq(usersTable.id, userId));
   }
-  await db.update(usersTable).set({ credits: user.credits - creditCost }).where(eq(usersTable.id, userId));
 
   const [reset] = await db.update(projectsTable)
     .set({ status: "processing", videoUrl: null, thumbnailUrl: null, updatedAt: new Date() })
@@ -205,8 +213,8 @@ router.post("/projects/:id/rerender", async (req, res) => {
     await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   } catch (err) {
     console.error("[fal-video] rerender submit error — refunding credits", err);
-    // Refund immediately: render never started so credits should come back
-    await db.update(usersTable).set({ credits: user.credits }).where(eq(usersTable.id, userId));
+    // Refund immediately: render never started so credits should come back (skip for admins)
+    if (!user.isAdmin) await db.update(usersTable).set({ credits: user.credits }).where(eq(usersTable.id, userId));
     await db.update(projectsTable).set({ status: "failed", updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   }
 

@@ -371,11 +371,15 @@ function Wizard() {
   const selectedModel = models?.find(m => m.id === modelId);
   const userCredits = (user as any)?.credits ?? 0;
   const userPlan = (user as any)?.plan ?? "free";
+  const isAdminUser = (user as any)?.isAdmin === true;
 
   const planTierOrder = { free: 0, starter: 1, pro: 2, agency: 3 };
 
-  function canUseModel(modelTier: string) {
-    return (planTierOrder[modelTier as keyof typeof planTierOrder] ?? 0) <= (planTierOrder[userPlan as keyof typeof planTierOrder] ?? 0);
+  // Admins bypass all tier restrictions so they can test every model
+  function canUseModel(_modelTier: string) {
+    if (isAdminUser) return true;
+    const tier = _modelTier;
+    return (planTierOrder[tier as keyof typeof planTierOrder] ?? 0) <= (planTierOrder[userPlan as keyof typeof planTierOrder] ?? 0);
   }
 
   // Whether the selected model supports image conditioning
