@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +15,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import {
@@ -25,6 +27,7 @@ import {
   getGetProjectStatsQueryKey,
 } from '@workspace/api-client-react';
 import type { Template, RenderingModel, ExpandedScript } from '@workspace/api-client-react';
+import { useAuth } from '@/context/auth';
 
 type Step = 'template' | 'describe' | 'script' | 'model' | 'creating';
 
@@ -40,10 +43,72 @@ const STEP_LABELS: Record<Step, string> = {
 const PLAN_LABEL: Record<string, string> = { free: 'Free', creator: 'Creator', agency: 'Agency' };
 const PLATFORM_OPTIONS = ['tiktok', 'instagram', 'youtube', 'amazon'];
 
+// Models that support image conditioning
+const IMAGE_CONDITION_MODELS = new Set(['wan', 'kling', 'kling-1.6']);
+
+/**
+ * Upload an image to GCS via the 3-step presigned URL flow.
+ * Returns the serving URL (e.g. /api/storage/objects/uploads/uuid).
+ */
+async function uploadImageToStorage(
+  uri: string,
+  mimeType: string,
+  fileSize: number,
+  token: string | null,
+): Promise<string> {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  const baseUrl = domain ? `https://${domain}/api` : '/api';
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+  // Step 1: Request a presigned URL
+  const res = await fetch(`${baseUrl}/storage/uploads/request-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({
+      name: 'product-image.jpg',
+      size: fileSize,
+      contentType: mimeType || 'image/jpeg',
+    }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? 'Failed to get upload URL');
+  }
+  const { uploadURL, objectPath, finalizeToken } = (await res.json()) as {
+    uploadURL: string;
+    objectPath: string;
+    finalizeToken: string;
+  };
+
+  // Step 2: Fetch the local file and PUT directly to GCS
+  const fileRes = await fetch(uri);
+  const blob = await fileRes.blob();
+  const uploadRes = await fetch(uploadURL, {
+    method: 'PUT',
+    body: blob,
+    headers: { 'Content-Type': mimeType || 'image/jpeg' },
+  });
+  if (!uploadRes.ok) throw new Error('Failed to upload image to storage');
+
+  // Step 3: Finalize — set ACL ownership
+  const finalizeRes = await fetch(`${baseUrl}/storage/uploads/finalize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ objectPath, finalizeToken }),
+  });
+  if (!finalizeRes.ok) {
+    const err = (await finalizeRes.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? 'Failed to finalize upload');
+  }
+
+  return `/api/storage${objectPath}`;
+}
+
 export default function CreateScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { token } = useAuth();
 
   const [step, setStep] = useState<Step>('template');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -53,6 +118,12 @@ export default function CreateScreen() {
   const [expandedScript, setExpandedScript] = useState<ExpandedScript | null>(null);
   const [selectedModel, setSelectedModel] = useState<RenderingModel | null>(null);
   const [scriptError, setScriptError] = useState('');
+
+  // Product image state
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
+  const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState('');
 
   const { data: templates, isLoading: templatesLoading } = useListTemplates();
   const { data: models, isLoading: modelsLoading } = useListRenderingModels();
@@ -70,6 +141,48 @@ export default function CreateScreen() {
     setSelectedTemplate(t);
     void Haptics.selectionAsync();
     setStep('describe');
+  };
+
+  const handlePickImage = async () => {
+    setImageError('');
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setImageError('Photo library access is required to attach a product image.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    if (!asset.uri) return;
+
+    const mimeType = asset.mimeType ?? 'image/jpeg';
+    const fileSize = asset.fileSize ?? 0;
+
+    setImagePreviewUri(asset.uri);
+    setImageUploading(true);
+    try {
+      const servingUrl = await uploadImageToStorage(asset.uri, mimeType, fileSize, token);
+      setProductImageUrl(servingUrl);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not upload image. Please try again.';
+      setImageError(msg);
+      setImagePreviewUri(null);
+      setProductImageUrl(null);
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setProductImageUrl(null);
+    setImagePreviewUri(null);
+    setImageError('');
   };
 
   const handleDescribeContinue = async () => {
@@ -112,6 +225,7 @@ export default function CreateScreen() {
           platform: platform || null,
           duration: selectedTemplate?.duration ?? null,
           templateId: selectedTemplate?.id ?? null,
+          productImageUrl: productImageUrl ?? null,
         },
       });
       void queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
@@ -126,6 +240,9 @@ export default function CreateScreen() {
         setPlatform('');
         setExpandedScript(null);
         setSelectedModel(null);
+        setProductImageUrl(null);
+        setImagePreviewUri(null);
+        setImageError('');
         router.push('/(tabs)/projects');
       }, 1200);
     } catch (e: unknown) {
@@ -198,6 +315,12 @@ export default function CreateScreen() {
             setDescription={setDescription}
             platform={platform}
             setPlatform={setPlatform}
+            imagePreviewUri={imagePreviewUri}
+            imageUploading={imageUploading}
+            imageError={imageError}
+            hasUploadedImage={!!productImageUrl}
+            onPickImage={handlePickImage}
+            onRemoveImage={handleRemoveImage}
             onContinue={handleDescribeContinue}
             colors={colors}
             styles={styles}
@@ -221,6 +344,7 @@ export default function CreateScreen() {
             models={models ?? []}
             loading={modelsLoading}
             selected={selectedModel}
+            hasProductImage={!!productImageUrl}
             onSelect={handleModelSelect}
             onRender={handleRender}
             error={scriptError}
@@ -303,11 +427,20 @@ function TemplateStep({
 
 function DescribeStep({
   productName, setProductName, description, setDescription,
-  platform, setPlatform, onContinue, colors, styles,
+  platform, setPlatform,
+  imagePreviewUri, imageUploading, imageError, hasUploadedImage,
+  onPickImage, onRemoveImage, onContinue,
+  colors, styles,
 }: {
   productName: string; setProductName: (v: string) => void;
   description: string; setDescription: (v: string) => void;
   platform: string; setPlatform: (v: string) => void;
+  imagePreviewUri: string | null;
+  imageUploading: boolean;
+  imageError: string;
+  hasUploadedImage: boolean;
+  onPickImage: () => void;
+  onRemoveImage: () => void;
   onContinue: () => void;
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
@@ -345,6 +478,57 @@ function DescribeStep({
         />
       </View>
 
+      {/* Product image picker */}
+      <View style={styles.fieldGroup}>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>
+          Product image <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>(optional · improves Wan/Kling quality)</Text>
+        </Text>
+
+        {imagePreviewUri ? (
+          <View style={[styles.imagePreviewWrap, { borderColor: hasUploadedImage ? colors.primary : colors.border }]}>
+            <Image source={{ uri: imagePreviewUri }} style={styles.imagePreview} resizeMode="cover" />
+            {imageUploading && (
+              <View style={styles.imageOverlay}>
+                <ActivityIndicator color="#fff" size="small" />
+                <Text style={styles.imageOverlayText}>Uploading…</Text>
+              </View>
+            )}
+            {!imageUploading && (
+              <Pressable
+                style={[styles.imageRemoveBtn, { backgroundColor: colors.destructive }]}
+                onPress={onRemoveImage}
+                hitSlop={8}
+              >
+                <Feather name="x" size={12} color="#fff" />
+              </Pressable>
+            )}
+            {!imageUploading && hasUploadedImage && (
+              <View style={[styles.imageReadyBadge, { backgroundColor: `${colors.primary}CC` }]}>
+                <Feather name="check" size={10} color="#fff" />
+                <Text style={styles.imageReadyText}>Uploaded</Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [
+              styles.imagePickerBtn,
+              { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+            ]}
+            onPress={onPickImage}
+          >
+            <Feather name="image" size={20} color={colors.mutedForeground} />
+            <Text style={[styles.imagePickerText, { color: colors.mutedForeground }]}>
+              Tap to attach product image
+            </Text>
+          </Pressable>
+        )}
+
+        {imageError ? (
+          <Text style={[styles.imageErrorText, { color: colors.destructive }]}>{imageError}</Text>
+        ) : null}
+      </View>
+
       <View style={styles.fieldGroup}>
         <Text style={[styles.label, { color: colors.mutedForeground }]}>Platform (optional)</Text>
         <View style={styles.platformRow}>
@@ -377,12 +561,14 @@ function DescribeStep({
           },
         ]}
         onPress={onContinue}
-        disabled={!productName.trim()}
+        disabled={!productName.trim() || imageUploading}
       >
         <Text style={[styles.primaryBtnText, { color: productName.trim() ? colors.primaryForeground : colors.mutedForeground }]}>
-          Generate Script
+          {imageUploading ? 'Uploading image…' : 'Generate Script'}
         </Text>
-        <Feather name="zap" size={16} color={productName.trim() ? colors.primaryForeground : colors.mutedForeground} />
+        {!imageUploading && (
+          <Feather name="zap" size={16} color={productName.trim() ? colors.primaryForeground : colors.mutedForeground} />
+        )}
       </Pressable>
     </ScrollView>
   );
@@ -477,11 +663,12 @@ function ScriptStep({
 }
 
 function ModelStep({
-  models, loading, selected, onSelect, onRender, error, colors, styles,
+  models, loading, selected, hasProductImage, onSelect, onRender, error, colors, styles,
 }: {
   models: RenderingModel[];
   loading: boolean;
   selected: RenderingModel | null;
+  hasProductImage: boolean;
   onSelect: (m: RenderingModel) => void;
   onRender: () => void;
   error: string;
@@ -511,6 +698,7 @@ function ModelStep({
       <View style={{ gap: 10, marginBottom: 24 }}>
         {models.map((m) => {
           const isSelected = selected?.id === m.id;
+          const supportsImage = IMAGE_CONDITION_MODELS.has(m.id);
           return (
             <Pressable
               key={m.id}
@@ -524,11 +712,17 @@ function ModelStep({
               onPress={() => onSelect(m)}
             >
               <View style={{ flex: 1, gap: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <Text style={[styles.modelName, { color: colors.foreground }]}>{m.name}</Text>
                   {m.badge && (
                     <View style={[styles.modelBadge, { backgroundColor: `${colors.primary}20` }]}>
                       <Text style={[styles.modelBadgeText, { color: colors.primary }]}>{m.badge}</Text>
+                    </View>
+                  )}
+                  {supportsImage && hasProductImage && (
+                    <View style={[styles.modelBadge, { backgroundColor: `${colors.primary}30`, flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
+                      <Feather name="image" size={9} color={colors.primary} />
+                      <Text style={[styles.modelBadgeText, { color: colors.primary }]}>Image</Text>
                     </View>
                   )}
                 </View>
@@ -653,6 +847,34 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       minHeight: 100, borderRadius: 10, borderWidth: 1,
       padding: 12, fontFamily: 'Inter_400Regular', fontSize: 15,
     },
+    // Image picker styles
+    imagePickerBtn: {
+      height: 80, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed',
+      alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10,
+    },
+    imagePickerText: { fontFamily: 'Inter_400Regular', fontSize: 14 },
+    imagePreviewWrap: {
+      height: 140, borderRadius: 12, borderWidth: 1.5, overflow: 'hidden',
+    },
+    imagePreview: { width: '100%', height: '100%' },
+    imageOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignItems: 'center', justifyContent: 'center', gap: 6,
+    },
+    imageOverlayText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#fff' },
+    imageRemoveBtn: {
+      position: 'absolute', top: 8, right: 8,
+      width: 22, height: 22, borderRadius: 11,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    imageReadyBadge: {
+      position: 'absolute', bottom: 8, left: 8,
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+    },
+    imageReadyText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#fff' },
+    imageErrorText: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 },
     platformRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     platformChip: {
       paddingHorizontal: 14, paddingVertical: 7,
