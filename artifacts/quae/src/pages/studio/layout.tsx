@@ -25,6 +25,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
           <NavLink href="/templates" label="Templates" />
           <NavLink href="/studio/projects" label="My Videos" />
           <NavLink href="/studio/billing" label="Billing" />
+          <NavLink href="/studio/settings" label="Settings" />
         </nav>
 
         {/* Right side */}

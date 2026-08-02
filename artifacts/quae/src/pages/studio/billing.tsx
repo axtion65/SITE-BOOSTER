@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { RequireAuth } from "@/components/auth-guard";
 import { useAuth } from "@/hooks/use-auth";
 import { useSearch } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, Zap, Crown, ExternalLink, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +28,19 @@ const PLAN_FEATURES: Record<string, string[]> = {
   pro:     ["2,000 credits/month", "All models + Kling 2.5", "All platforms", "4K export", "Priority rendering", "Video history"],
   agency:  ["6,000 credits/month", "All models + Veo 3", "All platforms", "4K export", "Fastest rendering", "Team workspace", "API access"],
 };
+
+const PLAN_CREDITS: Record<string, string> = {
+  starter: "600 credits",
+  pro: "2,000 credits",
+  agency: "6,000 credits",
+};
+
+const MODEL_COSTS = [
+  { model: "Ovi",      cost: "30",    desc: "Video + audio",    color: "#818cf8" },
+  { model: "Wan 2.5",  cost: "200",   desc: "Cinematic",        color: "#a78bfa" },
+  { model: "Kling 2.5",cost: "300",   desc: "Ultra-realistic",  color: "#c084fc" },
+  { model: "Veo 3",    cost: "1,500", desc: "Agency grade",     color: "#e879f9" },
+];
 
 function authHeader(): Record<string, string> {
   const token = localStorage.getItem("quae_token");
@@ -68,7 +79,6 @@ function BillingContent() {
         .then(data => {
           if (data.synced) {
             toast({ title: "Subscription activated!", description: `You're now on the ${data.plan} plan with ${data.credits} credits.` });
-            // Refresh user data by re-fetching /api/auth/me
             fetch("/api/auth/me", { headers: authHeader() })
               .then(r => r.json())
               .then(u => { if (u?.id) login(localStorage.getItem("quae_token")!, u); })
@@ -136,74 +146,86 @@ function BillingContent() {
   const creditPct = Math.round((credits / (maxCredits[currentPlan] ?? 90)) * 100);
 
   return (
-    <div className="p-8 h-full overflow-y-auto bg-background">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="min-h-full bg-[#050507] text-white">
+      <div className="max-w-5xl mx-auto px-6 py-10 space-y-10">
 
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">Billing & Plan</h1>
-            <p className="text-muted-foreground mt-1">Manage your subscription and credits.</p>
+            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-2">Billing</p>
+            <h1 className="text-3xl font-black text-white tracking-tight">Plan &amp; Credits</h1>
+            <p className="text-white/35 mt-1 text-sm">Manage your subscription and monitor usage.</p>
           </div>
           {currentPlan !== "free" && (
-            <Button variant="outline" onClick={handlePortal} disabled={openingPortal} className="gap-2">
+            <button
+              onClick={handlePortal}
+              disabled={openingPortal}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-white/[0.05] hover:bg-white/10 border border-white/[0.08] hover:border-white/15 transition-all"
+            >
               {openingPortal ? <Spinner className="h-4 w-4" /> : <ExternalLink className="h-4 w-4" />}
               Manage Subscription
-            </Button>
+            </button>
           )}
         </div>
 
         {/* Current Plan Card */}
-        <div className="p-6 rounded-2xl border border-white/10 bg-white/[0.02]">
-          <div className="flex items-center justify-between mb-4">
+        <div className="p-6 rounded-2xl border border-white/[0.08] bg-white/[0.02]">
+          <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
-                {currentPlan === "free" ? <Zap className="h-5 w-5 text-violet-400" /> : <Crown className="h-5 w-5 text-violet-400" />}
+                {currentPlan === "free"
+                  ? <Zap className="h-5 w-5 text-violet-400" />
+                  : <Crown className="h-5 w-5 text-violet-400" />}
               </div>
               <div>
-                <div className="text-white font-bold capitalize text-lg">{currentPlan} Plan</div>
-                <div className="text-xs text-muted-foreground">
-                  {currentPlan === "free" ? "3 free videos included" : "Credits reset monthly"}
+                <div className="text-white font-black capitalize text-lg">{currentPlan} Plan</div>
+                <div className="text-[11px] text-white/35">
+                  {currentPlan === "free" ? "90 credits included at sign-up" : "Credits reset monthly"}
                 </div>
               </div>
             </div>
-            <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/30 capitalize">{currentPlan}</Badge>
+            <span className="px-3 py-1 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 text-xs font-bold capitalize">
+              {currentPlan}
+            </span>
           </div>
 
           {/* Credit bar */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Credits remaining</span>
-              <span className="text-white font-semibold">{credits.toLocaleString()} / {(maxCredits[currentPlan] ?? 90).toLocaleString()}</span>
+              <span className="text-white/40">Credits remaining</span>
+              <span className="text-white font-bold">{credits.toLocaleString()} / {(maxCredits[currentPlan] ?? 90).toLocaleString()}</span>
             </div>
-            <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden">
+            <div className="h-2 w-full rounded-full bg-white/[0.06] overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-violet-500 to-purple-400 transition-all"
+                className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-400 transition-all"
                 style={{ width: `${Math.min(creditPct, 100)}%` }}
               />
             </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>1 credit = $0.01 · Ovi costs 30 · Wan 200 · Kling 300 · Veo 1,500</span>
-              <span>{creditPct}%</span>
+            <div className="flex justify-between text-[11px] text-white/25">
+              <span>{Math.max(0, 100 - creditPct)}% used</span>
+              <span>{creditPct}% remaining</span>
             </div>
           </div>
         </div>
 
         {/* Billing toggle */}
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white">Choose a plan</h2>
-          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+          <div>
+            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-1">Plans</p>
+            <h2 className="text-xl font-black text-white">Choose a plan</h2>
+          </div>
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.08]">
             <button
               onClick={() => setAnnual(false)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${!annual ? "bg-white/10 text-white" : "text-white/40"}`}
+              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${!annual ? "bg-white/10 text-white" : "text-white/30 hover:text-white/50"}`}
             >
               Monthly
             </button>
             <button
               onClick={() => setAnnual(true)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${annual ? "bg-violet-600 text-white" : "text-white/40"}`}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${annual ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-white/30 hover:text-white/50"}`}
             >
-              Annual <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">Save 20%</span>
+              Annual <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full font-bold">Save 20%</span>
             </button>
           </div>
         </div>
@@ -220,7 +242,7 @@ function BillingContent() {
         {loading ? (
           <div className="flex justify-center py-16"><Spinner className="h-8 w-8" /></div>
         ) : sortedPlans.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
+          <div className="text-center py-16 text-white/30">
             <p>No plans available right now.</p>
           </div>
         ) : (
@@ -231,7 +253,6 @@ function BillingContent() {
               const isPopular = planKey === "pro";
               const interval = annual ? "year" : "month";
               const price = getPriceForInterval(plan, interval);
-              const monthlyPrice = getPriceForInterval(plan, "month");
               const displayAmount = price
                 ? annual
                   ? Math.round((price.unitAmount / 100) / 12)
@@ -242,55 +263,68 @@ function BillingContent() {
               return (
                 <div
                   key={plan.id}
-                  className={`relative rounded-2xl p-6 border transition-all flex flex-col ${
+                  className={`relative rounded-2xl p-6 border transition-all hover:-translate-y-0.5 flex flex-col ${
                     isPopular
-                      ? "border-violet-500 bg-violet-500/5 shadow-lg shadow-violet-500/10"
+                      ? "border-violet-500/60 bg-violet-500/[0.06] shadow-lg shadow-violet-500/10 hover:shadow-xl hover:shadow-violet-500/15"
                       : isCurrent
-                        ? "border-white/20 bg-white/[0.03]"
-                        : "border-white/5 bg-white/[0.02]"
+                        ? "border-white/15 bg-white/[0.03] hover:shadow-xl hover:shadow-white/5"
+                        : "border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:shadow-xl"
                   }`}
                 >
                   {isPopular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-violet-500 text-white text-xs font-bold rounded-full uppercase tracking-wider whitespace-nowrap">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-violet-500 text-white text-[10px] font-black rounded-full uppercase tracking-widest whitespace-nowrap shadow-lg shadow-violet-500/30">
                       Most Popular
                     </div>
                   )}
-                  {isCurrent && (
-                    <div className="absolute -top-3 right-4 px-3 py-1 bg-white/10 text-white/70 text-xs font-semibold rounded-full border border-white/10 whitespace-nowrap">
+                  {isCurrent && !isPopular && (
+                    <div className="absolute -top-3 right-4 px-3 py-1 bg-white/10 text-white/60 text-[10px] font-black rounded-full border border-white/[0.10] whitespace-nowrap uppercase tracking-widest">
                       Current plan
                     </div>
                   )}
 
-                  <div className="mb-1 font-bold text-white text-lg">{plan.name}</div>
-                  <p className="text-xs text-white/40 mb-5 leading-relaxed min-h-[2.5rem]">{plan.description}</p>
+                  <div className="mb-5">
+                    <h3 className="font-black text-white text-lg mb-0.5">{plan.name}</h3>
+                    <p className="text-[11px] text-white/30 min-h-[2rem] leading-relaxed">{plan.description}</p>
+                  </div>
 
                   {displayAmount !== null ? (
                     <div className="mb-1">
                       <span className="text-4xl font-black text-white">${displayAmount}</span>
-                      <span className="text-white/40 text-sm">/mo</span>
+                      <span className="text-white/30 text-sm">/mo</span>
                     </div>
                   ) : (
                     <div className="text-4xl font-black text-white mb-1">—</div>
                   )}
-                  {annualTotal && (
-                    <div className="text-xs text-green-400 mb-5">${annualTotal}/yr — save 20%</div>
+                  {annualTotal ? (
+                    <div className="text-xs text-green-400 mb-5 font-semibold">${annualTotal}/yr — save 20%</div>
+                  ) : (
+                    <div className="mb-5 h-4" />
                   )}
-                  {!annualTotal && <div className="mb-5 h-4" />}
+
+                  {/* Credits highlight */}
+                  <div className="p-3 rounded-xl bg-white/[0.04] text-[11px] text-white/50 mb-5 text-center border border-white/[0.06]">
+                    <span className="text-white font-black">{PLAN_CREDITS[planKey] ?? "—"}</span>/mo
+                  </div>
 
                   <ul className="space-y-2.5 mb-6 flex-1">
                     {(PLAN_FEATURES[planKey] ?? []).map((f, fi) => (
-                      <li key={fi} className="flex items-start gap-2 text-sm text-white/60">
-                        <Check className="h-4 w-4 text-violet-400 mt-0.5 shrink-0" />
+                      <li key={fi} className="flex items-start gap-2 text-xs text-white/40">
+                        <Check className="h-3.5 w-3.5 text-violet-400 mt-0.5 shrink-0" />
                         {f}
                       </li>
                     ))}
                   </ul>
 
-                  <Button
-                    className={`w-full font-semibold ${isPopular ? "bg-violet-600 hover:bg-violet-500" : ""}`}
-                    variant={isPopular ? "default" : "outline"}
+                  <button
                     disabled={isCurrent || checkingOut === plan.id}
                     onClick={() => !isCurrent && handleUpgrade(plan)}
+                    className={`w-full flex items-center justify-center h-10 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isPopular
+                        ? "bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20"
+                        : isCurrent
+                          ? "bg-white/[0.05] text-white/40 border border-white/[0.08] cursor-not-allowed"
+                          : "bg-white/[0.05] hover:bg-white/10 text-white border border-white/[0.08] hover:border-white/15"
+                    }`}
                   >
                     {checkingOut === plan.id ? (
                       <><Spinner className="h-4 w-4 mr-2" /> Redirecting…</>
@@ -299,16 +333,29 @@ function BillingContent() {
                     ) : (
                       `Upgrade to ${plan.name}`
                     )}
-                  </Button>
+                  </button>
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* Free plan note */}
-        <p className="text-center text-xs text-white/30 pb-4">
-          Free plan: 90 credits included at sign-up · No credit card required · Upgrade any time
+        {/* Credit cost reference */}
+        <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+          <h4 className="text-[10px] font-black text-white/30 mb-5 text-center uppercase tracking-[0.2em]">Credit cost per video</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {MODEL_COSTS.map((m, i) => (
+              <div key={i} className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.05] hover:border-violet-500/20 transition-colors">
+                <div className="text-xs font-bold text-white mb-1">{m.model}</div>
+                <div className="font-black text-xl mb-0.5" style={{ color: m.color }}>{m.cost}</div>
+                <div className="text-[10px] text-white/25 uppercase tracking-wide">{m.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-center text-[11px] text-white/20 pb-4">
+          Free plan: 90 credits at sign-up · No credit card required · Upgrade any time · Cancel anytime
         </p>
       </div>
     </div>

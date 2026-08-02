@@ -14,6 +14,7 @@ import StudioProjects from '@/pages/studio/projects';
 import StudioProjectDetail from '@/pages/studio/project-detail';
 import StudioDashboard from '@/pages/studio/dashboard';
 import StudioBilling from '@/pages/studio/billing';
+import StudioSettings from '@/pages/studio/settings';
 import Templates from '@/pages/templates';
 import Admin from '@/pages/admin';
 import SetupAdmin from '@/pages/setup-admin';
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/studio/projects" component={() => <StudioLayout><StudioProjects /></StudioLayout>} />
       <Route path="/studio/projects/:id" component={() => <StudioLayout><StudioProjectDetail /></StudioLayout>} />
       <Route path="/studio/billing" component={() => <StudioLayout><StudioBilling /></StudioLayout>} />
+      <Route path="/studio/settings" component={() => <StudioLayout><StudioSettings /></StudioLayout>} />
       
       {/* Admin */}
       <Route path="/admin" component={Admin} />

@@ -6,11 +6,21 @@
  * the API key was rotated, or the job was lost. We mark it failed and refund
  * the user's credits so they can retry immediately.
  *
+ * Safety guarantees:
+ *   - The status transition AND the credit refund happen inside a single
+ *     database transaction. A process failure between them cannot leave a
+ *     project permanently failed without a refund.
+ *   - The transition is conditional: we only update rows still in "processing".
+ *     If a webhook or poll completed/failed the row first, the UPDATE matches
+ *     zero rows and we skip the refund, preventing double-credit.
+ *   - The credit refund uses a relative SQL increment so overlapping interval
+ *     executions cannot double-add from a stale read.
+ *
  * Call once on startup and then every INTERVAL_MS to self-heal without a restart.
  */
 
 import { db, projectsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { MODEL_RENDER_ESTIMATE, MODEL_CREDIT_COSTS } from "./falvideo";
 
@@ -57,30 +67,50 @@ export async function autoFailStuckRenders(): Promise<void> {
         "[render-timeout] Marking failed"
       );
 
-      // Mark failed
-      await db
-        .update(projectsTable)
-        .set({ status: "failed", updatedAt: new Date() })
-        .where(eq(projectsTable.id, project.id));
-
-      // Refund credits — skip for admins (they don't spend credits)
       const creditCost =
         MODEL_CREDIT_COSTS[project.renderingModelId ?? "ovi"] ??
         MODEL_CREDIT_COSTS["ovi"];
 
-      const [owner] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.id, project.userId));
+      // Atomic: transition status and refund credits in one transaction.
+      // If the project was already resolved by a poll/webhook, the conditional
+      // UPDATE returns zero rows and we skip the refund entirely.
+      let won = false;
+      await db.transaction(async (tx) => {
+        const updated = await tx
+          .update(projectsTable)
+          .set({ status: "failed", updatedAt: new Date() })
+          .where(
+            and(
+              eq(projectsTable.id, project.id),
+              eq(projectsTable.status, "processing")
+            )
+          )
+          .returning({ id: projectsTable.id });
 
-      if (owner && !owner.isAdmin) {
-        await db
+        if (updated.length === 0) return; // Race: already resolved elsewhere
+        won = true;
+
+        // Atomic relative credit increment; skip admins
+        await tx
           .update(usersTable)
-          .set({ credits: owner.credits + creditCost })
-          .where(eq(usersTable.id, owner.id));
+          .set({ credits: sql`${usersTable.credits} + ${creditCost}` })
+          .where(
+            and(
+              eq(usersTable.id, project.userId),
+              sql`${usersTable.isAdmin} = false`
+            )
+          );
+      });
+
+      if (won) {
         logger.info(
-          { userId: owner.id, creditsRefunded: creditCost },
-          "[render-timeout] Credits refunded"
+          { projectId: project.id, userId: project.userId, creditsRefunded: creditCost },
+          "[render-timeout] Marked failed and credits refunded"
+        );
+      } else {
+        logger.info(
+          { projectId: project.id },
+          "[render-timeout] Race: project already resolved, skipping"
         );
       }
     }

@@ -1,8 +1,39 @@
 import { Router } from "express";
-import { db, projectsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, projectsTable, usersTable } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
+import { MODEL_CREDIT_COSTS } from "../lib/falvideo";
 
 const router = Router();
+
+function getCreditCost(modelId: string): number {
+  return MODEL_CREDIT_COSTS[modelId] ?? MODEL_CREDIT_COSTS["ovi"];
+}
+
+/**
+ * Atomically transition a project from "processing" → "failed" and refund credits
+ * in a single transaction. Only performs the refund when the status transition wins,
+ * preventing duplicate refunds from concurrent timeout/poll/webhook paths.
+ */
+async function failAndRefund(projectId: string, userId: string, creditCost: number): Promise<boolean> {
+  let won = false;
+  await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(projectsTable)
+      .set({ status: "failed", updatedAt: new Date() })
+      .where(and(eq(projectsTable.id, projectId), eq(projectsTable.status, "processing")))
+      .returning({ id: projectsTable.id });
+
+    if (updated.length === 0) return;
+    won = true;
+
+    // Atomic credit refund — skip admins
+    await tx
+      .update(usersTable)
+      .set({ credits: sql`${usersTable.credits} + ${creditCost}` })
+      .where(and(eq(usersTable.id, userId), sql`${usersTable.isAdmin} = false`));
+  });
+  return won;
+}
 
 // fal.ai webhook — called by fal.ai when a render completes or fails.
 // Payload: { request_id, status, output: { video: { url } } }
@@ -42,10 +73,8 @@ router.post("/webhooks/fal", async (req, res) => {
 
   if (payload.status === "FAILED" || payload.error) {
     console.error(`[webhook/fal] Render FAILED for project ${project.id}:`, payload.error);
-    await db
-      .update(projectsTable)
-      .set({ status: "failed", updatedAt: new Date() })
-      .where(eq(projectsTable.id, project.id));
+    const creditCost = getCreditCost(project.renderingModelId ?? "ovi");
+    await failAndRefund(project.id, project.userId, creditCost);
     res.json({ ok: true });
     return;
   }
@@ -68,16 +97,16 @@ router.post("/webhooks/fal", async (req, res) => {
 
   if (url && typeof url === "string") {
     console.log(`[webhook/fal] Render COMPLETED for project ${project.id}`);
+    // Conditional: only win if still "processing"
     await db
       .update(projectsTable)
       .set({ videoUrl: url, status: "completed", updatedAt: new Date() })
-      .where(eq(projectsTable.id, project.id));
+      .where(and(eq(projectsTable.id, project.id), eq(projectsTable.status, "processing")));
   } else {
     console.error(`[webhook/fal] COMPLETED but no URL for project ${project.id}. Keys:`, Object.keys(output));
-    await db
-      .update(projectsTable)
-      .set({ status: "failed", updatedAt: new Date() })
-      .where(eq(projectsTable.id, project.id));
+    // Fail + refund atomically
+    const creditCost = getCreditCost(project.renderingModelId ?? "ovi");
+    await failAndRefund(project.id, project.userId, creditCost);
   }
 
   res.json({ ok: true });

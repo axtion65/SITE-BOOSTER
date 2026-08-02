@@ -22,8 +22,8 @@ function DashboardContent() {
 
   const recentProjects = projects?.slice(0, 5) ?? [];
 
-  const planLabel = { free: "Free", starter: "Starter", pro: "Pro", agency: "Agency" }[user?.plan ?? "free"] ?? "Free";
-  const maxCreditsMap: Record<string, number> = { free: 90, starter: 600, pro: 2000, agency: 6000 };
+  const planLabel = ({ free: "Free", starter: "Starter", creator: "Creator", pro: "Pro", agency: "Agency" } as Record<string, string>)[user?.plan ?? "free"] ?? "Free";
+  const maxCreditsMap: Record<string, number> = { free: 90, starter: 600, creator: 2000, pro: 2000, agency: 6000 };
   const maxCredits = maxCreditsMap[user?.plan ?? "free"] ?? 90;
   const creditsRemaining = user?.credits ?? 0;
   const creditsUsed = Math.max(0, maxCredits - creditsRemaining);

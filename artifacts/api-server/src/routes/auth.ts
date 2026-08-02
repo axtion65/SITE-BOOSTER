@@ -18,6 +18,17 @@ function generateTempPassword(): string {
   return crypto.randomBytes(6).toString("hex");
 }
 
+/** Shared token → user resolution used by every authenticated endpoint. */
+async function resolveUserFromToken(authHeader: string | undefined) {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const token = authHeader.slice(7);
+  const decoded = Buffer.from(token, "base64url").toString("utf-8");
+  const userId = decoded.split(":")[0];
+  if (!userId) return null;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  return user ?? null;
+}
+
 function userToPublic(user: typeof usersTable.$inferSelect) {
   return {
     id: user.id,
@@ -110,28 +121,32 @@ router.post("/auth/forgot-password", async (req, res) => {
 });
 
 router.get("/auth/me", async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
-  const token = auth.slice(7);
-  const decoded = Buffer.from(token, "base64url").toString("utf-8");
-  const userId = decoded.split(":")[0];
-  if (!userId) {
-    res.status(401).json({ error: "Invalid token" });
-    return;
-  }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) {
-    res.status(401).json({ error: "User not found" });
-    return;
-  }
+  const user = await resolveUserFromToken(req.headers.authorization);
+  if (!user) { res.status(401).json({ error: "Not authenticated" }); return; }
   res.json(userToPublic(user));
 });
 
 router.post("/auth/signout", (_req, res) => {
   res.json({ success: true });
+});
+
+router.patch("/auth/profile", async (req, res) => {
+  const user = await resolveUserFromToken(req.headers.authorization);
+  if (!user) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const { name } = req.body as { name?: unknown };
+  if (typeof name !== "string") {
+    res.status(400).json({ error: "name must be a string" });
+    return;
+  }
+  const trimmed = name.trim().slice(0, 100);
+  const [updated] = await db
+    .update(usersTable)
+    .set({ name: trimmed || null })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+  res.json(userToPublic(updated));
 });
 
 // Promote self to admin — requires valid email + password to prove ownership

@@ -26,6 +26,51 @@ function getCreditCost(modelId: string): number {
   return MODEL_CREDIT_COSTS[modelId] ?? MODEL_CREDIT_COSTS["ovi"];
 }
 
+/**
+ * Conditionally debit credits using a single UPDATE with a WHERE balance check.
+ * Returns true when the debit succeeded, false when the user doesn't have enough credits.
+ * Safe against concurrent requests: two simultaneous calls with exactly one render's
+ * worth of credits will each see `credits >= cost` but only one UPDATE will win; the
+ * other returns an empty array and gets a 402.
+ */
+async function debitCredits(userId: string, creditCost: number): Promise<boolean> {
+  const rows = await db
+    .update(usersTable)
+    .set({ credits: sql`${usersTable.credits} - ${creditCost}` })
+    .where(and(eq(usersTable.id, userId), sql`${usersTable.credits} >= ${creditCost}`))
+    .returning({ id: usersTable.id });
+  return rows.length > 0;
+}
+
+/**
+ * Atomically transition a project from "processing" → "failed" and refund credits
+ * in a single transaction. Only performs the refund when the status transition wins,
+ * preventing duplicate refunds from concurrent timeout/poll/webhook paths.
+ *
+ * Returns true if this call won the transition (and issued the refund).
+ */
+async function failAndRefund(projectId: string, userId: string, creditCost: number, isAdmin: boolean): Promise<boolean> {
+  let won = false;
+  await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(projectsTable)
+      .set({ status: "failed", updatedAt: new Date() })
+      .where(and(eq(projectsTable.id, projectId), eq(projectsTable.status, "processing")))
+      .returning({ id: projectsTable.id });
+
+    if (updated.length === 0) return; // Another path already resolved this project
+    won = true;
+
+    if (!isAdmin) {
+      await tx
+        .update(usersTable)
+        .set({ credits: sql`${usersTable.credits} + ${creditCost}` })
+        .where(eq(usersTable.id, userId));
+    }
+  });
+  return won;
+}
+
 router.get("/projects/stats", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
@@ -87,12 +132,11 @@ router.post("/projects", async (req, res) => {
 
   // Admins bypass credit checks so they can test all tiers freely
   if (!user.isAdmin) {
-    if (user.credits < creditCost) {
-      res.status(402).json({ error: `Not enough credits. This render costs ${creditCost} credits. You have ${user.credits}.` });
+    const ok = await debitCredits(userId, creditCost);
+    if (!ok) {
+      res.status(402).json({ error: `Not enough credits. This render costs ${creditCost} credits.` });
       return;
     }
-    // Deduct credits
-    await db.update(usersTable).set({ credits: user.credits - creditCost }).where(eq(usersTable.id, userId));
   }
 
   const [project] = await db.insert(projectsTable).values({
@@ -121,9 +165,10 @@ router.post("/projects", async (req, res) => {
       await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     } catch (err) {
       console.error("[fal-video] submit error — refunding credits", err);
-      // Refund immediately so the user isn't charged for a render that never started (skip for admins)
-      if (!user.isAdmin) await db.update(usersTable).set({ credits: user.credits }).where(eq(usersTable.id, userId));
-      await db.update(projectsTable).set({ status: "failed", updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
+      // Render never started — fail+refund atomically. Project was just inserted so
+      // status is guaranteed "processing"; no race window, but use failAndRefund for
+      // consistency so refund is always transactional.
+      await failAndRefund(project.id, userId, creditCost, user.isAdmin);
     }
   }
 
@@ -143,36 +188,41 @@ router.get("/projects/:id", async (req, res) => {
     try {
       const poll = await pollFalVideoRender(token);
       if (poll.status === "done" && poll.url) {
-        const [updated] = await db.update(projectsTable)
+        // Conditional transition: only win if the row is still "processing".
+        // The timeout watcher may have already failed it — do not overwrite.
+        const updated = await db.update(projectsTable)
           .set({ status: "completed", videoUrl: poll.url, thumbnailUrl: null, updatedAt: new Date() })
-          .where(eq(projectsTable.id, project.id)).returning();
-        // Notify user their video is ready
-        const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
-        if (owner) {
-          import("../lib/email").then(({ sendRenderDoneEmail }) =>
-            sendRenderDoneEmail(owner.email, owner.name ?? "", project.title, project.id).catch(() => {})
-          );
+          .where(and(eq(projectsTable.id, project.id), eq(projectsTable.status, "processing")))
+          .returning();
+        if (updated.length > 0) {
+          // Notify user their video is ready
+          const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
+          if (owner) {
+            import("../lib/email").then(({ sendRenderDoneEmail }) =>
+              sendRenderDoneEmail(owner.email, owner.name ?? "", project.title, project.id).catch(() => {})
+            );
+          }
+          res.json({ ...updated[0], createdAt: updated[0].createdAt.toISOString(), updatedAt: updated[0].updatedAt.toISOString() });
+        } else {
+          // Already resolved (e.g. by timeout watcher) — return current state
+          const [current] = await db.select().from(projectsTable).where(eq(projectsTable.id, project.id));
+          res.json({ ...current, createdAt: current.createdAt.toISOString(), updatedAt: current.updatedAt.toISOString() });
         }
-        res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
         return;
       }
       if (poll.status === "failed") {
-        // Refund the credits so the user can retry for free
         const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1");
         const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
-        if (owner) {
-          await db.update(usersTable)
-            .set({ credits: owner.credits + creditCost })
-            .where(eq(usersTable.id, project.userId));
-          // Notify user of failure + refund
+        const isAdmin = owner?.isAdmin ?? false;
+        // Atomic transition + refund in a single transaction
+        const won = await failAndRefund(project.id, project.userId, creditCost, isAdmin);
+        if (won && owner) {
           import("../lib/email").then(({ sendRenderFailedEmail }) =>
             sendRenderFailedEmail(owner.email, owner.name ?? "", project.title, project.id, creditCost).catch(() => {})
           );
         }
-        const [updated] = await db.update(projectsTable)
-          .set({ status: "failed", thumbnailUrl: null, updatedAt: new Date() })
-          .where(eq(projectsTable.id, project.id)).returning();
-        res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
+        const [current] = await db.select().from(projectsTable).where(eq(projectsTable.id, project.id));
+        res.json({ ...current, createdAt: current.createdAt.toISOString(), updatedAt: current.updatedAt.toISOString() });
         return;
       }
     } catch (err) { console.error("[fal-video] poll error", err); }
@@ -196,11 +246,11 @@ router.post("/projects/:id/rerender", async (req, res) => {
 
   // Admins bypass credit checks
   if (!user.isAdmin) {
-    if (user.credits < creditCost) {
+    const ok = await debitCredits(userId, creditCost);
+    if (!ok) {
       res.status(402).json({ error: `Not enough credits. Re-render costs ${creditCost} credits.` });
       return;
     }
-    await db.update(usersTable).set({ credits: user.credits - creditCost }).where(eq(usersTable.id, userId));
   }
 
   const [reset] = await db.update(projectsTable)
@@ -215,9 +265,8 @@ router.post("/projects/:id/rerender", async (req, res) => {
     await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   } catch (err) {
     console.error("[fal-video] rerender submit error — refunding credits", err);
-    // Refund immediately: render never started so credits should come back (skip for admins)
-    if (!user.isAdmin) await db.update(usersTable).set({ credits: user.credits }).where(eq(usersTable.id, userId));
-    await db.update(projectsTable).set({ status: "failed", updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
+    // Render never started — fail+refund atomically
+    await failAndRefund(project.id, userId, creditCost, user.isAdmin);
   }
 
   res.json({ ...reset, createdAt: reset.createdAt.toISOString(), updatedAt: reset.updatedAt.toISOString() });
