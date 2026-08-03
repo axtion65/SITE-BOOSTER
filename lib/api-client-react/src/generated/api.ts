@@ -36,6 +36,8 @@ import type {
   ProjectStats,
   ProjectUpdate,
   PromptExpandInput,
+  RegenerateSceneInput,
+  RegeneratedScene,
   RenderingModel,
   SignInInput,
   SignUpInput,
@@ -801,6 +803,59 @@ export const useExpandPrompt = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getExpandPromptMutationOptions(options));
+    }
+
+export const getRegenerateSceneUrl = () => {
+  return `/api/studio/regenerate-scene`
+}
+
+/**
+ * @summary Regenerate a single scene's description and visual direction using AI
+ */
+export const regenerateScene = async (regenerateSceneInput: RegenerateSceneInput, options?: RequestInit): Promise<RegeneratedScene> => {
+  return customFetch<RegeneratedScene>(getRegenerateSceneUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(regenerateSceneInput)
+  }
+);}
+
+export const getRegenerateSceneMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateScene>>, TError,{data: BodyType<RegenerateSceneInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof regenerateScene>>, TError,{data: BodyType<RegenerateSceneInput>}, TContext> => {
+
+const mutationKey = ['regenerateScene'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof regenerateScene>>, {data: BodyType<RegenerateSceneInput>}> = (props) => {
+          const {data} = props ?? {};
+          return regenerateScene(data, requestOptions)
+        }
+
+  return { mutationFn, ...mutationOptions }}
+
+    export type RegenerateSceneMutationResult = NonNullable<Awaited<ReturnType<typeof regenerateScene>>>
+    export type RegenerateSceneMutationBody = BodyType<RegenerateSceneInput>
+    export type RegenerateSceneMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Regenerate a single scene's description and visual direction using AI
+ */
+export const useRegenerateScene = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateScene>>, TError,{data: BodyType<RegenerateSceneInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof regenerateScene>>,
+        TError,
+        {data: BodyType<RegenerateSceneInput>},
+        TContext
+      > => {
+      return useMutation(getRegenerateSceneMutationOptions(options));
     }
 
 export const getListRenderingModelsUrl = () => {

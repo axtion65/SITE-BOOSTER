@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { ExpandPromptBody } from "@workspace/api-zod";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { resolveUserIdFromToken } from "./auth";
 
 const router = Router();
 
@@ -264,6 +265,103 @@ The hook must stop the scroll in the first 2-3 seconds. Every scene must be purp
     res.json(JSON.parse(jsonMatch[0]));
   } catch (err: any) {
     console.error("[claude] error:", err?.message ?? err);
+    res.status(500).json({ error: "AI generation failed — please try again in a moment" });
+  }
+});
+
+// Per-scene regeneration — rewrites only the requested scene
+router.post("/studio/regenerate-scene", async (req, res) => {
+  const userId = await resolveUserIdFromToken(req.headers.authorization);
+  if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const body = req.body as {
+    sceneIndex?: number;
+    sceneNumber?: number;
+    currentDescription?: string;
+    currentVisualDirection?: string;
+    totalScenes?: number;
+    productName?: string;
+    description?: string;
+    targetAudience?: string;
+    platform?: string;
+    duration?: string;
+    templateType?: string;
+    templateName?: string;
+    hint?: string;
+  };
+
+  const {
+    sceneNumber,
+    currentDescription,
+    currentVisualDirection,
+    totalScenes,
+    productName,
+    description,
+    targetAudience,
+    platform,
+    duration,
+    templateType,
+    templateName,
+    hint,
+  } = body;
+
+  if (!sceneNumber || !productName || !description) {
+    res.status(400).json({ error: "sceneNumber, productName and description are required" });
+    return;
+  }
+
+  const baseSystemPrompt = templateType
+    ? (TEMPLATE_SYSTEM_PROMPTS[templateType] ?? GENERIC_SYSTEM_PROMPT)
+    : GENERIC_SYSTEM_PROMPT;
+
+  const systemPrompt = `${baseSystemPrompt}
+
+You are rewriting a SINGLE scene from an existing video ad script. Keep it consistent with the overall product and video style.
+
+Respond with ONLY valid JSON (no markdown, no explanation):
+{
+  "description": "what happens in this scene",
+  "visualDirection": "exact camera angle, movement, lighting, text overlays"
+}`;
+
+  const userPrompt = `Rewrite Scene ${sceneNumber} of ${totalScenes} for this product:
+
+Product: ${productName}
+Description: ${description}
+Audience: ${targetAudience || "general consumers"}
+Platform: ${platform || "multi-platform"}
+Duration: ${duration || "30s"}
+${templateType ? `Template: ${templateName || templateType}` : ""}
+
+Current scene description:
+"${currentDescription}"
+
+Current visual direction:
+"${currentVisualDirection}"
+${hint ? `\nUser guidance: ${hint}` : ""}
+
+Write a fresh version of this scene. The description should be vivid and purposeful. The visualDirection should be specific about camera, movement, and text overlays. Do NOT copy the existing text — rewrite it with fresh creative energy while keeping it consistent with the product and ad format.`;
+
+  try {
+    console.log(`[claude] Regenerating scene ${sceneNumber}/${totalScenes} — hint: ${hint ? "yes" : "none"}`);
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+
+    const text = message.content[0]?.type === "text" ? message.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error("[claude] no JSON in regenerate-scene response:", text.slice(0, 300));
+      res.status(500).json({ error: "Failed to parse AI response" });
+      return;
+    }
+    res.json(JSON.parse(jsonMatch[0]));
+  } catch (err: any) {
+    console.error("[claude] regenerate-scene error:", err?.message ?? err);
     res.status(500).json({ error: "AI generation failed — please try again in a moment" });
   }
 });

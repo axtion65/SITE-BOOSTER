@@ -102,6 +102,34 @@ export interface ExpandedScript {
   estimatedDuration?: string | null;
 }
 
+export interface RegenerateSceneInput {
+  /** Index of the scene to regenerate (0-based) */
+  sceneIndex: number;
+  sceneNumber: number;
+  currentDescription: string;
+  currentVisualDirection: string;
+  totalScenes: number;
+  productName: string;
+  description: string;
+  /** @nullable */
+  targetAudience?: string | null;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  duration?: string | null;
+  /** @nullable */
+  templateType?: string | null;
+  /** @nullable */
+  templateName?: string | null;
+  /** Optional user hint to guide the regeneration */
+  hint?: string | null;
+}
+
+export interface RegeneratedScene {
+  description: string;
+  visualDirection: string;
+}
+
 export type RenderingModelTier = typeof RenderingModelTier[keyof typeof RenderingModelTier];
 
 

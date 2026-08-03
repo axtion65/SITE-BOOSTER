@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { RequireAuth } from "@/components/auth-guard";
-import { useExpandPrompt, useListRenderingModels, useCreateProject } from "@workspace/api-client-react";
+import { useExpandPrompt, useListRenderingModels, useCreateProject, useRegenerateScene } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -189,8 +189,57 @@ function Wizard() {
     });
   };
 
+  const handleRegenerateScene = async (idx: number) => {
+    if (!expandedScript) return;
+    const scene = expandedScript.scenes[idx];
+    setRegeneratingIdx(idx);
+    setShowHintFor(null);
+    try {
+      const result = await regenerateSceneMutation.mutateAsync({
+        data: {
+          sceneIndex: idx,
+          sceneNumber: scene.sceneNumber,
+          currentDescription: scene.description,
+          currentVisualDirection: scene.visualDirection,
+          totalScenes: expandedScript.scenes.length,
+          productName,
+          description,
+          targetAudience: targetAudience || null,
+          platform: platform || null,
+          duration: duration || null,
+          templateType: templateType || null,
+          templateName: templateName || null,
+          hint: sceneHints[idx] || null,
+        },
+      });
+      setExpandedScript(prev => {
+        if (!prev) return prev;
+        const scenes = prev.scenes.map((s, i) =>
+          i === idx ? { ...s, description: result.description, visualDirection: result.visualDirection } : s
+        );
+        return { ...prev, scenes };
+      });
+      // Clear hint after successful regeneration
+      setSceneHints(prev => { const next = { ...prev }; delete next[idx]; return next; });
+    } catch (err: any) {
+      toast({
+        title: "Regeneration failed",
+        description: err.message || "Could not regenerate scene. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRegeneratingIdx(null);
+    }
+  };
+
+  // Per-scene regeneration state
+  const [regeneratingIdx, setRegeneratingIdx] = useState<number | null>(null);
+  const [showHintFor, setShowHintFor] = useState<number | null>(null);
+  const [sceneHints, setSceneHints] = useState<Record<number, string>>({});
+
   const { data: models, isLoading: modelsLoading } = useListRenderingModels();
   const expandMutation = useExpandPrompt();
+  const regenerateSceneMutation = useRegenerateScene();
   const createMutation = useCreateProject();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -665,16 +714,72 @@ function Wizard() {
 
                 {/* Scenes — editable */}
                 <div className="p-0">
-                  {expandedScript.scenes.map((scene, idx) => (
+                  {expandedScript.scenes.map((scene, idx) => {
+                    const isRegenerating = regeneratingIdx === idx;
+                    const isHintOpen = showHintFor === idx;
+                    return (
                     <div key={idx} className="flex border-b border-primary/10 last:border-0">
                       <div className="w-16 flex-shrink-0 flex items-center justify-center border-r border-primary/10 bg-black/20 font-mono text-muted-foreground text-sm">
                         {scene.duration}
                       </div>
                       <div className="p-4 flex-1 space-y-3">
-                        <div className="text-sm font-semibold text-white">Scene {scene.sceneNumber}</div>
+                        {/* Scene header row */}
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold text-white">Scene {scene.sceneNumber}</div>
+                          {/* Regenerate button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isHintOpen) {
+                                setShowHintFor(null);
+                              } else {
+                                setShowHintFor(idx);
+                              }
+                            }}
+                            disabled={isRegenerating || regeneratingIdx !== null}
+                            title="Regenerate this scene with AI"
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded-lg hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {isRegenerating
+                              ? <Spinner className="h-3 w-3" />
+                              : <Wand2 className="h-3 w-3" />
+                            }
+                            <span>{isRegenerating ? "Regenerating…" : "Regenerate"}</span>
+                          </button>
+                        </div>
+
+                        {/* Inline hint input */}
+                        {isHintOpen && (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                            <Input
+                              placeholder="Optional: nudge the AI (e.g. 'make it more dramatic')"
+                              className="h-8 text-xs bg-transparent border-white/10 focus:border-primary/40 flex-1"
+                              value={sceneHints[idx] ?? ""}
+                              onChange={(e) => setSceneHints(prev => ({ ...prev, [idx]: e.target.value }))}
+                              onKeyDown={(e) => { if (e.key === "Enter") handleRegenerateScene(idx); }}
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              className="h-8 px-3 text-xs"
+                              onClick={() => handleRegenerateScene(idx)}
+                              disabled={isRegenerating}
+                            >
+                              <Wand2 className="h-3 w-3 mr-1" />
+                              Go
+                            </Button>
+                            <button
+                              type="button"
+                              onClick={() => setShowHintFor(null)}
+                              className="p-1 text-muted-foreground hover:text-white transition-colors"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
 
                         {/* Scene description */}
-                        <div>
+                        <div className={isRegenerating ? "opacity-40 pointer-events-none" : ""}>
                           <div className="flex items-center gap-1.5 mb-1">
                             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Description</span>
                             <Pencil className="h-2.5 w-2.5 text-muted-foreground/60" />
@@ -688,7 +793,7 @@ function Wizard() {
                         </div>
 
                         {/* Visual direction */}
-                        <div>
+                        <div className={isRegenerating ? "opacity-40 pointer-events-none" : ""}>
                           <div className="flex items-center gap-1.5 mb-1">
                             <Film className="h-3 w-3 text-primary" />
                             <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Visual Direction</span>
@@ -703,7 +808,8 @@ function Wizard() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </Card>
 
