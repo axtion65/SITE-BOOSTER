@@ -453,6 +453,28 @@ function Wizard() {
   const userPlan = (user as any)?.plan ?? "free";
   const isAdminUser = (user as any)?.isAdmin === true;
 
+  // Canonical model clip limits — must match MODEL_MAX_SECONDS in api-server/src/lib/falvideo.ts
+  const MODEL_MAX_SECONDS: Record<string, number> = {
+    ltx: 5, ovi: 10, wan: 10, kling: 10, "kling-1.6": 10, veo3: 8,
+  };
+
+  // Parse "15s" → 15, "30s" → 30, "1m" → 60
+  function parseDurationSec(d: string): number {
+    const s = d.toLowerCase().trim();
+    if (s.endsWith("m")) return parseInt(s) * 60;
+    if (s.endsWith("s")) return parseInt(s);
+    return parseInt(s) || 10;
+  }
+
+  // Actual output clip length = min(requested duration, model hard limit)
+  function actualClipSec(mId: string, dur: string): number {
+    return Math.min(parseDurationSec(dur), MODEL_MAX_SECONDS[mId] ?? 10);
+  }
+
+  function clipLabel(mId: string, dur: string): string {
+    return `~${actualClipSec(mId, dur)} sec`;
+  }
+
   const planTierOrder = { free: 0, starter: 1, pro: 2, agency: 3 };
 
   // Admins bypass all tier restrictions so they can test every model
@@ -890,8 +912,8 @@ function Wizard() {
               <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-amber-400/80 flex items-start gap-2">
                 <span className="text-amber-400 mt-0.5 flex-shrink-0">⚠</span>
                 <span>
-                  <strong className="text-amber-400">AI video models generate short clips</strong> — output length depends on the model, not your script duration.
-                  Ovi outputs ~5 sec, Wan ~8 sec, Kling ~10 sec. For longer ads, combine multiple renders.
+                  <strong className="text-amber-400">AI video models generate short clips</strong> — output length is capped by the model, not your script duration.
+                  LTX outputs up to 5 sec, Ovi &amp; Wan up to 10 sec, Kling up to 10 sec, Veo 3 up to 8 sec. For longer ads, combine multiple renders.
                 </span>
               </div>
 
@@ -923,10 +945,7 @@ function Wizard() {
                   {(models ?? []).map((model) => {
                     const isSelected = modelId === model.id;
                     const canUse = canUseModel(model.tier);
-                    const clipMap: Record<string, string> = {
-                      ovi: '~5 sec', wan: '~8 sec', kling: '~10 sec', veo3: '~8 sec'
-                    };
-                    const clipLen = clipMap[model.id] ?? '~5 sec';
+                    const clipLen = clipLabel(model.id, duration);
                     const supportsImage = imageModels.includes(model.id);
                     return (
                       <button
@@ -1021,49 +1040,188 @@ function Wizard() {
             </div>
           )}
 
-          {/* STEP 4 — Render */}
-          {step === 4 && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-center py-12">
-              <div className="h-24 w-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                <Wand2 className="h-10 w-10 text-primary" />
+          {/* STEP 4 — Storyboard Preview & Confirm */}
+          {step === 4 && expandedScript && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Preview Before You Render</h2>
+                  <p className="text-muted-foreground">Here's exactly what you're getting. Confirm when ready.</p>
+                </div>
+                <Button variant="outline" onClick={() => setStep(3)}>Back</Button>
               </div>
-              <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Ready to Render</h2>
-              <p className="text-muted-foreground max-w-md mx-auto mb-2">
-                Your script is locked in and the model is selected. Hit render — we'll submit your video to{" "}
-                <span className="text-white font-semibold">{selectedModel?.name ?? "Ovi"}</span> and you can track progress in your projects.
-              </p>
+
+              {/* Honest clip-length banner */}
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                <span className="text-xl flex-shrink-0 mt-0.5">🎬</span>
+                <div className="space-y-1">
+                  <p className="font-semibold text-white">You'll receive a <span className="text-amber-300">{clipLabel(modelId, duration)}</span> AI-generated clip</p>
+                  {parseDurationSec(duration) > (MODEL_MAX_SECONDS[modelId] ?? 10) ? (
+                    <p className="text-sm text-amber-400/80">
+                      You selected <strong className="text-amber-300">{duration}</strong> but <strong className="text-amber-300">{selectedModel?.name ?? modelId}</strong> outputs at most{" "}
+                      <strong className="text-amber-300">{MODEL_MAX_SECONDS[modelId] ?? 10} sec</strong>. The AI will interpret and condense your full creative direction into that clip — it may not reproduce every scene in sequence.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-amber-400/80">
+                      AI video models output short clips regardless of script length. The AI interprets and condenses your storyboard into the clip — it may not reproduce every scene in sequence.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Storyboard */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Film className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Storyboard</h3>
+                </div>
+                <div className="space-y-3">
+                  {expandedScript.scenes.map((scene, idx) => (
+                    <div key={idx} className="flex gap-3 p-4 rounded-xl border border-border bg-card/50">
+                      <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                        <div className="h-7 w-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary">
+                          {scene.sceneNumber}
+                        </div>
+                        <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">{scene.duration}</span>
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <p className="text-sm text-white leading-relaxed">{scene.description}</p>
+                        <div className="flex items-start gap-1.5">
+                          <Film className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />
+                          <p className="text-xs text-white/50 italic leading-relaxed">{scene.visualDirection}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Opening hook */}
+              <div className="p-4 rounded-xl border border-primary/20 bg-primary/5">
+                <div className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Opening Hook</div>
+                <p className="text-base italic text-white leading-relaxed">"{expandedScript.hook}"</p>
+              </div>
+
+              {/* Voiceover text */}
+              <div className="p-4 rounded-xl border border-border bg-card/50">
+                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Voiceover Script</div>
+                <p className="text-sm text-white/80 leading-relaxed">{expandedScript.voiceoverText}</p>
+                {expandedScript.callToAction && (
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Call to Action — </span>
+                    <span className="text-xs text-white/70">{expandedScript.callToAction}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Model example output */}
+              {(() => {
+                const modelExamples: Record<string, { label: string; description: string; videoUrl?: string }> = {
+                  ltx: {
+                    label: "LTX Video",
+                    description: "Fast, stylized clips up to 5 sec. Great for concept visualization with a dreamlike quality.",
+                  },
+                  ovi: {
+                    label: "Ovi",
+                    description: "Smooth, cinematic clips up to 10 sec with native audio. Best all-rounder for product ads.",
+                  },
+                  wan: {
+                    label: "Wan 2.5",
+                    description: "Fluid clips up to 10 sec with excellent motion. Supports image conditioning for product-accurate frames.",
+                  },
+                  kling: {
+                    label: "Kling 2.5",
+                    description: "Cinematic clips up to 10 sec with high detail and realistic movement. Premium quality output.",
+                  },
+                  "kling-1.6": {
+                    label: "Kling 1.6",
+                    description: "Cinematic clips up to 10 sec with high detail and realistic movement. Premium quality output.",
+                  },
+                  veo3: {
+                    label: "Veo 3",
+                    description: "Google's flagship model — clips up to 8 sec with exceptional realism and production quality.",
+                  },
+                };
+                const example = modelExamples[modelId] ?? modelExamples.ovi;
+                return (
+                  <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-primary" />
+                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">What {example.label} output looks like</span>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {example.videoUrl ? (
+                        <video
+                          src={example.videoUrl}
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          className="w-full rounded-lg aspect-video bg-black"
+                        />
+                      ) : (
+                        <div className="w-full rounded-lg aspect-video bg-black/40 border border-white/10 flex flex-col items-center justify-center gap-3 text-center px-8">
+                          <Film className="h-10 w-10 text-white/20" />
+                          <div>
+                            <p className="text-sm font-medium text-white/50">Example clip not yet available</p>
+                            <p className="text-xs text-white/30 mt-1">Your render will appear here when complete</p>
+                          </div>
+                        </div>
+                      )}
+                      <p className="text-xs text-white/60 leading-relaxed">{example.description}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Image conditioning notice */}
               {productImageUrl && selectedModelSupportsImage && (
-                <div className="flex items-center justify-center gap-2 text-sm text-primary">
-                  <ImagePlus className="h-4 w-4" />
-                  <span>Your product image will be used as a reference frame</span>
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-primary/5 border border-primary/20 text-sm text-primary">
+                  <ImagePlus className="h-4 w-4 flex-shrink-0" />
+                  <span>Your product image will be used as a reference frame for more accurate output</span>
                 </div>
               )}
               {productImageUrl && !selectedModelSupportsImage && (
-                <div className="flex items-center justify-center gap-2 text-sm text-amber-400">
-                  <Info className="h-4 w-4" />
-                  <span>Note: {selectedModel?.name ?? "Ovi"} is text-only — your product image won't be used</span>
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-sm text-amber-400">
+                  <Info className="h-4 w-4 flex-shrink-0" />
+                  <span>{selectedModel?.name ?? "This model"} is text-only — your product image won't be used in the render</span>
                 </div>
               )}
-              {selectedModel && (
-                <p className="text-sm text-amber-400">
-                  This will use <span className="font-bold">{(selectedModel as any).creditCost ?? 30} credits</span> from your balance ({userCredits} remaining)
-                </p>
-              )}
 
-              <div className="flex gap-4 justify-center mt-8">
-                <Button variant="outline" size="lg" onClick={() => setStep(3)}>Back</Button>
-                <Button
-                  size="lg"
-                  onClick={handleSaveProject}
-                  disabled={createMutation.isPending}
-                  className="font-bold min-w-[200px] shadow-[0_0_20px_rgba(124,58,237,0.3)]"
-                >
-                  {createMutation.isPending ? (
-                    <><Spinner className="mr-2" /> Submitting…</>
-                  ) : (
-                    <><Download className="mr-2 h-5 w-5" /> Start Render</>
-                  )}
-                </Button>
+              {/* Cost summary + CTA */}
+              <div className="p-5 rounded-xl bg-primary/5 border border-primary/20 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="space-y-0.5">
+                    <p className="text-sm text-muted-foreground">
+                      Model: <span className="text-white font-semibold">{selectedModel?.name ?? "Ovi"}</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Cost: <span className="font-bold text-amber-400">{(selectedModel as any)?.creditCost ?? 30} credits</span>
+                      <span className="text-muted-foreground"> ({userCredits} remaining)</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
+                    <Zap className="h-3 w-3 text-primary" />
+                    <span>Credits deducted when render starts</span>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="outline" size="lg" onClick={() => setStep(3)} className="flex-shrink-0">
+                    Back
+                  </Button>
+                  <Button
+                    size="lg"
+                    onClick={handleSaveProject}
+                    disabled={createMutation.isPending}
+                    className="flex-1 font-bold shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
+                  >
+                    {createMutation.isPending ? (
+                      <><Spinner className="mr-2" /> Submitting…</>
+                    ) : (
+                      <><Download className="mr-2 h-5 w-5" /> Confirm &amp; Start Render</>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
