@@ -295,17 +295,25 @@ export default function StudioProjectDetail() {
                     />
                   )}
 
-                  {/* COMPLETED — video error fallback */}
+                  {/* COMPLETED — video error fallback (expired link) */}
                   {project.status === 'completed' && videoError && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
-                      <VideoOff className="h-12 w-12 text-white/20 mb-4" />
-                      <p className="text-white font-bold mb-1">Preview unavailable in browser</p>
-                      <p className="text-sm text-white/40 mb-5">Use the Download button to watch your rendered video.</p>
-                      <a href={project.videoUrl!} download target="_blank" rel="noreferrer">
-                        <Button className="rounded-xl bg-violet-600 hover:bg-violet-500 font-bold gap-2">
-                          <Download className="h-4 w-4" /> Download MP4
-                        </Button>
-                      </a>
+                      <div className="h-16 w-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
+                        <RotateCcw className="h-8 w-8 text-amber-400" />
+                      </div>
+                      <p className="text-white font-black text-lg mb-2">Video link expired</p>
+                      <p className="text-sm text-white/40 mb-6 max-w-xs leading-relaxed">
+                        AI video links expire after 48 hours. Hit Re-render — your script is saved and it only takes a couple of minutes.
+                      </p>
+                      <Button
+                        onClick={handleRerender}
+                        disabled={rerendering}
+                        className="rounded-xl bg-violet-600 hover:bg-violet-500 font-bold gap-2 px-6 py-2.5 text-base shadow-lg shadow-violet-600/30"
+                      >
+                        <RotateCcw className={`h-4 w-4 ${rerendering ? "animate-spin" : ""}`} />
+                        {rerendering ? "Starting…" : "Re-render Now"}
+                      </Button>
+                      <p className="text-[11px] text-white/25 mt-3">Your script is saved — no credit risk if you just re-render</p>
                     </div>
                   )}
 
@@ -338,8 +346,8 @@ export default function StudioProjectDetail() {
                   )}
                 </div>
 
-                {/* Cinematic hero footer — download bar */}
-                {project.status === 'completed' && project.videoUrl && (
+                {/* Cinematic hero footer — download bar (only when video is actually playable) */}
+                {project.status === 'completed' && project.videoUrl && !videoError && (
                   <div className="flex items-center justify-between px-5 py-3.5 border-t border-white/[0.06]">
                     <div className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">

@@ -211,6 +211,30 @@ export class ObjectStorageService {
   }
 
   /**
+   * Download a video from an external URL (e.g. fal.media) and store it
+   * permanently in private object storage.  Returns the internal API path
+   * `/api/storage/objects/videos/<uuid>.mp4` which can later be resolved to
+   * a fresh signed URL via getSignedObjectEntityUrl.
+   */
+  async uploadVideoFromUrl(videoUrl: string): Promise<string> {
+    const privateDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateDir}/videos/${objectId}.mp4`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+
+    const resp = await fetch(videoUrl, { signal: AbortSignal.timeout(180_000) });
+    if (!resp.ok) throw new Error(`Video download failed: HTTP ${resp.status} from ${videoUrl}`);
+
+    const buffer = Buffer.from(await resp.arrayBuffer());
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    await file.save(buffer, { contentType: 'video/mp4', resumable: false });
+
+    console.log(`[objectStorage] Archived video → ${fullPath} (${buffer.length} bytes)`);
+    return `/api/storage/objects/videos/${objectId}.mp4`;
+  }
+
+  /**
    * Generate a short-lived signed GET URL for a private object entity.
    * Callers should verify ownership via canAccessObjectEntity before calling this.
    */

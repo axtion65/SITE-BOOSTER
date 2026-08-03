@@ -12,6 +12,46 @@ const router = Router();
 import { resolveUserIdFromToken } from "./auth";
 const getUserIdFromToken = resolveUserIdFromToken;
 
+/**
+ * If a video URL points to our own object storage (/api/storage/objects/…),
+ * generate a fresh 24-hour signed URL so the client can always play it.
+ * For external URLs (fal.media, shotstack, etc.) the value is returned as-is.
+ */
+async function resolveVideoUrl(videoUrl: string | null | undefined): Promise<string | null> {
+  if (!videoUrl) return null;
+  if (!videoUrl.startsWith("/api/storage/objects/")) return videoUrl;
+  try {
+    const { ObjectStorageService } = await import("../lib/objectStorage");
+    const storage = new ObjectStorageService();
+    const internalPath = "/objects/" + videoUrl.slice("/api/storage/objects/".length);
+    return await storage.getSignedObjectEntityUrl(internalPath, 86400); // 24-hour signed URL
+  } catch (err) {
+    console.error("[projects] Failed to sign video URL:", err);
+    return videoUrl; // fallback — client will see a broken link, but we don't lose the reference
+  }
+}
+
+/**
+ * Kick off async archival of a fal.media video URL to permanent object storage.
+ * Updates the project row once archival completes.  Non-blocking — caller does
+ * not wait for this to finish.
+ */
+function archiveVideoAsync(projectId: string, falUrl: string) {
+  setImmediate(async () => {
+    try {
+      const { ObjectStorageService } = await import("../lib/objectStorage");
+      const storage = new ObjectStorageService();
+      const permanentPath = await storage.uploadVideoFromUrl(falUrl);
+      await db.update(projectsTable)
+        .set({ videoUrl: permanentPath, updatedAt: new Date() })
+        .where(eq(projectsTable.id, projectId));
+      console.log(`[projects] Video archived permanently for project ${projectId}`);
+    } catch (err) {
+      console.error("[projects] Archival failed — fal.media URL remains (will expire):", err);
+    }
+  });
+}
+
 function getFalToken(project: { thumbnailUrl: string | null }): string | null {
   return isFalToken(project.thumbnailUrl) ? project.thumbnailUrl! : null;
 }
@@ -92,7 +132,15 @@ router.get("/projects", async (req, res) => {
     .where(eq(projectsTable.userId, userId))
     .orderBy(sql`${projectsTable.createdAt} desc`);
 
-  res.json(projects.map(p => ({ ...p, createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString() })));
+  const resolved = await Promise.all(
+    projects.map(async (p) => ({
+      ...p,
+      videoUrl: await resolveVideoUrl(p.videoUrl),
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+    }))
+  );
+  res.json(resolved);
 });
 
 router.post("/projects", async (req, res) => {
@@ -189,6 +237,8 @@ router.get("/projects/:id", async (req, res) => {
           .where(and(eq(projectsTable.id, project.id), eq(projectsTable.status, "processing")))
           .returning();
         if (updated.length > 0) {
+          // Archive the fal.media URL to permanent storage in the background
+          archiveVideoAsync(project.id, poll.url);
           // Notify user their video is ready
           const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
           if (owner) {
@@ -196,11 +246,13 @@ router.get("/projects/:id", async (req, res) => {
               sendRenderDoneEmail(owner.email, owner.name ?? "", project.title, project.id).catch(() => {})
             );
           }
-          res.json({ ...updated[0], createdAt: updated[0].createdAt.toISOString(), updatedAt: updated[0].updatedAt.toISOString() });
+          const resolved = await resolveVideoUrl(poll.url);
+          res.json({ ...updated[0], videoUrl: resolved, createdAt: updated[0].createdAt.toISOString(), updatedAt: updated[0].updatedAt.toISOString() });
         } else {
           // Already resolved (e.g. by timeout watcher) — return current state
           const [current] = await db.select().from(projectsTable).where(eq(projectsTable.id, project.id));
-          res.json({ ...current, createdAt: current.createdAt.toISOString(), updatedAt: current.updatedAt.toISOString() });
+          const resolved = await resolveVideoUrl(current.videoUrl);
+          res.json({ ...current, videoUrl: resolved, createdAt: current.createdAt.toISOString(), updatedAt: current.updatedAt.toISOString() });
         }
         return;
       }
@@ -222,7 +274,8 @@ router.get("/projects/:id", async (req, res) => {
     } catch (err) { console.error("[fal-video] poll error", err); }
   }
 
-  res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
+  const resolvedVideoUrl = await resolveVideoUrl(project.videoUrl);
+  res.json({ ...project, videoUrl: resolvedVideoUrl, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
 });
 
 router.post("/projects/:id/rerender", async (req, res) => {

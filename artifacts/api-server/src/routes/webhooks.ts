@@ -113,7 +113,23 @@ router.post("/webhooks/fal", async (req, res) => {
       .returning({ id: projectsTable.id });
 
     if (won.length > 0) {
-      // Status transition won — send/queue the completion email
+      // Kick off async archival to permanent storage so the fal.media URL
+      // (which expires in ~24h) is replaced with a durable object-storage path.
+      setImmediate(async () => {
+        try {
+          const { ObjectStorageService } = await import("../lib/objectStorage");
+          const storage = new ObjectStorageService();
+          const permanentPath = await storage.uploadVideoFromUrl(url);
+          await db.update(projectsTable)
+            .set({ videoUrl: permanentPath, updatedAt: new Date() })
+            .where(eq(projectsTable.id, project.id));
+          console.log(`[webhook/fal] Video archived permanently for project ${project.id}`);
+        } catch (err) {
+          console.error("[webhook/fal] Archival failed — fal.media URL remains (will expire):", err);
+        }
+      });
+
+      // Send/queue the completion email
       const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
       if (owner) {
         import("../lib/email").then(({ sendRenderDoneEmail }) =>
