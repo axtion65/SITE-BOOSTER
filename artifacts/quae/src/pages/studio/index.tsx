@@ -174,14 +174,17 @@ function Wizard() {
   const [draftRestored, setDraftRestored] = useState(!!savedDraft && savedDraft.step > 1);
 
   const updateHook = (value: string) => {
+    setScriptEdited(true);
     setExpandedScript(prev => prev ? { ...prev, hook: value } : prev);
   };
 
   const updateVoiceover = (value: string) => {
+    setScriptEdited(true);
     setExpandedScript(prev => prev ? { ...prev, voiceoverText: value } : prev);
   };
 
   const updateScene = (idx: number, field: "description" | "visualDirection", value: string) => {
+    setScriptEdited(true);
     setExpandedScript(prev => {
       if (!prev) return prev;
       const scenes = prev.scenes.map((s, i) => i === idx ? { ...s, [field]: value } : s);
@@ -219,6 +222,7 @@ function Wizard() {
         );
         return { ...prev, scenes };
       });
+      setScriptEdited(true);
       // Clear hint after successful regeneration
       setSceneHints(prev => { const next = { ...prev }; delete next[idx]; return next; });
     } catch (err: any) {
@@ -231,6 +235,9 @@ function Wizard() {
       setRegeneratingIdx(null);
     }
   };
+
+  // Track whether the user has edited the generated script
+  const [scriptEdited, setScriptEdited] = useState(false);
 
   // Per-scene regeneration state
   const [regeneratingIdx, setRegeneratingIdx] = useState<number | null>(null);
@@ -372,6 +379,7 @@ function Wizard() {
         data: { productName, description, targetAudience, platform, duration, templateType, templateName } as any
       });
       setExpandedScript(res);
+      setScriptEdited(false);
       setStep(2);
     } catch (err: any) {
       const msg = err.message || "";
@@ -694,7 +702,18 @@ function Wizard() {
                   <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Cinematic Script Generated</h2>
                   <p className="text-muted-foreground">Fine-tune any scene or the hook — your edits carry forward to the render.</p>
                 </div>
-                <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (scriptEdited) {
+                      const confirmed = window.confirm("Go back and lose your edits?");
+                      if (!confirmed) return;
+                      setExpandedScript(null);
+                      setScriptEdited(false);
+                    }
+                    setStep(1);
+                  }}
+                >Back</Button>
               </div>
 
               <Card className="border-primary/20 bg-primary/5">
