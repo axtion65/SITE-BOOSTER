@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import {
@@ -45,6 +46,8 @@ const PLATFORM_OPTIONS = ['tiktok', 'instagram', 'youtube', 'amazon'];
 
 // Models that support image conditioning
 const IMAGE_CONDITION_MODELS = new Set(['wan', 'kling', 'kling-1.6']);
+
+const DRAFT_KEY = '@quae/studio_draft';
 
 /**
  * Upload an image to GCS via the 3-step presigned URL flow.
@@ -129,6 +132,69 @@ export default function CreateScreen() {
   const { data: models, isLoading: modelsLoading } = useListRenderingModels();
   const { mutateAsync: expandPrompt, isPending: expanding } = useExpandPrompt();
   const { mutateAsync: createProject, isPending: creating } = useCreateProject();
+
+  // ── Draft persistence ──────────────────────────────────────────────────────
+
+  // Restore draft on first mount
+  useEffect(() => {
+    AsyncStorage.getItem(DRAFT_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        try {
+          const draft = JSON.parse(raw) as {
+            step?: Step;
+            selectedTemplate?: Template;
+            productName?: string;
+            description?: string;
+            platform?: string;
+            expandedScript?: ExpandedScript;
+            selectedModel?: RenderingModel;
+            productImageUrl?: string;
+          };
+          // Never restore mid-render state
+          if (!draft.step || draft.step === 'creating') return;
+          setStep(draft.step);
+          if (draft.selectedTemplate) setSelectedTemplate(draft.selectedTemplate);
+          if (draft.productName) setProductName(draft.productName);
+          if (draft.description) setDescription(draft.description);
+          if (draft.platform) setPlatform(draft.platform);
+          if (draft.expandedScript) setExpandedScript(draft.expandedScript);
+          if (draft.selectedModel) setSelectedModel(draft.selectedModel);
+          if (draft.productImageUrl) {
+            setProductImageUrl(draft.productImageUrl);
+            // Use the served URL as the image preview (local URI is no longer valid)
+            setImagePreviewUri(draft.productImageUrl);
+          }
+        } catch {
+          // Ignore malformed draft
+        }
+      })
+      .catch(() => {/* ignore storage errors */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist draft whenever relevant state changes
+  useEffect(() => {
+    // Don't snapshot the transient "creating" state
+    if (step === 'creating') return;
+    const draft = {
+      step,
+      selectedTemplate,
+      productName,
+      description,
+      platform,
+      expandedScript,
+      selectedModel,
+      productImageUrl,
+    };
+    AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(draft)).catch(() => {/* ignore */});
+  }, [step, selectedTemplate, productName, description, platform, expandedScript, selectedModel, productImageUrl]);
+
+  const clearDraft = useCallback(() => {
+    AsyncStorage.removeItem(DRAFT_KEY).catch(() => {/* ignore */});
+  }, []);
+
+  // ── End draft persistence ──────────────────────────────────────────────────
 
   const stepIndex = STEPS.indexOf(step);
 
@@ -231,6 +297,7 @@ export default function CreateScreen() {
       void queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
       void queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey() });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      clearDraft();
       // Reset wizard
       setTimeout(() => {
         setStep('template');
