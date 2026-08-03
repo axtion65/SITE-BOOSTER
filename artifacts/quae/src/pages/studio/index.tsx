@@ -236,6 +236,24 @@ function Wizard() {
     }
   };
 
+  // Tracks whether the user intentionally completed a render (skip unload prompt)
+  const renderStartedRef = useRef(false);
+
+  // Warn users before closing the tab / navigating away while mid-wizard (step 2+)
+  useEffect(() => {
+    if (step < 2) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (renderStartedRef.current) return;
+      e.preventDefault();
+      // Legacy support: setting returnValue triggers the browser dialog
+      e.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [step]);
+
   // Track whether the user has edited the generated script
   const [scriptEdited, setScriptEdited] = useState(false);
 
@@ -414,6 +432,8 @@ function Wizard() {
       });
       // Clear the saved draft — render has started, work is done
       clearDraft();
+      // Mark render as started so the beforeunload prompt is skipped during navigation
+      renderStartedRef.current = true;
       toast({ title: "Rendering started!", description: "Your video is processing. We'll notify you when it's ready." });
       setLocation(`/studio/projects/${res.id}`);
     } catch (err: any) {
