@@ -52,7 +52,10 @@ async function sendViaResend(
   if (!isConfigured()) {
     return { ok: false, error: "RESEND_API_KEY not set" };
   }
-  const fromAddress = process.env.EMAIL_FROM_ADDRESS ?? "noreply@quae.ai";
+  // Use onboarding@resend.dev (Resend's shared domain) until quae.ai DNS is fully verified.
+  // No DNS records needed — works immediately. Switch back to noreply@quae.ai once
+  // Resend shows the domain as verified.
+  const fromAddress = process.env.EMAIL_FROM_ADDRESS ?? "onboarding@resend.dev";
   const fromName = process.env.EMAILJS_FROM_NAME ?? "Quae.ai";
   const from = `${fromName} <${fromAddress}>`;
 
