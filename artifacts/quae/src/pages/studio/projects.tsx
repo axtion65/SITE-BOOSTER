@@ -1,5 +1,6 @@
 import { RequireAuth } from "@/components/auth-guard";
 import { useListProjects, useGetProjectStats, useDeleteProject, getListProjectsQueryKey, getGetProjectStatsQueryKey } from "@workspace/api-client-react";
+import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -161,10 +162,15 @@ function ProjectCard({
     platform?: string | null;
     duration?: string | null;
     thumbnailUrl?: string | null;
+    productImageUrl?: string | null;
   };
   onDelete: (e: React.MouseEvent, id: string) => void;
 }) {
-  const hasThumbnail = !!p.thumbnailUrl && !p.thumbnailUrl.startsWith("fal:");
+  const videoThumbnail = p.thumbnailUrl && !p.thumbnailUrl.startsWith("fal:") ? p.thumbnailUrl : null;
+  const resolvedProductImage = usePrivateImageUrl(videoThumbnail ? null : p.productImageUrl);
+  const displayImage = videoThumbnail ?? resolvedProductImage ?? null;
+  const hasThumbnail = !!displayImage;
+  const isProductImage = !videoThumbnail && !!resolvedProductImage;
 
   return (
     <Link href={`/studio/projects/${p.id}`}>
@@ -173,11 +179,20 @@ function ProjectCard({
         {/* Thumbnail / Hero */}
         <div className="relative h-40 bg-[#0a0a0d] overflow-hidden flex-shrink-0">
           {hasThumbnail ? (
-            <img
-              src={p.thumbnailUrl!}
-              alt={p.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
+            <>
+              <img
+                src={displayImage!}
+                alt={p.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              {isProductImage && (
+                <div className="absolute top-3 left-3">
+                  <span className="px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest uppercase bg-black/60 text-white/50 backdrop-blur-md border border-white/[0.08]">
+                    Product
+                  </span>
+                </div>
+              )}
+            </>
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <div className="h-12 w-12 rounded-2xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center">
