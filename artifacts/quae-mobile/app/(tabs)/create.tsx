@@ -29,6 +29,7 @@ import {
 } from '@workspace/api-client-react';
 import type { Template, RenderingModel, ExpandedScript } from '@workspace/api-client-react';
 import { useAuth } from '@/context/auth';
+import { usePrivateImageUrl } from '@/hooks/usePrivateImageUrl';
 
 type Step = 'template' | 'describe' | 'script' | 'model' | 'creating';
 
@@ -127,6 +128,9 @@ export default function CreateScreen() {
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState('');
+  // resolvedImageUri: signed GCS URL when imagePreviewUri is a storage path (draft restore),
+  // or the local URI unchanged for fresh picker results.
+  const resolvedImageUri = usePrivateImageUrl(imagePreviewUri);
 
   const { data: templates, isLoading: templatesLoading } = useListTemplates();
   const { data: models, isLoading: modelsLoading } = useListRenderingModels();
@@ -383,6 +387,7 @@ export default function CreateScreen() {
             platform={platform}
             setPlatform={setPlatform}
             imagePreviewUri={imagePreviewUri}
+            resolvedImageUri={resolvedImageUri}
             imageUploading={imageUploading}
             imageError={imageError}
             hasUploadedImage={!!productImageUrl}
@@ -495,7 +500,7 @@ function TemplateStep({
 function DescribeStep({
   productName, setProductName, description, setDescription,
   platform, setPlatform,
-  imagePreviewUri, imageUploading, imageError, hasUploadedImage,
+  imagePreviewUri, resolvedImageUri, imageUploading, imageError, hasUploadedImage,
   onPickImage, onRemoveImage, onContinue,
   colors, styles,
 }: {
@@ -503,6 +508,7 @@ function DescribeStep({
   description: string; setDescription: (v: string) => void;
   platform: string; setPlatform: (v: string) => void;
   imagePreviewUri: string | null;
+  resolvedImageUri: string | null;
   imageUploading: boolean;
   imageError: string;
   hasUploadedImage: boolean;
@@ -553,7 +559,7 @@ function DescribeStep({
 
         {imagePreviewUri ? (
           <View style={[styles.imagePreviewWrap, { borderColor: hasUploadedImage ? colors.primary : colors.border }]}>
-            <Image source={{ uri: imagePreviewUri }} style={styles.imagePreview} resizeMode="cover" />
+            <Image source={resolvedImageUri ? { uri: resolvedImageUri } : undefined} style={styles.imagePreview} resizeMode="cover" />
             {imageUploading && (
               <View style={styles.imageOverlay}>
                 <ActivityIndicator color="#fff" size="small" />

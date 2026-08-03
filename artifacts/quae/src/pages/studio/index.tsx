@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { ExpandedScript } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -156,6 +157,8 @@ function Wizard() {
   const [productImageUrl, setProductImageUrl] = useState<string | null>(savedDraft?.productImageUrl ?? null);
   // imagePreviewUrl: local data URL for thumbnail display only — NOT persisted in draft
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  // signedProductImageUrl: short-lived GCS signed URL resolved from productImageUrl
+  const signedProductImageUrl = usePrivateImageUrl(productImageUrl);
   const [productImageFileName, setProductImageFileName] = useState<string | null>(savedDraft?.productImageFileName ?? null);
   const [imageUploading, setImageUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -625,7 +628,7 @@ function Wizard() {
                   ) : (productImageUrl || imagePreviewUrl) ? (
                     <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
                       <img
-                        src={imagePreviewUrl ?? productImageUrl!}
+                        src={imagePreviewUrl ?? signedProductImageUrl ?? undefined}
                         alt="Product preview"
                         className="h-16 w-16 rounded-lg object-cover border border-white/10 flex-shrink-0"
                       />

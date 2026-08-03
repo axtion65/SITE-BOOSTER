@@ -230,6 +230,48 @@ router.get(
 );
 
 /**
+ * GET /storage/object-signed-url/*path
+ *
+ * Return a short-lived (15 min) GCS signed GET URL for a private object.
+ * Requires authentication + ownership check — does NOT stream the file.
+ * The client uses the returned URL as an <img src> without needing auth headers.
+ */
+router.get('/storage/object-signed-url/*path', async (req: Request, res: Response) => {
+  const userId = await resolveVerifiedUserId(req.headers.authorization);
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  try {
+    const raw = req.params.path;
+    const wildcardPath = Array.isArray(raw) ? raw.join('/') : raw;
+    const objectPath = `/objects/${wildcardPath}`;
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+
+    const allowed = await objectStorageService.canAccessObjectEntity({
+      userId,
+      objectFile,
+      requestedPermission: ObjectPermission.READ,
+    });
+    if (!allowed) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const url = await objectStorageService.getSignedObjectEntityUrl(objectPath, 900);
+    res.json({ url });
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: 'Object not found' });
+      return;
+    }
+    req.log.error({ err: error }, 'Error generating signed object URL');
+    res.status(500).json({ error: 'Failed to generate signed URL' });
+  }
+});
+
+/**
  * GET /storage/objects/*
  *
  * Serve private object entities from PRIVATE_OBJECT_DIR.

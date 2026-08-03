@@ -209,6 +209,20 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+
+  /**
+   * Generate a short-lived signed GET URL for a private object entity.
+   * Callers should verify ownership via canAccessObjectEntity before calling this.
+   */
+  async getSignedObjectEntityUrl(objectPath: string, ttlSec: number = 900): Promise<string> {
+    const objectFile = await this.getObjectEntityFile(objectPath);
+    return signObjectURL({
+      bucketName: objectFile.bucket.name,
+      objectName: objectFile.name,
+      method: 'GET',
+      ttlSec,
+    });
+  }
 }
 
 function parseObjectPath(path: string): {

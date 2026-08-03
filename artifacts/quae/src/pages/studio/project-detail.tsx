@@ -11,6 +11,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExpandedScript } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 
 // Realistic estimates based on actual fal.ai queue times
 const MODEL_ESTIMATES: Record<string, number> = {
@@ -92,6 +93,7 @@ export default function StudioProjectDetail() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isProcessing = project?.status === "processing";
   const elapsed = useElapsed(isProcessing, project?.createdAt);
+  const signedProductImageUrl = usePrivateImageUrl(project?.productImageUrl);
 
   useEffect(() => {
     if (isProcessing) {
@@ -449,12 +451,14 @@ export default function StudioProjectDetail() {
                   </div>
                   <div className="p-5 space-y-3">
                     <div className="rounded-xl overflow-hidden border border-white/[0.06] bg-black/40">
-                      <img
-                        src={project.productImageUrl}
-                        alt="Product image used for this render"
-                        className="w-full object-contain max-h-48"
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                      />
+                      {signedProductImageUrl && (
+                        <img
+                          src={signedProductImageUrl}
+                          alt="Product image used for this render"
+                          className="w-full object-contain max-h-48"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      )}
                     </div>
                     <p className="text-[11px] text-white/25 flex items-center gap-1.5">
                       <ImageIcon className="h-3 w-3 flex-shrink-0" />
