@@ -397,7 +397,7 @@ function Wizard() {
     }
     try {
       const res = await expandMutation.mutateAsync({
-        data: { productName, description, targetAudience, platform, duration, templateType, templateName } as any
+        data: { productName, description, targetAudience, platform, duration, templateType, templateName, renderingModelId: modelId } as any
       });
       setExpandedScript(res);
       setScriptEdited(false);

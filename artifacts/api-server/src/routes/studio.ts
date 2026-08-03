@@ -210,6 +210,22 @@ router.post("/studio/expand-prompt", async (req, res) => {
   const { description, productName, targetAudience, platform, duration } = parsed.data;
   const templateType = (req.body as any).templateType as string | undefined;
   const templateName = (req.body as any).templateName as string | undefined;
+  const renderingModelId = (req.body as any).renderingModelId as string | undefined;
+
+  // Hard cap: each model only outputs up to this many seconds regardless of what the
+  // script asks for — so cap the script duration to match and avoid wasted narration.
+  const MODEL_MAX_SECONDS: Record<string, number> = {
+    ltx: 5, ovi: 10, wan: 10, kling: 10, 'kling-1.6': 10, veo3: 8,
+  };
+  const modelMax = renderingModelId ? (MODEL_MAX_SECONDS[renderingModelId] ?? null) : null;
+  const requestedSec = (() => {
+    const d = (duration || "15s").toLowerCase().trim();
+    if (d.endsWith("m")) return parseInt(d) * 60;
+    if (d.endsWith("s")) return parseInt(d);
+    return parseInt(d) || 15;
+  })();
+  const effectiveSec = modelMax ? Math.min(requestedSec, modelMax) : requestedSec;
+  const effectiveDuration = `${effectiveSec}s`;
 
   const baseSystemPrompt = templateType
     ? (TEMPLATE_SYSTEM_PROMPTS[templateType] ?? GENERIC_SYSTEM_PROMPT)
@@ -227,7 +243,7 @@ Respond with ONLY valid JSON (no markdown, no explanation):
   ],
   "voiceoverText": "complete voiceover narration — every word spoken",
   "suggestedMusic": "specific music mood, tempo, and genre",
-  "estimatedDuration": "${duration || "30s"}"
+  "estimatedDuration": "${effectiveDuration}"
 }`;
 
   const templateContext = templateType
@@ -240,8 +256,10 @@ Product: ${productName}
 Description: ${description}
 Audience: ${targetAudience || "general consumers"}
 Platform: ${platform || "multi-platform"}
-Duration: ${duration || "30s"}
+Duration: ${effectiveDuration}
 ${templateContext}
+
+IMPORTANT: This is a ${effectiveDuration} video — the script, scenes, and voiceover MUST fit within ${effectiveDuration}. Do not write more content than ${effectiveSec} seconds of video can show. Every second counts — be punchy, not padded.
 
 The hook must stop the scroll in the first 2-3 seconds. Every scene must be purposeful. The script must feel like it was made FOR this specific template format — not a generic ad.`;
 
