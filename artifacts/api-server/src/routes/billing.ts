@@ -1,16 +1,11 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { stripeService } from "../stripeService";
+import { resolveUserIdFromToken } from "./auth";
 
 const router = Router();
 
-function getUserIdFromHeader(authHeader: string | undefined): string | null {
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  try {
-    const decoded = Buffer.from(authHeader.slice(7), "base64url").toString("utf-8");
-    return decoded.split(":")[0] || null;
-  } catch { return null; }
-}
+const getUserIdFromHeader = resolveUserIdFromToken;
 
 // GET /api/billing/plans — return plans from Stripe
 router.get("/billing/plans", async (_req, res) => {
@@ -25,7 +20,7 @@ router.get("/billing/plans", async (_req, res) => {
 
 // POST /api/billing/checkout — create Stripe checkout session
 router.post("/billing/checkout", async (req, res) => {
-  const userId = getUserIdFromHeader(req.headers.authorization);
+  const userId = await getUserIdFromHeader(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
 
   const { priceId } = req.body;
@@ -61,7 +56,7 @@ router.post("/billing/checkout", async (req, res) => {
 
 // POST /api/billing/portal — customer billing portal
 router.post("/billing/portal", async (req, res) => {
-  const userId = getUserIdFromHeader(req.headers.authorization);
+  const userId = await getUserIdFromHeader(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
 
   try {
@@ -82,7 +77,7 @@ router.post("/billing/portal", async (req, res) => {
 
 // POST /api/billing/sync — sync subscription to user after checkout success
 router.post("/billing/sync", async (req, res) => {
-  const userId = getUserIdFromHeader(req.headers.authorization);
+  const userId = await getUserIdFromHeader(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
 
   try {

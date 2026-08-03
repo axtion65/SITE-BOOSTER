@@ -10,8 +10,18 @@ function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password + "quae_salt_2024").digest("hex");
 }
 
+const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function hmacSign(payload: string): string {
+  const secret = process.env.SESSION_SECRET ?? "dev-secret-change-me";
+  return crypto.createHmac("sha256", secret).update(payload).digest("hex");
+}
+
 function generateToken(userId: string): string {
-  return Buffer.from(`${userId}:${Date.now()}`).toString("base64url");
+  const ts = Date.now();
+  const payload = `${userId}:${ts}`;
+  const sig = hmacSign(payload);
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
 }
 
 function generateTempPassword(): string {
@@ -19,14 +29,40 @@ function generateTempPassword(): string {
 }
 
 /** Shared token → user resolution used by every authenticated endpoint. */
-async function resolveUserFromToken(authHeader: string | undefined) {
+export async function resolveUserFromToken(authHeader: string | undefined) {
   if (!authHeader?.startsWith("Bearer ")) return null;
   const token = authHeader.slice(7);
-  const decoded = Buffer.from(token, "base64url").toString("utf-8");
-  const userId = decoded.split(":")[0];
-  if (!userId) return null;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  return user ?? null;
+  try {
+    const decoded = Buffer.from(token, "base64url").toString("utf-8");
+    const parts = decoded.split(":");
+    // Signed token format: userId:timestamp:hmac  (exactly 3 parts)
+    if (parts.length !== 3) return null; // reject unsigned/malformed tokens
+    const userId = parts[0];
+    const ts = Number(parts[1]);
+    const sig = parts[2];
+    if (!userId || Number.isNaN(ts)) return null;
+
+    // Verify HMAC signature (timing-safe)
+    const payload = `${userId}:${ts}`;
+    const expected = hmacSign(payload);
+    if (sig.length !== expected.length) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) {
+      return null; // tampered
+    }
+    // Enforce expiry
+    if (Date.now() - ts > TOKEN_TTL_MS) return null;
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    return user ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Convenience wrapper that returns only the userId string. */
+export async function resolveUserIdFromToken(authHeader: string | undefined): Promise<string | null> {
+  const user = await resolveUserFromToken(authHeader);
+  return user?.id ?? null;
 }
 
 function userToPublic(user: typeof usersTable.$inferSelect) {

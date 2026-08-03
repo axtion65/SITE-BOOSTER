@@ -74,7 +74,15 @@ router.post("/webhooks/fal", async (req, res) => {
   if (payload.status === "FAILED" || payload.error) {
     console.error(`[webhook/fal] Render FAILED for project ${project.id}:`, payload.error);
     const creditCost = getCreditCost(project.renderingModelId ?? "ovi");
-    await failAndRefund(project.id, project.userId, creditCost);
+    const wonFail = await failAndRefund(project.id, project.userId, creditCost);
+    if (wonFail) {
+      const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
+      if (owner) {
+        import("../lib/email").then(({ sendRenderFailedEmail }) =>
+          sendRenderFailedEmail(owner.email, owner.name ?? "", project.title, project.id, creditCost).catch(() => {})
+        );
+      }
+    }
     res.json({ ok: true });
     return;
   }
@@ -97,16 +105,35 @@ router.post("/webhooks/fal", async (req, res) => {
 
   if (url && typeof url === "string") {
     console.log(`[webhook/fal] Render COMPLETED for project ${project.id}`);
-    // Conditional: only win if still "processing"
-    await db
+    // Conditional: only win if still "processing" — prevents duplicate emails from concurrent poll+webhook
+    const won = await db
       .update(projectsTable)
       .set({ videoUrl: url, status: "completed", updatedAt: new Date() })
-      .where(and(eq(projectsTable.id, project.id), eq(projectsTable.status, "processing")));
+      .where(and(eq(projectsTable.id, project.id), eq(projectsTable.status, "processing")))
+      .returning({ id: projectsTable.id });
+
+    if (won.length > 0) {
+      // Status transition won — send/queue the completion email
+      const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
+      if (owner) {
+        import("../lib/email").then(({ sendRenderDoneEmail }) =>
+          sendRenderDoneEmail(owner.email, owner.name ?? "", project.title, project.id).catch(() => {})
+        );
+      }
+    }
   } else {
     console.error(`[webhook/fal] COMPLETED but no URL for project ${project.id}. Keys:`, Object.keys(output));
     // Fail + refund atomically
     const creditCost = getCreditCost(project.renderingModelId ?? "ovi");
-    await failAndRefund(project.id, project.userId, creditCost);
+    const won = await failAndRefund(project.id, project.userId, creditCost);
+    if (won) {
+      const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
+      if (owner) {
+        import("../lib/email").then(({ sendRenderFailedEmail }) =>
+          sendRenderFailedEmail(owner.email, owner.name ?? "", project.title, project.id, creditCost).catch(() => {})
+        );
+      }
+    }
   }
 
   res.json({ ok: true });

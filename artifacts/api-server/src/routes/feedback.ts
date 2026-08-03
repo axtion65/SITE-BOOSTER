@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { resolveUserFromToken } from "./auth";
 
 const router = Router();
 
@@ -49,8 +50,8 @@ router.post("/feedback", async (req, res) => {
 
 // GET /api/admin/feedback — view all feedback (admin only)
 router.get("/admin/feedback", async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const user = await resolveUserFromToken(req.headers.authorization);
+  if (!user?.isAdmin) { res.status(403).json({ error: "Forbidden" }); return; }
 
   try {
     const rows = await db.execute(sql`

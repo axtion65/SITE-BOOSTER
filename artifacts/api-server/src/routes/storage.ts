@@ -5,8 +5,7 @@ import {
   RequestUploadUrlResponse,
 } from '@workspace/api-zod';
 import { Router, type IRouter, type Request, type Response } from 'express';
-import { db, usersTable } from '@workspace/db';
-import { eq } from 'drizzle-orm';
+import { db } from '@workspace/db';
 
 import { ObjectPermission } from '../lib/objectAcl';
 import {
@@ -57,26 +56,10 @@ function consumeUploadIntent(
 // Auth helpers
 // ---------------------------------------------------------------------------
 
-/** Extract userId from the project's custom Bearer JWT auth header. */
-function getUserIdFromAuthHeader(authHeader: string | undefined): string | null {
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  try {
-    const decoded = Buffer.from(authHeader.slice(7), 'base64url').toString('utf-8');
-    return decoded.split(':')[0] || null;
-  } catch {
-    return null;
-  }
-}
+import { resolveUserIdFromToken } from "./auth";
 
 /** Resolve a Bearer token to a verified DB user id, or return null. */
-async function resolveVerifiedUserId(authHeader: string | undefined): Promise<string | null> {
-  const userId = getUserIdFromAuthHeader(authHeader);
-  if (!userId) return null;
-  const [user] = await db.select({ id: usersTable.id })
-    .from(usersTable)
-    .where(eq(usersTable.id, userId as string));
-  return user?.id ?? null;
-}
+const resolveVerifiedUserId = resolveUserIdFromToken;
 
 // ---------------------------------------------------------------------------
 // Upload constraints

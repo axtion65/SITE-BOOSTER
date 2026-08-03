@@ -107,6 +107,16 @@ export async function autoFailStuckRenders(): Promise<void> {
           { projectId: project.id, userId: project.userId, creditsRefunded: creditCost },
           "[render-timeout] Marked failed and credits refunded"
         );
+        // Send/queue the failure notification — same path as fal webhook
+        const [owner] = await db.select().from(usersTable)
+          .where(eq(usersTable.id, project.userId));
+        if (owner) {
+          import("./email").then(({ sendRenderFailedEmail }) =>
+            sendRenderFailedEmail(
+              owner.email, owner.name ?? "", project.title, project.id, creditCost
+            ).catch(() => {})
+          );
+        }
       } else {
         logger.info(
           { projectId: project.id },

@@ -1,23 +1,15 @@
 import { Router } from "express";
-import { db, usersTable, projectsTable } from "@workspace/db";
-import { eq, gte, count, sql } from "drizzle-orm";
+import { db, usersTable, projectsTable, emailQueueTable } from "@workspace/db";
+import { eq, gte, count, sql, desc } from "drizzle-orm";
 import { UpdateAdminUserBody } from "@workspace/api-zod";
+import { resolveUserFromToken } from "./auth";
 
 const router = Router();
 
 async function getAdminUser(authHeader: string | undefined) {
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7);
-  try {
-    const decoded = Buffer.from(token, "base64url").toString("utf-8");
-    const userId = decoded.split(":")[0];
-    if (!userId) return null;
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-    if (!user?.isAdmin) return null;
-    return user;
-  } catch {
-    return null;
-  }
+  const user = await resolveUserFromToken(authHeader);
+  if (!user?.isAdmin) return null;
+  return user;
 }
 
 router.get("/admin/stats", async (req, res) => {
@@ -100,6 +92,40 @@ router.delete("/admin/users/:id", async (req, res) => {
   await db.delete(projectsTable).where(eq(projectsTable.userId, req.params.id));
   await db.delete(usersTable).where(eq(usersTable.id, req.params.id));
   res.json({ success: true });
+});
+
+// ─── Email queue monitoring ───────────────────────────────────────────────────
+
+// GET /admin/email-queue — list queued / failed emails
+router.get("/admin/email-queue", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const rows = await db.select().from(emailQueueTable)
+    .orderBy(desc(emailQueueTable.createdAt))
+    .limit(200);
+  res.json(rows);
+});
+
+// POST /admin/email-queue/retry-all — retry every pending email
+router.post("/admin/email-queue/retry-all", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const { retryAllPending } = await import("../lib/email");
+  const result = await retryAllPending();
+  console.log(`[admin] Email retry-all: ${result.sent}/${result.attempted} sent`);
+  res.json(result);
+});
+
+// POST /admin/email-queue/:id/retry — retry a single queued email
+router.post("/admin/email-queue/:id/retry", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const { retryQueuedEmail } = await import("../lib/email");
+  const result = await retryQueuedEmail(req.params.id);
+  res.json(result);
 });
 
 // POST /admin/broadcast — send an email to a subset of users

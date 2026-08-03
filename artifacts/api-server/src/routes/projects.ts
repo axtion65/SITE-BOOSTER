@@ -9,14 +9,8 @@ import {
 import { TEMPLATES } from "./templates";
 
 const router = Router();
-
-async function getUserIdFromToken(authHeader: string | undefined): Promise<string | null> {
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  try {
-    const decoded = Buffer.from(authHeader.slice(7), "base64url").toString("utf-8");
-    return decoded.split(":")[0] || null;
-  } catch { return null; }
-}
+import { resolveUserIdFromToken } from "./auth";
+const getUserIdFromToken = resolveUserIdFromToken;
 
 function getFalToken(project: { thumbnailUrl: string | null }): string | null {
   return isFalToken(project.thumbnailUrl) ? project.thumbnailUrl! : null;

@@ -8,36 +8,158 @@ function isConfigured() {
   return !!process.env.RESEND_API_KEY;
 }
 
-async function sendEmail(to_email: string, to_name: string, subject: string, body_html: string) {
-  if (!isConfigured()) {
-    console.log("[email] RESEND_API_KEY not set — skipping send to", to_email);
-    return;
-  }
-  try {
-    // EMAIL_FROM_ADDRESS can be overridden via env var.
-    // Use onboarding@resend.dev as a fallback while quae.ai DNS is being verified —
-    // it only delivers to the Resend account owner's address but prevents hard 403s.
-    const fromAddress = process.env.EMAIL_FROM_ADDRESS ?? "noreply@quae.ai";
-    const fromName = process.env.EMAILJS_FROM_NAME ?? "Quae.ai";
-    const from = `${fromName} <${fromAddress}>`;
+// ─── Email queue persistence ──────────────────────────────────────────────────
+// When Resend returns a non-2xx response (e.g. domain not yet verified),
+// the message is stored in email_queue with status="pending" so it is not lost.
+// Retry via POST /admin/email-queue/retry or wait for the cron below.
 
-    const res = await fetch(RESEND_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from, to: [to_email], subject, html: body_html }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("[email] Resend error:", res.status, text);
-    } else {
-      console.log("[email] Sent:", subject, "→", to_email);
-    }
+async function queueEmail(to: string, toName: string, subject: string, html: string) {
+  const { db, emailQueueTable } = await import("@workspace/db");
+  try {
+    await db.insert(emailQueueTable).values({ to, toName, subject, html });
+    console.log("[email] Queued for retry:", subject, "→", to);
   } catch (err) {
-    console.error("[email] Send failed:", err);
+    // ERROR-level so monitoring/alerting can catch persistent queue failures
+    console.error("[email] CRITICAL: failed to queue email — message may be lost:", to, subject, err);
+    throw err; // propagate so callers know durability failed
   }
+}
+
+async function markQueued(id: string, status: "sent" | "failed" | "pending" | "processing", error?: string) {
+  const { db, emailQueueTable } = await import("@workspace/db");
+  const { eq } = await import("drizzle-orm");
+  try {
+    await db.update(emailQueueTable)
+      .set({
+        status,
+        lastError: error ?? null,
+        sentAt: status === "sent" ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(emailQueueTable.id, id));
+  } catch (err) {
+    // Log at ERROR level — if "sent" couldn't be recorded, the row will be
+    // retried again and the email will be delivered twice.
+    console.error("[email] CRITICAL: markQueued failed — row", id, "may be sent twice:", err);
+  }
+}
+
+// ─── Core send ────────────────────────────────────────────────────────────────
+
+async function sendViaResend(
+  to: string, toName: string, subject: string, html: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isConfigured()) {
+    return { ok: false, error: "RESEND_API_KEY not set" };
+  }
+  const fromAddress = process.env.EMAIL_FROM_ADDRESS ?? "noreply@quae.ai";
+  const fromName = process.env.EMAILJS_FROM_NAME ?? "Quae.ai";
+  const from = `${fromName} <${fromAddress}>`;
+
+  const res = await fetch(RESEND_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ from, to: [to], subject, html }),
+  });
+
+  if (res.ok) {
+    console.log("[email] Sent:", subject, "→", to);
+    return { ok: true };
+  }
+  const text = await res.text();
+  console.error("[email] Resend error:", res.status, text);
+  return { ok: false, error: `${res.status} ${text}` };
+}
+
+async function sendEmail(to: string, toName: string, subject: string, html: string) {
+  let sendResult: { ok: boolean; error?: string } | null = null;
+  try {
+    sendResult = await sendViaResend(to, toName, subject, html);
+  } catch (err) {
+    console.error("[email] Transport error:", err);
+  }
+
+  if (!sendResult?.ok) {
+    // Attempt to queue; queueEmail throws + logs ERROR if the DB insert fails
+    await queueEmail(to, toName, subject, html);
+  }
+}
+
+const MAX_RETRY_ATTEMPTS = 10; // give up only after many manual retries
+
+// ─── Public retry helper (used by admin route and worker) ────────────────────
+export async function retryQueuedEmail(id: string): Promise<{ ok: boolean; error?: string }> {
+  const { db, emailQueueTable } = await import("@workspace/db");
+  const { eq, and } = await import("drizzle-orm");
+
+  // Atomically claim the row: only win if it is currently "pending".
+  // This prevents two concurrent workers from sending the same email twice.
+  const [claimed] = await db.update(emailQueueTable)
+    .set({ status: "processing", updatedAt: new Date() })
+    .where(and(eq(emailQueueTable.id, id), eq(emailQueueTable.status, "pending")))
+    .returning({ id: emailQueueTable.id, to: emailQueueTable.to, toName: emailQueueTable.toName,
+                 subject: emailQueueTable.subject, html: emailQueueTable.html,
+                 attempts: emailQueueTable.attempts });
+
+  if (!claimed) {
+    // Either already sent, processing by another worker, or not found — skip
+    return { ok: true };
+  }
+
+  const newAttempts = claimed.attempts + 1;
+  // Record the attempt count so backoff sees it even if sending takes a long time
+  await db.update(emailQueueTable)
+    .set({ attempts: newAttempts })
+    .where(eq(emailQueueTable.id, id));
+
+  let result: { ok: boolean; error?: string };
+  try {
+    result = await sendViaResend(claimed.to, claimed.toName, claimed.subject, claimed.html);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[email] Transport error during retry:", msg);
+    result = { ok: false, error: `transport: ${msg}` };
+  }
+
+  if (result.ok) {
+    // Persist "sent" — failure is logged at ERROR level; the row will be
+    // retried (duplicate delivery risk), but the error is clearly observable
+    await markQueued(id, "sent");
+  } else {
+    const newStatus = newAttempts >= MAX_RETRY_ATTEMPTS ? "failed" : "pending";
+    await markQueued(id, newStatus, result.error);
+  }
+  return result;
+}
+
+// retry-all flushes all pending AND failed rows (failed rows reset to pending first).
+// Also un-sticks rows that got left in "processing" (e.g. after a server crash).
+export async function retryAllPending(): Promise<{ attempted: number; sent: number }> {
+  const { db, emailQueueTable } = await import("@workspace/db");
+  const { eq, or } = await import("drizzle-orm");
+
+  // Reset "failed" and stuck "processing" rows back to "pending"
+  await db.update(emailQueueTable)
+    .set({ status: "pending", updatedAt: new Date() })
+    .where(or(eq(emailQueueTable.status, "failed"), eq(emailQueueTable.status, "processing")));
+
+  // Select all now-pending rows (the just-reset ones + any that were already pending)
+  const retryable = await db.select().from(emailQueueTable)
+    .where(eq(emailQueueTable.status, "pending"));
+
+  let sent = 0;
+  for (const row of retryable) {
+    try {
+      const result = await retryQueuedEmail(row.id);
+      if (result.ok) sent++;
+    } catch (err) {
+      console.error("[email] retry-all: skipping row", row.id, err instanceof Error ? err.message : err);
+    }
+  }
+  return { attempted: retryable.length, sent };
 }
 
 // ─── Branded HTML wrapper ────────────────────────────────────────────────────
