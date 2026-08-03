@@ -235,6 +235,26 @@ export class ObjectStorageService {
   }
 
   /**
+   * Upload a video Buffer directly to permanent private object storage.
+   * Returns the internal API path `/api/storage/objects/videos/<uuid>.mp4`.
+   * Use this instead of uploadVideoFromUrl when you already have the bytes
+   * (e.g. after FFmpeg post-processing).
+   */
+  async uploadVideoBuffer(buffer: Buffer): Promise<string> {
+    const privateDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateDir}/videos/${objectId}.mp4`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    await file.save(buffer, { contentType: 'video/mp4', resumable: false });
+
+    console.log(`[objectStorage] Uploaded video buffer → ${fullPath} (${buffer.length} bytes)`);
+    return `/api/storage/objects/videos/${objectId}.mp4`;
+  }
+
+  /**
    * Generate a short-lived signed GET URL for a private object entity.
    * Callers should verify ownership via canAccessObjectEntity before calling this.
    */

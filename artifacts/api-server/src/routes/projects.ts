@@ -31,23 +31,98 @@ async function resolveVideoUrl(videoUrl: string | null | undefined): Promise<str
   }
 }
 
+interface ArchiveJobContext {
+  projectId: string;
+  falUrl: string;        // sentinel: archival only wins if videoUrl still equals this
+  userId: string;
+  projectTitle: string;
+  creditCost: number;
+  isAdmin: boolean;
+  voiceoverText?: string | null;
+}
+
 /**
- * Kick off async archival of a fal.media video URL to permanent object storage.
- * Updates the project row once archival completes.  Non-blocking — caller does
- * not wait for this to finish.
+ * Kick off async narration + archival of a fal.media video.
+ *
+ * Flow:
+ *  1. Generate TTS audio from voiceoverText (OpenAI) and mix it over the video
+ *     with FFmpeg.  Falls back silently to the plain video on any error.
+ *  2. Upload the (narrated or original) video to permanent object storage.
+ *  3. Transition the project to "completed" using a conditional UPDATE that
+ *     checks videoUrl = falUrl — the sentinel ensures a concurrent rerender
+ *     (which resets videoUrl to null) cannot be overwritten by a stale job.
+ *  4. Send the "video ready" email only when this job wins the transition.
+ *  5. If archival itself throws, fail+refund so the project is never stuck
+ *     in "processing" indefinitely.
+ *
+ * Non-blocking — caller does not await this.
  */
-function archiveVideoAsync(projectId: string, falUrl: string) {
+function archiveVideoAsync(ctx: ArchiveJobContext) {
+  const { projectId, falUrl, userId, projectTitle, creditCost, isAdmin, voiceoverText } = ctx;
   setImmediate(async () => {
+    let permanentPath: string;
     try {
       const { ObjectStorageService } = await import("../lib/objectStorage");
       const storage = new ObjectStorageService();
-      const permanentPath = await storage.uploadVideoFromUrl(falUrl);
-      await db.update(projectsTable)
-        .set({ videoUrl: permanentPath, updatedAt: new Date() })
-        .where(eq(projectsTable.id, projectId));
-      console.log(`[projects] Video archived permanently for project ${projectId}`);
+
+      if (voiceoverText) {
+        try {
+          const { generateSpeechBuffer } = await import("../lib/tts");
+          const audioBuffer = await generateSpeechBuffer(voiceoverText);
+
+          if (audioBuffer) {
+            const { addNarrationToVideo } = await import("../lib/videoNarrate");
+            const narratedBuffer = await addNarrationToVideo(falUrl, audioBuffer);
+
+            if (narratedBuffer) {
+              permanentPath = await storage.uploadVideoBuffer(narratedBuffer);
+              console.log(`[projects] Narrated video archived for project ${projectId}`);
+            } else {
+              console.warn("[projects] FFmpeg mix failed — archiving silent video");
+              permanentPath = await storage.uploadVideoFromUrl(falUrl);
+            }
+          } else {
+            console.warn("[projects] TTS returned null — archiving silent video");
+            permanentPath = await storage.uploadVideoFromUrl(falUrl);
+          }
+        } catch (err) {
+          console.error("[projects] Narration pipeline error — archiving silent video:", err);
+          permanentPath = await storage.uploadVideoFromUrl(falUrl);
+        }
+      } else {
+        permanentPath = await storage.uploadVideoFromUrl(falUrl);
+      }
+
+      // Transition to completed — guarded by BOTH status='processing' AND videoUrl=falUrl.
+      // • status guard: prevents overwriting a project already failed/refunded by the
+      //   timeout watcher (which now skips narrating rows but could win on a crash).
+      // • videoUrl guard: prevents overwriting a project whose rerender has started
+      //   (rerender sets videoUrl=null, breaking this condition).
+      const completed = await db.update(projectsTable)
+        .set({ status: "completed", videoUrl: permanentPath, updatedAt: new Date() })
+        .where(and(
+          eq(projectsTable.id, projectId),
+          eq(projectsTable.status, "processing"),
+          eq(projectsTable.videoUrl, falUrl),
+        ))
+        .returning({ id: projectsTable.id });
+
+      if (completed.length > 0) {
+        console.log(`[projects] Video archived and marked completed for project ${projectId}`);
+        // Notify user their video is ready
+        const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+        if (owner) {
+          import("../lib/email").then(({ sendRenderDoneEmail }) =>
+            sendRenderDoneEmail(owner.email, owner.name ?? "", projectTitle, projectId).catch(() => {})
+          );
+        }
+      } else {
+        console.log(`[projects] Archival race: project ${projectId} was re-rendered — skipping completion`);
+      }
     } catch (err) {
-      console.error("[projects] Archival failed — fal.media URL remains (will expire):", err);
+      console.error("[projects] Archival failed — failing project and refunding credits:", err);
+      // Prevent project from being stuck in "processing" forever
+      await failAndRefund(projectId, userId, creditCost, isAdmin).catch(() => {});
     }
   });
 }
@@ -230,24 +305,38 @@ router.get("/projects/:id", async (req, res) => {
     try {
       const poll = await pollFalVideoRender(token);
       if (poll.status === "done" && poll.url) {
-        // Conditional transition: only win if the row is still "processing".
-        // The timeout watcher may have already failed it — do not overwrite.
+        // Store the fal URL and clear the fal token so polling stops.
+        // Status intentionally stays "processing" — the archival job below
+        // owns the final "completed" transition after narration finishes.
+        // The falUrl stored in videoUrl acts as a race-guard sentinel: the
+        // archival conditional UPDATE only wins if videoUrl still matches,
+        // preventing a concurrent rerender from being overwritten.
         const updated = await db.update(projectsTable)
-          .set({ status: "completed", videoUrl: poll.url, thumbnailUrl: null, updatedAt: new Date() })
+          .set({ videoUrl: poll.url, thumbnailUrl: null, updatedAt: new Date() })
           .where(and(eq(projectsTable.id, project.id), eq(projectsTable.status, "processing")))
           .returning();
         if (updated.length > 0) {
-          // Archive the fal.media URL to permanent storage in the background
-          archiveVideoAsync(project.id, poll.url);
-          // Notify user their video is ready
+          // Extract voiceoverText for TTS narration
+          let voiceoverText: string | undefined;
+          try {
+            if (project.expandedScript) {
+              const scriptObj = JSON.parse(project.expandedScript) as { voiceoverText?: string };
+              voiceoverText = scriptObj.voiceoverText?.trim() || undefined;
+            }
+          } catch { /* ignore JSON parse errors — fall back to silent */ }
+          const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1");
           const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
-          if (owner) {
-            import("../lib/email").then(({ sendRenderDoneEmail }) =>
-              sendRenderDoneEmail(owner.email, owner.name ?? "", project.title, project.id).catch(() => {})
-            );
-          }
-          const resolved = await resolveVideoUrl(poll.url);
-          res.json({ ...updated[0], videoUrl: resolved, createdAt: updated[0].createdAt.toISOString(), updatedAt: updated[0].updatedAt.toISOString() });
+          archiveVideoAsync({
+            projectId: project.id,
+            falUrl: poll.url,
+            userId: project.userId,
+            projectTitle: project.title,
+            creditCost,
+            isAdmin: owner?.isAdmin ?? false,
+            voiceoverText,
+          });
+          // Return current row — status is still "processing"; client keeps polling
+          res.json({ ...updated[0], createdAt: updated[0].createdAt.toISOString(), updatedAt: updated[0].updatedAt.toISOString() });
         } else {
           // Already resolved (e.g. by timeout watcher) — return current state
           const [current] = await db.select().from(projectsTable).where(eq(projectsTable.id, project.id));

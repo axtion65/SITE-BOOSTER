@@ -49,6 +49,17 @@ export async function autoFailStuckRenders(): Promise<void> {
 
     const now = Date.now();
     const stale = processing.filter((p) => {
+      // Skip projects in the "narration/archival in progress" state.
+      // These rows have no fal token (thumbnailUrl cleared) but hold a fal.media
+      // URL in videoUrl — meaning the render is done and the narration+archive job
+      // is running.  The timeout watcher must not kill them; the archival job owns
+      // the final status transition and will fail+refund if it crashes.
+      const isNarrating =
+        !p.thumbnailUrl &&
+        p.videoUrl != null &&
+        !p.videoUrl.startsWith("/api/storage/");
+      if (isNarrating) return false;
+
       const timeoutSec = timeoutSecondsForModel(p.renderingModelId ?? "ovi");
       const ageMs = now - new Date(p.updatedAt).getTime();
       return ageMs > timeoutSec * 1000;

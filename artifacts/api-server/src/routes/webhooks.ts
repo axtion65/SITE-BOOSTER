@@ -104,38 +104,92 @@ router.post("/webhooks/fal", async (req, res) => {
     null;
 
   if (url && typeof url === "string") {
-    console.log(`[webhook/fal] Render COMPLETED for project ${project.id}`);
-    // Conditional: only win if still "processing" — prevents duplicate emails from concurrent poll+webhook
+    console.log(`[webhook/fal] Render COMPLETED for project ${project.id} — starting narration`);
+    // Store the fal URL as a sentinel and clear the token so further polls skip fal.ai.
+    // Status stays "processing" — the archival job below owns the final "completed"
+    // transition after TTS narration and upload are done.
+    // The stored fal URL acts as a race guard: both the timeout watcher (which now
+    // skips rows in this state) and the archival conditional UPDATE check it.
     const won = await db
       .update(projectsTable)
-      .set({ videoUrl: url, status: "completed", updatedAt: new Date() })
+      .set({ videoUrl: url, thumbnailUrl: null, updatedAt: new Date() })
       .where(and(eq(projectsTable.id, project.id), eq(projectsTable.status, "processing")))
       .returning({ id: projectsTable.id });
 
     if (won.length > 0) {
-      // Kick off async archival to permanent storage so the fal.media URL
-      // (which expires in ~24h) is replaced with a durable object-storage path.
+      const projectId = project.id;
+      const falUrl = url;
+      const creditCost = getCreditCost(project.renderingModelId ?? "ovi");
+
       setImmediate(async () => {
+        let permanentPath: string;
         try {
           const { ObjectStorageService } = await import("../lib/objectStorage");
           const storage = new ObjectStorageService();
-          const permanentPath = await storage.uploadVideoFromUrl(url);
-          await db.update(projectsTable)
-            .set({ videoUrl: permanentPath, updatedAt: new Date() })
-            .where(eq(projectsTable.id, project.id));
-          console.log(`[webhook/fal] Video archived permanently for project ${project.id}`);
+
+          // Extract voiceoverText from expandedScript for narration
+          let voiceoverText: string | undefined;
+          try {
+            if (project.expandedScript) {
+              const scriptObj = JSON.parse(project.expandedScript) as { voiceoverText?: string };
+              voiceoverText = scriptObj.voiceoverText?.trim() || undefined;
+            }
+          } catch { /* ignore — fall back to silent */ }
+
+          if (voiceoverText) {
+            try {
+              const { generateSpeechBuffer } = await import("../lib/tts");
+              const audioBuffer = await generateSpeechBuffer(voiceoverText);
+              if (audioBuffer) {
+                const { addNarrationToVideo } = await import("../lib/videoNarrate");
+                const narratedBuffer = await addNarrationToVideo(falUrl, audioBuffer);
+                if (narratedBuffer) {
+                  permanentPath = await storage.uploadVideoBuffer(narratedBuffer);
+                  console.log(`[webhook/fal] Narrated video archived for project ${projectId}`);
+                } else {
+                  console.warn("[webhook/fal] FFmpeg mix failed — archiving silent video");
+                  permanentPath = await storage.uploadVideoFromUrl(falUrl);
+                }
+              } else {
+                console.warn("[webhook/fal] TTS returned null — archiving silent video");
+                permanentPath = await storage.uploadVideoFromUrl(falUrl);
+              }
+            } catch (err) {
+              console.error("[webhook/fal] Narration error — archiving silent video:", err);
+              permanentPath = await storage.uploadVideoFromUrl(falUrl);
+            }
+          } else {
+            permanentPath = await storage.uploadVideoFromUrl(falUrl);
+          }
+
+          // Transition to completed — guarded by status='processing' AND videoUrl=falUrl.
+          // A concurrent rerender (sets videoUrl=null) or a timeout failure both break
+          // one of these conditions, preventing this stale job from overwriting them.
+          const completed = await db.update(projectsTable)
+            .set({ status: "completed", videoUrl: permanentPath, updatedAt: new Date() })
+            .where(and(
+              eq(projectsTable.id, projectId),
+              eq(projectsTable.status, "processing"),
+              eq(projectsTable.videoUrl, falUrl),
+            ))
+            .returning({ id: projectsTable.id });
+
+          if (completed.length > 0) {
+            console.log(`[webhook/fal] Video archived and marked completed for project ${projectId}`);
+            const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
+            if (owner) {
+              import("../lib/email").then(({ sendRenderDoneEmail }) =>
+                sendRenderDoneEmail(owner.email, owner.name ?? "", project.title, projectId).catch(() => {})
+              );
+            }
+          } else {
+            console.log(`[webhook/fal] Archival race: project ${projectId} was re-rendered — skipping completion`);
+          }
         } catch (err) {
-          console.error("[webhook/fal] Archival failed — fal.media URL remains (will expire):", err);
+          console.error("[webhook/fal] Archival failed — failing project and refunding credits:", err);
+          await failAndRefund(projectId, project.userId, creditCost).catch(() => {});
         }
       });
-
-      // Send/queue the completion email
-      const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
-      if (owner) {
-        import("../lib/email").then(({ sendRenderDoneEmail }) =>
-          sendRenderDoneEmail(owner.email, owner.name ?? "", project.title, project.id).catch(() => {})
-        );
-      }
     }
   } else {
     console.error(`[webhook/fal] COMPLETED but no URL for project ${project.id}. Keys:`, Object.keys(output));
