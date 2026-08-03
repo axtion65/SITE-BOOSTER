@@ -1,8 +1,11 @@
+import { randomUUID } from "crypto";
 import { Router } from "express";
 import { db, usersTable, projectsTable, emailQueueTable } from "@workspace/db";
-import { eq, gte, count, sql, desc } from "drizzle-orm";
+import { eq, gte, count, sql, desc, like } from "drizzle-orm";
 import { UpdateAdminUserBody } from "@workspace/api-zod";
 import { resolveUserFromToken } from "./auth";
+import { objectStorageClient } from "../lib/objectStorage";
+import { setObjectAclPolicy } from "../lib/objectAcl";
 
 const router = Router();
 
@@ -160,6 +163,97 @@ router.post("/admin/broadcast", async (req, res) => {
 
   console.log(`[admin] Broadcast sent to ${sent} users — "${subject}"`);
   res.json({ sent, audience: audience ?? "all" });
+});
+
+// ─── One-time migration: base64 product images → GCS object storage ──────────
+
+// POST /admin/migrate/base64-images
+// Iterates over every project whose productImageUrl starts with "data:" and
+// re-uploads the raw bytes to GCS, replacing the column value with a short
+// /objects/... path.  Safe to run multiple times — already-migrated rows are
+// skipped automatically because they no longer start with "data:".
+router.post("/admin/migrate/base64-images", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  if (!privateObjectDir) {
+    res.status(500).json({ error: "PRIVATE_OBJECT_DIR env var is not set" });
+    return;
+  }
+
+  // Find all projects that still have a raw base64 data URL
+  const rows = await db
+    .select({ id: projectsTable.id, userId: projectsTable.userId, productImageUrl: projectsTable.productImageUrl })
+    .from(projectsTable)
+    .where(like(projectsTable.productImageUrl, "data:%"));
+
+  console.log(`[migrate-base64] Found ${rows.length} project(s) with base64 productImageUrl`);
+
+  const results: Array<{ id: string; status: "migrated" | "failed"; error?: string }> = [];
+
+  for (const row of rows) {
+    const { id, userId, productImageUrl } = row;
+    if (!productImageUrl) continue;
+
+    try {
+      // Parse  data:<mimeType>;base64,<data>
+      const match = productImageUrl.match(/^data:([^;]+);base64,(.+)$/s);
+      if (!match) throw new Error("Unrecognised data URL format");
+      const [, mimeType, base64Data] = match;
+      const buffer = Buffer.from(base64Data as string, "base64");
+
+      // Build GCS path mirroring what getObjectEntityUploadURL produces:
+      // fullPath looks like  /bucketName/path/to/object
+      const objectId = randomUUID();
+      const dir = privateObjectDir.endsWith("/") ? privateObjectDir : `${privateObjectDir}/`;
+      const fullPath = `${dir}uploads/${objectId}`;
+      const pathWithSlash = fullPath.startsWith("/") ? fullPath : `/${fullPath}`;
+      const parts = pathWithSlash.split("/");
+      const bucketName = parts[1];
+      const objectName = parts.slice(2).join("/");
+
+      // Upload bytes directly to GCS
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectName);
+      await file.save(buffer, {
+        metadata: { contentType: mimeType as string },
+        resumable: false,
+      });
+
+      // Set private ACL with the project owner — mirrors what the finalize
+      // upload flow does in POST /storage/uploads/finalize
+      await setObjectAclPolicy(file, { owner: userId, visibility: "private" });
+
+      // Canonical short path — mirrors what normalizeObjectEntityPath() and the
+      // POST /storage/uploads/finalize route write to the DB.
+      //
+      // Render path (/api/routes/projects.ts → falvideo.ts#uploadImageToFal) explicitly
+      // handles this form: it intercepts strings starting with "/objects/" and streams
+      // the GCS bytes server-side to fal.ai CDN before submitting the job, so fal.ai
+      // never receives the private path directly.  ACL is enforced only for user-facing
+      // GET /storage/objects/* requests; server-side GCS access bypasses it, so
+      // re-renders and retries will continue to work after migration.
+      const newPath = `/objects/uploads/${objectId}`;
+
+      await db
+        .update(projectsTable)
+        .set({ productImageUrl: newPath, updatedAt: new Date() })
+        .where(eq(projectsTable.id, id));
+
+      console.log(`[migrate-base64] Migrated project ${id} → ${newPath} (owner: ${userId})`);
+      results.push({ id, status: "migrated" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[migrate-base64] Failed to migrate project ${id}:`, message);
+      results.push({ id, status: "failed", error: message });
+    }
+  }
+
+  const migrated = results.filter((r) => r.status === "migrated").length;
+  const failed   = results.filter((r) => r.status === "failed").length;
+  console.log(`[migrate-base64] Done — ${migrated} migrated, ${failed} failed`);
+  res.json({ total: rows.length, migrated, failed, results });
 });
 
 export default router;
