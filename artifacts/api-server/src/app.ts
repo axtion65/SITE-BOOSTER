@@ -1,6 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import pinoHttp from "pino-http";
+import { pinoHttp } from "pino-http";
 import router from "./routes";
 import { WebhookHandlers } from "./webhookHandlers";
 import { logger } from "./lib/logger";
@@ -25,15 +25,15 @@ app.post(
   }
 );
 
-// pino-http v10 CJS default export isn't typed as callable under moduleResolution:bundler
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-app.use((pinoHttp as any)({
+// pino-http v10: use named import; req.id is pino-http's own augmentation so typed as any
+app.use(pinoHttp({
   logger,
   serializers: {
     req(req: any) { return { id: req.id, method: req.method, url: req.url?.split("?")[0] }; },
     res(res: any) { return { statusCode: res.statusCode }; },
   },
 }));
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
