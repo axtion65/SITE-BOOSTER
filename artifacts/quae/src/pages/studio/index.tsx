@@ -189,6 +189,8 @@ function Wizard() {
 
   const updateScene = (idx: number, field: "description" | "visualDirection", value: string) => {
     setScriptEdited(true);
+    // Manual edits clear the undo history for this scene
+    setSceneHistory(prev => { const next = { ...prev }; delete next[idx]; return next; });
     setExpandedScript(prev => {
       if (!prev) return prev;
       const scenes = prev.scenes.map((s, i) => i === idx ? { ...s, [field]: value } : s);
@@ -199,6 +201,11 @@ function Wizard() {
   const handleRegenerateScene = async (idx: number) => {
     if (!expandedScript) return;
     const scene = expandedScript.scenes[idx];
+    // Save current version to undo history before regenerating
+    setSceneHistory(prev => ({
+      ...prev,
+      [idx]: { description: scene.description, visualDirection: scene.visualDirection },
+    }));
     setRegeneratingIdx(idx);
     setShowHintFor(null);
     try {
@@ -230,6 +237,8 @@ function Wizard() {
       // Clear hint after successful regeneration
       setSceneHints(prev => { const next = { ...prev }; delete next[idx]; return next; });
     } catch (err: any) {
+      // Clear history if regeneration failed — nothing changed
+      setSceneHistory(prev => { const next = { ...prev }; delete next[idx]; return next; });
       toast({
         title: "Regeneration failed",
         description: err.message || "Could not regenerate scene. Please try again.",
@@ -270,6 +279,8 @@ function Wizard() {
   const [regeneratingIdx, setRegeneratingIdx] = useState<number | null>(null);
   const [showHintFor, setShowHintFor] = useState<number | null>(null);
   const [sceneHints, setSceneHints] = useState<Record<number, string>>({});
+  // One-step undo history per scene — stores the pre-regeneration text
+  const [sceneHistory, setSceneHistory] = useState<Record<number, { description: string; visualDirection: string }>>({});
 
   const { data: models, isLoading: modelsLoading } = useListRenderingModels();
   const expandMutation = useExpandPrompt();
@@ -796,26 +807,51 @@ function Wizard() {
                         {/* Scene header row */}
                         <div className="flex items-center justify-between">
                           <div className="text-sm font-semibold text-white">Scene {scene.sceneNumber}</div>
-                          {/* Regenerate button */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isHintOpen) {
-                                setShowHintFor(null);
-                              } else {
-                                setShowHintFor(idx);
+                          <div className="flex items-center gap-1">
+                            {/* Undo button — visible only after a successful regeneration */}
+                            {sceneHistory[idx] && !isRegenerating && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const prev = sceneHistory[idx];
+                                  setExpandedScript(s => {
+                                    if (!s) return s;
+                                    const scenes = s.scenes.map((sc, i) =>
+                                      i === idx ? { ...sc, description: prev.description, visualDirection: prev.visualDirection } : sc
+                                    );
+                                    return { ...s, scenes };
+                                  });
+                                  setSceneHistory(h => { const next = { ...h }; delete next[idx]; return next; });
+                                  setScriptEdited(true);
+                                }}
+                                title="Undo regeneration — restore previous version"
+                                className="flex items-center gap-1.5 text-xs text-amber-400/80 hover:text-amber-300 transition-colors px-2 py-1 rounded-lg hover:bg-amber-400/10"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                                <span>Undo</span>
+                              </button>
+                            )}
+                            {/* Regenerate button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isHintOpen) {
+                                  setShowHintFor(null);
+                                } else {
+                                  setShowHintFor(idx);
+                                }
+                              }}
+                              disabled={isRegenerating || regeneratingIdx !== null}
+                              title="Regenerate this scene with AI"
+                              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded-lg hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {isRegenerating
+                                ? <Spinner className="h-3 w-3" />
+                                : <Wand2 className="h-3 w-3" />
                               }
-                            }}
-                            disabled={isRegenerating || regeneratingIdx !== null}
-                            title="Regenerate this scene with AI"
-                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded-lg hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            {isRegenerating
-                              ? <Spinner className="h-3 w-3" />
-                              : <Wand2 className="h-3 w-3" />
-                            }
-                            <span>{isRegenerating ? "Regenerating…" : "Regenerate"}</span>
-                          </button>
+                              <span>{isRegenerating ? "Regenerating…" : "Regenerate"}</span>
+                            </button>
+                          </div>
                         </div>
 
                         {/* Inline hint input */}
