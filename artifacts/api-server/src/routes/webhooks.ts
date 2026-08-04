@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, projectsTable, usersTable } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import { MODEL_CREDIT_COSTS } from "../lib/falvideo";
+import { MODEL_CREDIT_COSTS, extractFalRequestId } from "../lib/falvideo";
 
 const router = Router();
 
@@ -54,14 +54,17 @@ router.post("/webhooks/fal", async (req, res) => {
 
   console.log(`[webhook/fal] ${requestId} status=${payload.status}`);
 
-  // Find the project whose token ends with this requestId
+  // Find the project whose token contains this requestId.
+  // Supports both token formats:
+  //   v1 (legacy): "fal:<modelPath>:<requestId>"
+  //   v2:          "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
   const allProcessing = await db
     .select()
     .from(projectsTable)
     .where(eq(projectsTable.status, "processing"));
 
   const project = allProcessing.find(
-    (p) => p.thumbnailUrl && p.thumbnailUrl.endsWith(`:${requestId}`)
+    (p) => p.thumbnailUrl && extractFalRequestId(p.thumbnailUrl) === requestId
   );
 
   if (!project) {
@@ -155,7 +158,7 @@ router.post("/webhooks/fal", async (req, res) => {
           if (voiceoverText) {
             try {
               const { generateSpeechBuffer } = await import("../lib/tts");
-              const audioBuffer = await generateSpeechBuffer(voiceoverText);
+              const audioBuffer = await generateSpeechBuffer(voiceoverText, project.voiceId);
               if (audioBuffer) {
                 const { addNarrationToVideo } = await import("../lib/videoNarrate");
                 const narratedBuffer = await addNarrationToVideo(falUrl, audioBuffer);

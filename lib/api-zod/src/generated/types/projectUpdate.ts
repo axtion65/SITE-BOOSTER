@@ -21,4 +21,6 @@ export interface ProjectUpdate {
   /** @nullable */
   duration?: string | null;
   status?: ProjectUpdateStatus;
+  /** @nullable */
+  voiceId?: string | null;
 }

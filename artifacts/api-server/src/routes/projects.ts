@@ -39,6 +39,7 @@ interface ArchiveJobContext {
   creditCost: number;
   isAdmin: boolean;
   voiceoverText?: string | null;
+  voiceId?: string | null;
 }
 
 /**
@@ -58,7 +59,7 @@ interface ArchiveJobContext {
  * Non-blocking — caller does not await this.
  */
 function archiveVideoAsync(ctx: ArchiveJobContext) {
-  const { projectId, falUrl, userId, projectTitle, creditCost, isAdmin, voiceoverText } = ctx;
+  const { projectId, falUrl, userId, projectTitle, creditCost, isAdmin, voiceoverText, voiceId } = ctx;
   setImmediate(async () => {
     let permanentPath: string;
     try {
@@ -85,7 +86,7 @@ function archiveVideoAsync(ctx: ArchiveJobContext) {
       if (voiceoverText) {
         try {
           const { generateSpeechBuffer } = await import("../lib/tts");
-          const audioBuffer = await generateSpeechBuffer(voiceoverText);
+          const audioBuffer = await generateSpeechBuffer(voiceoverText, voiceId);
 
           if (audioBuffer) {
             const { addNarrationToVideo } = await import("../lib/videoNarrate");
@@ -281,6 +282,7 @@ router.post("/projects", async (req, res) => {
     duration: parsed.data.duration ?? null,
     templateId: parsed.data.templateId ?? null,
     productImageUrl: parsed.data.productImageUrl ?? null,
+    voiceId: parsed.data.voiceId ?? null,
     status: "processing",
   }).returning();
 
@@ -355,6 +357,7 @@ router.get("/projects/:id", async (req, res) => {
             creditCost,
             isAdmin: owner?.isAdmin ?? false,
             voiceoverText,
+            voiceId: project.voiceId,
           });
           // Return current row — status is still "processing"; client keeps polling
           res.json({ ...updated[0], createdAt: updated[0].createdAt.toISOString(), updatedAt: updated[0].updatedAt.toISOString() });
@@ -449,6 +452,7 @@ router.patch("/projects/:id", async (req, res) => {
   if (parsed.data.platform !== undefined) updates.platform = parsed.data.platform;
   if (parsed.data.duration !== undefined) updates.duration = parsed.data.duration;
   if (parsed.data.status !== undefined) updates.status = parsed.data.status;
+  if (parsed.data.voiceId !== undefined) updates.voiceId = parsed.data.voiceId;
 
   const [project] = await db.update(projectsTable).set(updates).where(eq(projectsTable.id, req.params.id)).returning();
   res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });

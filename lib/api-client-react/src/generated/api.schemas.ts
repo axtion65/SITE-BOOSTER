@@ -218,6 +218,8 @@ export interface ProjectInput {
   templateId?: string | null;
   /** @nullable */
   productImageUrl?: string | null;
+  /** @nullable */
+  voiceId?: string | null;
 }
 
 export type ProjectUpdateStatus = typeof ProjectUpdateStatus[keyof typeof ProjectUpdateStatus];
@@ -245,6 +247,8 @@ export interface ProjectUpdate {
   /** @nullable */
   duration?: string | null;
   status?: ProjectUpdateStatus;
+  /** @nullable */
+  voiceId?: string | null;
 }
 
 export type ProjectStatsByStatus = {

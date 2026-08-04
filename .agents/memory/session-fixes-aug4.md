@@ -36,18 +36,11 @@ These are DONE. Do not re-fix them. If the user reports them still broken on qua
 - **File:** `artifacts/api-server/src/lib/email.ts`
 - **Fix:** `from` set to `noreply@quae.ai` (Resend domain verified). Emails now send from the quae.ai domain.
 
-### 7. Broadcast email sent to all 4 users
-- Sent manually to: axtion65@gmail.com, toioy27@gmail.com, jjkn2727@gmail.com, mgmarku123@outlook.com
-- Subject: "🎬 Quae.ai is live — create your first AI video ad"
+### 7. Broadcast email sent to all registered users
+- Sent manually to all users at the time.
 - No further action needed.
 
 ## What still needs to happen
 - **User must Publish** — all of the above are in dev only. quae.ai runs the old code until published.
 - After publish: user should delete stuck Kling project and create new one with Wan 2.5 or LTX.
 - After publish: the next page refresh on any stuck "processing" project will auto-fail it (poll fix).
-
-## User context
-- Admin account: axtion65@gmail.com — 150 credits, agency plan, is_admin=true
-- Admin renders are FREE (credits never deducted)
-- User has NOT successfully created a video yet as of Aug 4 session end
-- Completed videos exist for other users (Sims4 Mod Manager Ad — LTX, 4 min, toioy27@gmail.com)

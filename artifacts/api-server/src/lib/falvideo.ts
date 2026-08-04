@@ -439,5 +439,25 @@ export async function pollFalVideoRender(
 }
 
 export function isFalToken(value: string | null): boolean {
-  return typeof value === 'string' && value.startsWith('fal:');
+  return typeof value === 'string' && (value.startsWith('fal:') || value.startsWith('fal2:'));
+}
+
+/**
+ * Extract the fal.ai request_id from either token format:
+ *   v1 (legacy): "fal:<modelPath>:<requestId>"
+ *   v2:          "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
+ * Returns null for unrecognised tokens.
+ */
+export function extractFalRequestId(token: string): string | null {
+  if (token.startsWith('fal2:')) {
+    // "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
+    const afterPrefix = token.slice('fal2:'.length);
+    return afterPrefix.split('|||')[0] ?? null;
+  }
+  if (token.startsWith('fal:')) {
+    // "fal:<modelPath>:<requestId>"
+    const parts = token.split(':');
+    return parts[parts.length - 1] ?? null;
+  }
+  return null;
 }

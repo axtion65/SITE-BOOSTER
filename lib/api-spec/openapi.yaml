@@ -822,6 +822,8 @@ components:
           type: ["string", "null"]
         productImageUrl:
           type: ["string", "null"]
+        voiceId:
+          type: ["string", "null"]
 
     ProjectUpdate:
       type: object
@@ -843,6 +845,8 @@ components:
         status:
           type: string
           enum: [draft, processing, narrating, completed, failed]
+        voiceId:
+          type: ["string", "null"]
 
     ProjectStats:
       type: object

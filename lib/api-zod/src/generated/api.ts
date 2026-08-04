@@ -290,7 +290,8 @@ export const CreateProjectBody = zod.object({
   "platform": zod.string().nullish(),
   "duration": zod.string().nullish(),
   "templateId": zod.string().nullish(),
-  "productImageUrl": zod.string().nullish()
+  "productImageUrl": zod.string().nullish(),
+  "voiceId": zod.string().nullish()
 })
 
 export const CreateProjectResponse = zod.object({
@@ -355,7 +356,8 @@ export const UpdateProjectBody = zod.object({
   "expandedScript": zod.string().nullish(),
   "platform": zod.string().nullish(),
   "duration": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']).optional()
+  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']).optional(),
+  "voiceId": zod.string().nullish()
 })
 
 export const UpdateProjectResponse = zod.object({

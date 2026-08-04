@@ -8,6 +8,9 @@ import { pool } from "@workspace/db";
 // Ensures email_queue exists even in fresh deployments with no prior migration.
 async function runStartupMigrations() {
   await pool.query(`
+    ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS voice_id TEXT;
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS email_queue (
       id TEXT PRIMARY KEY,
       "to" TEXT NOT NULL,

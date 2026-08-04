@@ -22,6 +22,7 @@ const STORAGE_KEY = "quae_studio_draft";
 interface StudioDraft {
   step: number;
   modelId: string;
+  voiceId: string;
   productName: string;
   description: string;
   targetAudience: string;
@@ -145,6 +146,7 @@ function Wizard() {
 
   const [step, setStep] = useState(savedDraft?.step ?? 1);
   const [modelId, setModelId] = useState<string>(savedDraft?.modelId ?? "wan");
+  const [voiceId, setVoiceId] = useState<string>(savedDraft?.voiceId ?? "alloy");
 
   // Step 1 State
   const [productName, setProductName] = useState(savedDraft?.productName ?? "");
@@ -338,6 +340,7 @@ function Wizard() {
     saveDraft({
       step,
       modelId,
+      voiceId,
       productName,
       description,
       targetAudience,
@@ -353,7 +356,7 @@ function Wizard() {
       templateStructure,
     });
   }, [
-    step, modelId, productName, description, targetAudience, platform, duration,
+    step, modelId, voiceId, productName, description, targetAudience, platform, duration,
     productImageUrl, productImageFileName, expandedScript,
     templateId, templateType, templateName, templateExampleHook, templateStructure,
   ]);
@@ -462,6 +465,7 @@ function Wizard() {
           duration,
           templateId: templateId ?? null,
           productImageUrl: productImageUrl ?? null,
+          voiceId: voiceId ?? "alloy",
         }
       });
       // Clear the saved draft — render has started, work is done
@@ -1088,6 +1092,46 @@ function Wizard() {
                   </div>
                 </div>
               )}
+
+              {/* Voice picker */}
+              {(() => {
+                const voices: { id: string; label: string; description: string }[] = [
+                  { id: "alloy", label: "Alloy", description: "Neutral & clear" },
+                  { id: "echo", label: "Echo", description: "Warm & deep" },
+                  { id: "fable", label: "Fable", description: "Expressive & storytelling" },
+                  { id: "onyx", label: "Onyx", description: "Rich & authoritative" },
+                  { id: "nova", label: "Nova", description: "Energetic & bright" },
+                  { id: "shimmer", label: "Shimmer", description: "Soft & friendly" },
+                ];
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-white">Narrator Voice</span>
+                      <span className="text-xs text-muted-foreground">— choose the voice for your ad's voiceover</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {voices.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setVoiceId(v.id)}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            voiceId === v.id
+                              ? "border-primary bg-primary/10 shadow-sm shadow-primary/20"
+                              : "border-border bg-card hover:border-white/20 hover:bg-white/5"
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            {voiceId === v.id && <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                            <span className={`text-sm font-semibold ${voiceId === v.id ? "text-primary" : "text-white"}`}>{v.label}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{v.description}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <Button size="lg" className="w-full h-14 text-lg font-bold" onClick={() => setStep(4)} disabled={!modelId}>
                 Confirm Model <ChevronRight className="ml-2 h-5 w-5" />

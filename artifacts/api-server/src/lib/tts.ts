@@ -7,7 +7,17 @@
  * fall back to delivering the video without audio rather than surfacing errors.
  */
 
-export async function generateSpeechBuffer(text: string): Promise<Buffer | null> {
+const VALID_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
+type TtsVoice = typeof VALID_VOICES[number];
+
+function resolveVoice(voice: string | null | undefined): TtsVoice {
+  if (voice && (VALID_VOICES as readonly string[]).includes(voice)) {
+    return voice as TtsVoice;
+  }
+  return "alloy";
+}
+
+export async function generateSpeechBuffer(text: string, voice?: string | null): Promise<Buffer | null> {
   const openaiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   const openaiBase = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
 
@@ -30,7 +40,7 @@ export async function generateSpeechBuffer(text: string): Promise<Buffer | null>
       body: JSON.stringify({
         model: 'tts-1',
         input,
-        voice: 'alloy',
+        voice: resolveVoice(voice),
         response_format: 'mp3',
       }),
       signal: AbortSignal.timeout(60_000),

@@ -122,6 +122,7 @@ export default function CreateScreen() {
   const [platform, setPlatform] = useState('');
   const [expandedScript, setExpandedScript] = useState<ExpandedScript | null>(null);
   const [selectedModel, setSelectedModel] = useState<RenderingModel | null>(null);
+  const [voiceId, setVoiceId] = useState('alloy');
   const [scriptError, setScriptError] = useState('');
 
   // Product image state
@@ -154,6 +155,7 @@ export default function CreateScreen() {
             platform?: string;
             expandedScript?: ExpandedScript;
             selectedModel?: RenderingModel;
+            voiceId?: string;
             productImageUrl?: string;
           };
           // Never restore mid-render state
@@ -165,6 +167,7 @@ export default function CreateScreen() {
           if (draft.platform) setPlatform(draft.platform);
           if (draft.expandedScript) setExpandedScript(draft.expandedScript);
           if (draft.selectedModel) setSelectedModel(draft.selectedModel);
+          if (draft.voiceId) setVoiceId(draft.voiceId);
           if (draft.productImageUrl) {
             setProductImageUrl(draft.productImageUrl);
             // Use the served URL as the image preview (local URI is no longer valid)
@@ -197,10 +200,11 @@ export default function CreateScreen() {
       platform,
       expandedScript,
       selectedModel,
+      voiceId,
       productImageUrl,
     };
     AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(draft)).catch(() => {/* ignore */});
-  }, [step, selectedTemplate, productName, description, platform, expandedScript, selectedModel, productImageUrl]);
+  }, [step, selectedTemplate, productName, description, platform, expandedScript, selectedModel, voiceId, productImageUrl]);
 
   const clearDraft = useCallback(() => {
     AsyncStorage.removeItem(DRAFT_KEY).catch(() => {/* ignore */});
@@ -428,6 +432,7 @@ export default function CreateScreen() {
           duration: selectedTemplate?.duration ?? null,
           templateId: selectedTemplate?.id ?? null,
           productImageUrl: productImageUrl ?? null,
+          voiceId: voiceId || 'alloy',
         },
       });
       void queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
@@ -443,6 +448,7 @@ export default function CreateScreen() {
         setPlatform('');
         setExpandedScript(null);
         setSelectedModel(null);
+        setVoiceId('alloy');
         setProductImageUrl(null);
         setImagePreviewUri(null);
         setImageError('');
@@ -553,6 +559,8 @@ export default function CreateScreen() {
             hasProductImage={!!productImageUrl}
             onSelect={handleModelSelect}
             onRender={handleRender}
+            voiceId={voiceId}
+            onVoiceChange={setVoiceId}
             error={scriptError}
             colors={colors}
             styles={styles}
@@ -952,8 +960,17 @@ function ScriptStep({
   );
 }
 
+const VOICE_OPTIONS: { id: string; label: string; description: string }[] = [
+  { id: 'alloy', label: 'Alloy', description: 'Neutral & clear' },
+  { id: 'echo', label: 'Echo', description: 'Warm & deep' },
+  { id: 'fable', label: 'Fable', description: 'Expressive & storytelling' },
+  { id: 'onyx', label: 'Onyx', description: 'Rich & authoritative' },
+  { id: 'nova', label: 'Nova', description: 'Energetic & bright' },
+  { id: 'shimmer', label: 'Shimmer', description: 'Soft & friendly' },
+];
+
 function ModelStep({
-  models, loading, selected, hasProductImage, onSelect, onRender, error, colors, styles,
+  models, loading, selected, hasProductImage, onSelect, onRender, voiceId, onVoiceChange, error, colors, styles,
 }: {
   models: RenderingModel[];
   loading: boolean;
@@ -961,6 +978,8 @@ function ModelStep({
   hasProductImage: boolean;
   onSelect: (m: RenderingModel) => void;
   onRender: () => void;
+  voiceId: string;
+  onVoiceChange: (v: string) => void;
   error: string;
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
@@ -1041,6 +1060,42 @@ function ModelStep({
             </Pressable>
           );
         })}
+      </View>
+
+      {/* Voice picker */}
+      <View style={{ marginBottom: 24 }}>
+        <Text style={[styles.label, { color: colors.mutedForeground, marginBottom: 10 }]}>
+          Narrator Voice
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {VOICE_OPTIONS.map((v) => {
+            const isSelected = voiceId === v.id;
+            return (
+              <Pressable
+                key={v.id}
+                onPress={() => onVoiceChange(v.id)}
+                style={[
+                  {
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: isSelected ? colors.primary : colors.border,
+                    backgroundColor: isSelected ? `${colors.primary}18` : colors.card,
+                    minWidth: '45%',
+                  },
+                ]}
+              >
+                <Text style={{ color: isSelected ? colors.primary : colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
+                  {v.label}
+                </Text>
+                <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }}>
+                  {v.description}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
       <Pressable

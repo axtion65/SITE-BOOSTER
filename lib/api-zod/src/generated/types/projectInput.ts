@@ -23,4 +23,6 @@ export interface ProjectInput {
   templateId?: string | null;
   /** @nullable */
   productImageUrl?: string | null;
+  /** @nullable */
+  voiceId?: string | null;
 }
