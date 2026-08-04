@@ -151,7 +151,7 @@ function Wizard() {
   const [description, setDescription] = useState(savedDraft?.description ?? "");
   const [targetAudience, setTargetAudience] = useState(savedDraft?.targetAudience ?? "");
   const [platform, setPlatform] = useState(savedDraft?.platform ?? "tiktok");
-  const [duration, setDuration] = useState(savedDraft?.duration ?? "15s");
+  const [duration, setDuration] = useState(savedDraft?.duration ?? "10s");
 
   // Product image state
   // productImageUrl: GCS serving URL stored in DB and draft (short path, no bloat)
@@ -749,9 +749,8 @@ function Wizard() {
                     <Select value={duration} onValueChange={setDuration}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="15s">15 Seconds</SelectItem>
-                        <SelectItem value="30s">30 Seconds</SelectItem>
-                        <SelectItem value="60s">60 Seconds</SelectItem>
+                        <SelectItem value="5s">5 Seconds</SelectItem>
+                        <SelectItem value="10s">10 Seconds</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
