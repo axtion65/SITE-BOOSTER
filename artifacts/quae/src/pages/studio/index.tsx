@@ -40,7 +40,7 @@ interface StudioDraft {
 
 function loadDraft(): StudioDraft | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as any;
     // Migrate old base64 drafts — drop the data URL, keep the filename
@@ -63,7 +63,7 @@ function loadDraft(): StudioDraft | null {
 
 function saveDraft(draft: StudioDraft) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
   } catch {
     // silently ignore if storage is unavailable
   }
@@ -115,7 +115,7 @@ async function uploadImageToStorage(file: File): Promise<string> {
 }
 function clearDraft() {
   try {
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
   } catch {
     // ignore
   }
