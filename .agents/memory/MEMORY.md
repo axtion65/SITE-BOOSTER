@@ -4,4 +4,5 @@
 - [Seed products](seed-products.md) — seed script needs deployment credentials; run post-deploy
 - [fal.ai image upload blocked in production](fal-image-upload.md) — storage.fal.run unreachable from Replit prod; use signed GCS URLs instead
 - [Script duration cap by model](script-duration-cap.md) — script generation must cap duration to model's hard max; pass renderingModelId to expand-prompt
-- [Kling queue reliability](kling-reliability.md) — Kling jobs can die silently on fal.ai with no webhook; 405 on status poll = job gone
+- [Kling queue reliability](kling-reliability.md) — Kling jobs can die silently on fal.ai; 405 on status poll = job gone, treat as failed not processing
+- [Session fixes — all in dev, need publish](session-fixes-aug4.md) — full list of Aug 4 fixes waiting to ship; do NOT re-fix these
