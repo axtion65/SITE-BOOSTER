@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -13,7 +14,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
-import { useGetProject } from '@workspace/api-client-react';
+import { useGetProject, customFetch, getGetProjectQueryKey } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { usePrivateImageUrl } from '@/hooks/usePrivateImageUrl';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: '#a1a1aa',
@@ -33,6 +36,7 @@ export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
 
   const { data: project, isLoading, refetch, error } = useGetProject(id ?? '');
 
@@ -50,16 +54,53 @@ export default function ProjectDetailScreen() {
 
   const statusColor = STATUS_COLORS[project?.status ?? 'draft'];
 
+  // Resolve the video URL: if the server returned a /api/storage/objects/ path
+  // (fallback when signed-URL generation failed), resolve it client-side with
+  // automatic refresh before expiry. For already-signed https:// URLs this is
+  // a no-op pass-through.
+  const resolvedVideoUrl = usePrivateImageUrl(project?.videoUrl);
+
   const openVideo = async () => {
-    if (!project?.videoUrl) return;
-    const url = project.videoUrl;
-    if (url.startsWith('http')) {
-      await Linking.openURL(url);
+    if (!resolvedVideoUrl) return;
+    if (resolvedVideoUrl.startsWith('http')) {
+      await Linking.openURL(resolvedVideoUrl);
     }
   };
 
-  const hasRealVideoUrl = project?.videoUrl && project.videoUrl.startsWith('http');
-  const hasRealThumbnail = project?.thumbnailUrl && project.thumbnailUrl.startsWith('http');
+  // A "real" video URL is one that has resolved to an https:// link.
+  const hasRealVideoUrl = Boolean(resolvedVideoUrl && resolvedVideoUrl.startsWith('http'));
+
+  // Re-render state
+  const [isRerendering, setIsRerendering] = useState(false);
+
+  const handleRerender = async () => {
+    if (!id || isRerendering) return;
+    Alert.alert(
+      'Re-render video',
+      'This will use credits and start a new render. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Re-render',
+          onPress: async () => {
+            setIsRerendering(true);
+            try {
+              await customFetch(`/api/projects/${id}/rerender`, { method: 'POST' });
+              // Invalidate so the detail screen refreshes immediately
+              await queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(id) });
+              await refetch();
+            } catch (err: unknown) {
+              const message =
+                err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+              Alert.alert('Re-render failed', message);
+            } finally {
+              setIsRerendering(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   type ParsedScript = { hook?: string; callToAction?: string; scenes?: unknown[] };
   let parsedScript: ParsedScript | null = null;
@@ -146,37 +187,48 @@ export default function ProjectDetailScreen() {
 
           {project.status === 'completed' && (
             <View style={[styles.videoSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {hasRealThumbnail ? null : (
-                <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.secondary }]}>
-                  <Feather name="play-circle" size={48} color={colors.primary} />
-                </View>
-              )}
+              <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.secondary }]}>
+                <Feather name="play-circle" size={48} color={colors.primary} />
+              </View>
               <View style={styles.videoActions}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.watchBtn,
-                    {
-                      backgroundColor: hasRealVideoUrl ? colors.primary : colors.secondary,
-                      opacity: pressed ? 0.8 : 1,
-                    },
-                  ]}
-                  onPress={openVideo}
-                  disabled={!hasRealVideoUrl}
-                >
-                  <Feather
-                    name="play"
-                    size={18}
-                    color={hasRealVideoUrl ? colors.primaryForeground : colors.mutedForeground}
-                  />
-                  <Text
-                    style={[
-                      styles.watchBtnText,
-                      { color: hasRealVideoUrl ? colors.primaryForeground : colors.mutedForeground },
+                {hasRealVideoUrl ? (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.watchBtn,
+                      { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
                     ]}
+                    onPress={openVideo}
                   >
-                    {hasRealVideoUrl ? 'Watch Video' : 'Video Processing'}
-                  </Text>
-                </Pressable>
+                    <Feather name="play" size={18} color={colors.primaryForeground} />
+                    <Text style={[styles.watchBtnText, { color: colors.primaryForeground }]}>
+                      Watch Video
+                    </Text>
+                  </Pressable>
+                ) : (
+                  // Video URL not yet resolved — either still signing or expired
+                  <View style={styles.brokenVideoState}>
+                    <Text style={[styles.brokenVideoText, { color: colors.mutedForeground }]}>
+                      Video link is unavailable. Re-render to get a fresh copy.
+                    </Text>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.rerenderBtn,
+                        { borderColor: colors.border, opacity: pressed || isRerendering ? 0.6 : 1 },
+                      ]}
+                      onPress={handleRerender}
+                      disabled={isRerendering}
+                    >
+                      {isRerendering ? (
+                        <ActivityIndicator size="small" color={colors.foreground} />
+                      ) : (
+                        <Feather name="refresh-cw" size={15} color={colors.foreground} />
+                      )}
+                      <Text style={[styles.rerenderBtnText, { color: colors.foreground }]}>
+                        {isRerendering ? 'Starting…' : 'Re-render'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
             </View>
           )}
@@ -186,8 +238,25 @@ export default function ProjectDetailScreen() {
               <Feather name="alert-circle" size={24} color={colors.destructive} />
               <Text style={[styles.failedTitle, { color: colors.destructive }]}>Render Failed</Text>
               <Text style={[styles.failedText, { color: colors.mutedForeground }]}>
-                Something went wrong during rendering. Please try creating a new video.
+                Something went wrong during rendering.
               </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.rerenderBtn,
+                  { borderColor: colors.border, opacity: pressed || isRerendering ? 0.6 : 1, marginTop: 4 },
+                ]}
+                onPress={handleRerender}
+                disabled={isRerendering}
+              >
+                {isRerendering ? (
+                  <ActivityIndicator size="small" color={colors.foreground} />
+                ) : (
+                  <Feather name="refresh-cw" size={15} color={colors.foreground} />
+                )}
+                <Text style={[styles.rerenderBtnText, { color: colors.foreground }]}>
+                  {isRerendering ? 'Starting…' : 'Try Again'}
+                </Text>
+              </Pressable>
             </View>
           )}
 
@@ -290,12 +359,19 @@ const styles = StyleSheet.create({
     gap: 8, height: 50, borderRadius: 12,
   },
   watchBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  brokenVideoState: { gap: 12, alignItems: 'center' },
+  brokenVideoText: { fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', lineHeight: 20 },
   failedCard: {
     borderRadius: 16, borderWidth: 1, padding: 24,
     alignItems: 'center', gap: 8,
   },
   failedTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
   failedText: { fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  rerenderBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, height: 44, paddingHorizontal: 20, borderRadius: 12, borderWidth: 1,
+  },
+  rerenderBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   scriptCard: {
     borderRadius: 16, borderWidth: 1, padding: 16, gap: 14,
   },
