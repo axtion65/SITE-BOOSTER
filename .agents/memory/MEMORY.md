@@ -2,3 +2,6 @@
 - [fal.ai video token format](falvideo-token.md) — render tokens stored as `fal:<modelPath>:<requestId>` in thumbnailUrl column
 - [Credit system](credit-system.md) — model costs, plan allocations, and billing sync approach
 - [Seed products](seed-products.md) — seed script needs deployment credentials; run post-deploy
+- [fal.ai image upload blocked in production](fal-image-upload.md) — storage.fal.run unreachable from Replit prod; use signed GCS URLs instead
+- [Script duration cap by model](script-duration-cap.md) — script generation must cap duration to model's hard max; pass renderingModelId to expand-prompt
+- [Kling queue reliability](kling-reliability.md) — Kling jobs can die silently on fal.ai with no webhook; 405 on status poll = job gone
