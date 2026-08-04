@@ -1,17 +1,29 @@
 ---
-name: Kling queue reliability
-description: Kling jobs can die silently on fal.ai with no webhook callback; status poll returns 405 when the job is gone
+name: fal.ai poll race condition — 15s hold-off required
+description: fal.ai returns 405 on status poll if called within ~15s of submission. Root cause of all render failures on Aug 4.
 ---
 
-# Kling queue reliability
+# fal.ai Poll Race Condition
 
 ## The rule
-Do not rely on Kling completing within the normal render window. When a status poll returns 405, the job no longer exists on fal.ai — treat it as failed and mark the project accordingly.
+Never poll `queue.fal.run/{model}/requests/{id}/status` within 15 seconds of submission. fal.ai needs time to register the job in their queue; polling too early returns 405.
 
-**Why:** Observed in production: Kling image-to-video job ran for 30+ minutes then returned 405 on status poll. fal.ai's Kling model backs up at peak hours and jobs can expire in the queue without firing a webhook.
+**Why:** Submission to `queue.fal.run` is non-blocking — fal.ai returns a request_id before the job is actually registered in the queue backend. The status endpoint 405s until the job is registered (~15s).
 
-**How to apply:**
-- Task #35 (merged) adds stuck-render auto-recovery — projects stuck in "processing" for too long are auto-cancelled and credits refunded
-- For users: recommend LTX (~60s) or Wan (~3 min) over Kling for reliability; Kling is premium quality but unpredictable queue times
-- When polling returns a non-200 (especially 405), treat as failed rather than "still processing"
-- Production polling endpoint: `GET https://queue.fal.run/{modelPath}/requests/{requestId}/status?logs=0`
+**How to apply:** In `artifacts/api-server/src/routes/projects.ts`, the GET /projects/:id route checks `(Date.now() - project.updatedAt) / 1000 < 15` and skips the fal.ai poll entirely, returning current DB state. The `updatedAt` is set when the fal token is stored.
+
+## Symptoms
+- Job submission succeeds (returns request_id in < 1s)
+- First status poll returns HTTP 405 immediately (~700ms after submission)
+- Project marked failed; user sees "Render failed"
+- Affects ALL models (Kling, Wan, Ovi) — any model that takes >1s to queue
+
+## What does NOT cause this
+- Wrong model path (submission succeeds, so the path is valid)
+- Wrong FAL_KEY (submission would fail if key was wrong)
+- fal.ai outage (would fail submission too)
+- The `?logs=0` parameter (not the cause)
+
+## Related
+- Old fix (still valid): 404/405 on poll AFTER 15s = job genuinely gone → mark failed
+- Wan 2.5 and Kling both confirmed affected; LTX not confirmed (may also be affected)

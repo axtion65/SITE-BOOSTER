@@ -362,12 +362,15 @@ export async function pollFalVideoRender(
   );
 
   if (!statusRes.ok) {
+    const body = await statusRes.text().catch(() => '(unreadable)');
     // 404/405 = job no longer exists on fal.ai (expired or never queued) → treat as failed
+    // NOTE: if this fires within 15s of submission it is a race condition —
+    // the 15s hold-off in projects.ts should prevent us from ever reaching here that early.
     if (statusRes.status === 404 || statusRes.status === 405) {
-      console.error(`[fal-video] Poll ${statusRes.status} — job gone on fal.ai, marking failed`);
+      console.error(`[fal-video] Poll ${statusRes.status} — job gone on fal.ai, marking failed. Body: ${body}`);
       return { status: 'failed' };
     }
-    console.error(`[fal-video] Poll error ${statusRes.status}`);
+    console.error(`[fal-video] Poll error ${statusRes.status}. Body: ${body}`);
     return { status: 'processing' };
   }
 

@@ -302,6 +302,13 @@ router.get("/projects/:id", async (req, res) => {
 
   const token = getFalToken(project);
   if (project.status === "processing" && token) {
+    // fal.ai needs ~15s to register a newly submitted job in their queue.
+    // Polling before that returns 405 and we incorrectly mark it failed.
+    const secsSinceSubmit = (Date.now() - project.updatedAt.getTime()) / 1000;
+    if (secsSinceSubmit < 15) {
+      res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
+      return;
+    }
     try {
       const poll = await pollFalVideoRender(token);
       if (poll.status === "done" && poll.url) {
