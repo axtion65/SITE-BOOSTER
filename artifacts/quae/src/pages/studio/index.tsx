@@ -144,7 +144,7 @@ function Wizard() {
   const savedDraft = hasTemplateParams ? null : loadDraft();
 
   const [step, setStep] = useState(savedDraft?.step ?? 1);
-  const [modelId, setModelId] = useState<string>(savedDraft?.modelId ?? "ovi");
+  const [modelId, setModelId] = useState<string>(savedDraft?.modelId ?? "wan");
 
   // Step 1 State
   const [productName, setProductName] = useState(savedDraft?.productName ?? "");
@@ -361,7 +361,7 @@ function Wizard() {
   const handleClearDraft = () => {
     clearDraft();
     setStep(1);
-    setModelId("ovi");
+    setModelId("wan");
     setProductName("");
     setDescription("");
     setTargetAudience("");
@@ -1186,11 +1186,11 @@ function Wizard() {
                   },
                   kling: {
                     label: "Kling 2.5",
-                    description: "Cinematic clips up to 10 sec with high detail and realistic movement. Premium quality output.",
+                    description: "Cinematic clips up to 10 sec with high detail and realistic movement. May queue at peak hours — use Wan 2.5 for reliability.",
                   },
                   "kling-1.6": {
                     label: "Kling 1.6",
-                    description: "Cinematic clips up to 10 sec with high detail and realistic movement. Premium quality output.",
+                    description: "Cinematic clips up to 10 sec with high detail and realistic movement. May queue at peak hours — use Wan 2.5 for reliability.",
                   },
                   veo3: {
                     label: "Veo 3",

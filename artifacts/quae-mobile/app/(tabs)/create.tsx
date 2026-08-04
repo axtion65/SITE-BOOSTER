@@ -178,6 +178,13 @@ export default function CreateScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-select Wan 2.5 as the default model when models load and nothing is chosen from a draft
+  useEffect(() => {
+    if (!models?.length || selectedModel) return;
+    const wan = models.find((m) => m.id === 'wan') ?? models[0];
+    if (wan) setSelectedModel(wan);
+  }, [models]);
+
   // Persist draft whenever relevant state changes
   useEffect(() => {
     // Don't snapshot the transient "creating" state
