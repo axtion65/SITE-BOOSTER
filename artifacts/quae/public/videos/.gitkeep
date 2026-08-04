@@ -1,3 +1,4 @@
-# Place hero-demo.mp4 and hero-demo-poster.jpg in this directory.
-# The HeroDemoVideo component in home.tsx will auto-play hero-demo.mp4 when present.
-# hero-demo-poster.jpg is used as a fallback on mobile if autoplay is blocked.
+# hero-demo.mp4 and hero-demo-poster.jpg are stored in object storage.
+# Serve via: /api/storage/public-objects/hero-demo.mp4
+#             /api/storage/public-objects/hero-demo-poster.jpg
+# To re-upload: pnpm --filter @workspace/api-server exec tsx scripts/upload-hero-assets.ts

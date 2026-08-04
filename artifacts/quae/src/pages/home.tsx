@@ -3,12 +3,60 @@ import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign, Sparkles, ChevronRight, Wand2, Film, ChevronDown } from "lucide-react";
 
+// ─── Hero demo video assets (served from object storage) ─────────────────────
+// Upload script: artifacts/api-server/scripts/upload-hero-assets.ts
+export const HERO_DEMO_VIDEO_URL = "/api/storage/public-objects/hero-demo.mp4";
+export const HERO_DEMO_POSTER_URL = "/api/storage/public-objects/hero-demo-poster.jpg";
+
+function HeroDemoVideo() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+
+  function handlePlay() {
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (vid.paused) {
+      vid.play();
+      setPlaying(true);
+    } else {
+      vid.pause();
+      setPlaying(false);
+    }
+  }
+
+  return (
+    <div className="relative rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl bg-black group cursor-pointer" onClick={handlePlay}>
+      <video
+        ref={videoRef}
+        src={HERO_DEMO_VIDEO_URL}
+        poster={HERO_DEMO_POSTER_URL}
+        muted
+        loop
+        playsInline
+        className="w-full aspect-video object-cover"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+      />
+      {/* Play/pause overlay */}
+      <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${playing ? "opacity-0 group-hover:opacity-100" : "opacity-100"}`}>
+        <div className="h-16 w-16 rounded-full bg-black/60 border border-white/20 backdrop-blur-md flex items-center justify-center shadow-2xl">
+          {playing
+            ? <div className="flex gap-1.5"><div className="w-[3px] h-5 bg-white rounded-full" /><div className="w-[3px] h-5 bg-white rounded-full" /></div>
+            : <Play className="h-6 w-6 text-white fill-white ml-1" />
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#050507] text-white flex flex-col">
       <Navbar />
       <main className="flex-1">
         <HeroSection />
+        <DemoVideoSection />
         <LogoBar />
         <TemplatesSection />
         <HowItWorksSection />
@@ -363,6 +411,19 @@ function HeroSection() {
           </motion.div>
 
         </div>
+      </div>
+    </section>
+  );
+}
+
+function DemoVideoSection() {
+  return (
+    <section className="pb-16 px-6">
+      <div className="max-w-4xl mx-auto">
+        <p className="text-center text-[11px] uppercase tracking-[0.2em] text-white/25 font-semibold mb-6">
+          See what a finished ad looks like
+        </p>
+        <HeroDemoVideo />
       </div>
     </section>
   );
