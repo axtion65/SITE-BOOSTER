@@ -25,11 +25,13 @@ app.post(
   }
 );
 
-app.use(pinoHttp({
+// pino-http v10 CJS default export isn't typed as callable under moduleResolution:bundler
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+app.use((pinoHttp as any)({
   logger,
   serializers: {
-    req(req) { return { id: req.id, method: req.method, url: req.url?.split("?")[0] }; },
-    res(res) { return { statusCode: res.statusCode }; },
+    req(req: any) { return { id: req.id, method: req.method, url: req.url?.split("?")[0] }; },
+    res(res: any) { return { statusCode: res.statusCode }; },
   },
 }));
 app.use(cors());
