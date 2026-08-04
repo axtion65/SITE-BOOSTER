@@ -204,6 +204,27 @@ export default function CreateScreen() {
   const stepIndex = STEPS.indexOf(step);
 
   const goBack = () => {
+    // Guard: confirm before discarding manually-edited scripts
+    if (step === 'script' && scriptEdited) {
+      Alert.alert(
+        'Discard script edits?',
+        'Going back will clear your edited script. You can regenerate it fresh from the previous step.',
+        [
+          { text: 'Keep editing', style: 'cancel' },
+          {
+            text: 'Discard & go back',
+            style: 'destructive',
+            onPress: () => {
+              setExpandedScript(null);
+              setScriptEdited(false);
+              setStep('describe');
+            },
+          },
+        ],
+        { cancelable: true },
+      );
+      return;
+    }
     const prev = STEPS[stepIndex - 1];
     if (prev) setStep(prev);
   };
@@ -256,6 +277,9 @@ export default function CreateScreen() {
     setImageError('');
   };
 
+  // Tracks whether the user has manually edited the generated script (scene regeneration)
+  const [scriptEdited, setScriptEdited] = useState(false);
+
   // Per-scene regeneration
   const [regeneratingSceneIndex, setRegeneratingSceneIndex] = useState<number | null>(null);
 
@@ -302,6 +326,7 @@ export default function CreateScreen() {
         );
         return { ...prev, scenes: newScenes };
       });
+      setScriptEdited(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Regeneration failed — please try again';
       Alert.alert('Regenerate Scene', msg);
@@ -313,6 +338,7 @@ export default function CreateScreen() {
   const handleDescribeContinue = async () => {
     if (!productName.trim()) return;
     setScriptError('');
+    setScriptEdited(false);
     setStep('script');
     try {
       const result = await expandPrompt({
