@@ -256,6 +256,60 @@ export default function CreateScreen() {
     setImageError('');
   };
 
+  // Per-scene regeneration
+  const [regeneratingSceneIndex, setRegeneratingSceneIndex] = useState<number | null>(null);
+
+  const handleRegenerateScene = useCallback(async (sceneIndex: number, hint: string) => {
+    if (!expandedScript) return;
+    const scene = expandedScript.scenes[sceneIndex];
+    if (!scene) return;
+
+    setRegeneratingSceneIndex(sceneIndex);
+    try {
+      const domain = process.env.EXPO_PUBLIC_DOMAIN;
+      const baseUrl = domain ? `https://${domain}/api` : '/api';
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const res = await fetch(`${baseUrl}/studio/regenerate-scene`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({
+          sceneNumber: scene.sceneNumber,
+          currentDescription: scene.description,
+          currentVisualDirection: scene.visualDirection,
+          totalScenes: expandedScript.scenes.length,
+          productName: productName.trim(),
+          description: description.trim(),
+          platform: platform || undefined,
+          duration: selectedTemplate?.duration ?? undefined,
+          templateName: selectedTemplate?.name ?? undefined,
+          hint: hint.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? 'Regeneration failed');
+      }
+
+      const updated = (await res.json()) as { description: string; visualDirection: string };
+      setExpandedScript((prev) => {
+        if (!prev) return prev;
+        const newScenes = prev.scenes.map((s, i) =>
+          i === sceneIndex
+            ? { ...s, description: updated.description, visualDirection: updated.visualDirection }
+            : s,
+        );
+        return { ...prev, scenes: newScenes };
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Regeneration failed — please try again';
+      Alert.alert('Regenerate Scene', msg);
+    } finally {
+      setRegeneratingSceneIndex(null);
+    }
+  }, [expandedScript, productName, description, platform, selectedTemplate, token]);
+
   const handleDescribeContinue = async () => {
     if (!productName.trim()) return;
     setScriptError('');
@@ -437,6 +491,8 @@ export default function CreateScreen() {
             error={scriptError}
             onRetry={handleDescribeContinue}
             onContinue={() => setStep('model')}
+            onRegenerateScene={handleRegenerateScene}
+            regeneratingSceneIndex={regeneratingSceneIndex}
             colors={colors}
             styles={styles}
           />
@@ -679,16 +735,36 @@ function DescribeStep({
 }
 
 function ScriptStep({
-  expanding, expandedScript, error, onRetry, onContinue, colors, styles,
+  expanding, expandedScript, error, onRetry, onContinue,
+  onRegenerateScene, regeneratingSceneIndex,
+  colors, styles,
 }: {
   expanding: boolean;
   expandedScript: ExpandedScript | null;
   error: string;
   onRetry: () => void;
   onContinue: () => void;
+  onRegenerateScene: (sceneIndex: number, hint: string) => Promise<void>;
+  regeneratingSceneIndex: number | null;
   colors: ReturnType<typeof useColors>;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  // Local state for the per-scene hint UX
+  const [expandedHintIndex, setExpandedHintIndex] = useState<number | null>(null);
+  const [hintMap, setHintMap] = useState<Record<number, string>>({});
+
+  const handleRegenTap = (sceneIndex: number) => {
+    void Haptics.selectionAsync();
+    setExpandedHintIndex((prev) => (prev === sceneIndex ? null : sceneIndex));
+  };
+
+  const handleConfirmRegen = async (sceneIndex: number) => {
+    const hint = hintMap[sceneIndex] ?? '';
+    setExpandedHintIndex(null);
+    setHintMap((prev) => { const next = { ...prev }; delete next[sceneIndex]; return next; });
+    await onRegenerateScene(sceneIndex, hint);
+  };
+
   if (expanding) {
     return (
       <View style={styles.centered}>
@@ -720,7 +796,7 @@ function ScriptStep({
   return (
     <ScrollView contentContainerStyle={styles.stepScroll} showsVerticalScrollIndicator={false}>
       <Text style={[styles.stepHint, { color: colors.mutedForeground }]}>
-        AI-generated script — review before rendering
+        AI-generated script — tap Regenerate on any scene to rewrite it
       </Text>
 
       <View style={[styles.scriptCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -731,19 +807,81 @@ function ScriptStep({
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        {expandedScript.scenes.map((scene) => (
-          <View key={scene.sceneNumber} style={styles.sceneRow}>
-            <View style={[styles.sceneBadge, { backgroundColor: `${colors.primary}20` }]}>
-              <Text style={[styles.sceneNum, { color: colors.primary }]}>{scene.sceneNumber}</Text>
+        {expandedScript.scenes.map((scene, sceneIndex) => {
+          const isRegenerating = regeneratingSceneIndex === sceneIndex;
+          const isHintOpen = expandedHintIndex === sceneIndex;
+          return (
+            <View key={scene.sceneNumber}>
+              <View style={styles.sceneRow}>
+                <View style={[styles.sceneBadge, { backgroundColor: `${colors.primary}20` }]}>
+                  {isRegenerating ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Text style={[styles.sceneNum, { color: colors.primary }]}>{scene.sceneNumber}</Text>
+                  )}
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[styles.sceneDesc, { color: isRegenerating ? colors.mutedForeground : colors.foreground }]}>
+                    {scene.description}
+                  </Text>
+                  <Text style={[styles.sceneDuration, { color: colors.mutedForeground }]}>
+                    {scene.duration} · {scene.visualDirection}
+                  </Text>
+                  {/* Regenerate button row */}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.regenBtn,
+                      { borderColor: colors.border, opacity: (pressed || isRegenerating) ? 0.6 : 1 },
+                    ]}
+                    onPress={() => handleRegenTap(sceneIndex)}
+                    disabled={isRegenerating || regeneratingSceneIndex !== null}
+                    hitSlop={6}
+                  >
+                    <Feather name="refresh-cw" size={11} color={colors.mutedForeground} />
+                    <Text style={[styles.regenBtnText, { color: colors.mutedForeground }]}>
+                      {isRegenerating ? 'Regenerating…' : 'Regenerate'}
+                    </Text>
+                  </Pressable>
+                  {/* Optional hint input, shown when this scene's regen is tapped */}
+                  {isHintOpen && !isRegenerating && (
+                    <View style={[styles.hintBox, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                      <TextInput
+                        style={[styles.hintInput, { color: colors.foreground, borderColor: colors.border }]}
+                        placeholder="Optional: guide the AI (e.g. 'more energetic')"
+                        placeholderTextColor={colors.mutedForeground}
+                        value={hintMap[sceneIndex] ?? ''}
+                        onChangeText={(v) => setHintMap((prev) => ({ ...prev, [sceneIndex]: v }))}
+                        returnKeyType="done"
+                        maxLength={200}
+                      />
+                      <View style={styles.hintActions}>
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.hintCancelBtn,
+                            { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                          ]}
+                          onPress={() => setExpandedHintIndex(null)}
+                        >
+                          <Text style={[styles.hintCancelText, { color: colors.mutedForeground }]}>Cancel</Text>
+                        </Pressable>
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.hintGoBtn,
+                            { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+                          ]}
+                          onPress={() => void handleConfirmRegen(sceneIndex)}
+                        >
+                          <Feather name="refresh-cw" size={13} color={colors.primaryForeground} />
+                          <Text style={[styles.hintGoText, { color: colors.primaryForeground }]}>Regenerate</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </View>
             </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[styles.sceneDesc, { color: colors.foreground }]}>{scene.description}</Text>
-              <Text style={[styles.sceneDuration, { color: colors.mutedForeground }]}>
-                {scene.duration} · {scene.visualDirection}
-              </Text>
-            </View>
-          </View>
-        ))}
+          );
+        })}
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
@@ -756,6 +894,7 @@ function ScriptStep({
       <Pressable
         style={({ pressed }) => [styles.primaryBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
         onPress={onContinue}
+        disabled={regeneratingSceneIndex !== null}
       >
         <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>
           Looks Good
@@ -1022,5 +1161,30 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     successIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
     errorBox: { borderRadius: 10, borderWidth: 1, padding: 12 },
     errorText: { fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center' },
+    // Per-scene regenerate controls
+    regenBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      alignSelf: 'flex-start', marginTop: 6,
+      paddingHorizontal: 10, paddingVertical: 4,
+      borderRadius: 8, borderWidth: 1,
+    },
+    regenBtnText: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+    hintBox: {
+      marginTop: 8, borderRadius: 10, borderWidth: 1, padding: 10, gap: 8,
+    },
+    hintInput: {
+      borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7,
+      fontFamily: 'Inter_400Regular', fontSize: 13,
+    },
+    hintActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
+    hintCancelBtn: {
+      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1,
+    },
+    hintCancelText: { fontFamily: 'Inter_500Medium', fontSize: 13 },
+    hintGoBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
+    },
+    hintGoText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   });
 }
