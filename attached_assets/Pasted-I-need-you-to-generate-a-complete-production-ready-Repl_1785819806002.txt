@@ -1,0 +1,70 @@
+I need you to generate a complete, production-ready Replit project for my site Quae.ai.
+
+The project must include:
+
+1. A stable Node.js backend using Express.
+2. A working /api/generate route that calls fal.ai correctly.
+3. A working /api/mockup route that lets users upload an image and place it on a model mockup.
+4. Full error handling, logging, and crash protection.
+5. A frontend in /public that includes:
+   - A video generator UI
+   - A mockup generator UI
+   - Loading states
+   - Error messages
+   - Responsive layout
+
+REQUIREMENTS:
+
+BACKEND:
+- Use Express.
+- Use dotenv.
+- Use node-fetch.
+- Use cors.
+- Serve static files from /public.
+- Add a health check route at /health.
+- Add try/catch around all fal.ai calls.
+- If fal.ai fails, return a JSON error instead of crashing.
+- Read FAL_KEY from environment variables.
+- Replit must run on PORT=3000.
+
+VIDEO GENERATION:
+- POST /api/generate
+- Body: { prompt: string }
+- Call fal.ai with the correct endpoint.
+- Return the video URL or job ID.
+
+MOCKUP GENERATION:
+- POST /api/mockup
+- Accept an uploaded image (base64 or file).
+- Accept a model selection.
+- Send both to fal.ai mockup endpoint.
+- Return the generated mockup image URL.
+
+FRONTEND:
+- index.html inside /public
+- Two sections:
+  1. Video Generator
+  2. Mockup Generator
+- Each section must have:
+  - Textarea or file input
+  - Generate button
+  - Loading indicator
+  - Result preview
+- Use simple CSS (no frameworks).
+- Must be fully responsive on mobile.
+
+ADDITIONAL:
+- Include package.json with all dependencies.
+- Include server.js with all routes.
+- Include public/index.html, public/style.css, public/app.js.
+- Make sure the frontend calls the backend correctly using fetch("/api/...").
+
+OUTPUT FORMAT:
+- Provide the full code for:
+  - package.json
+  - server.js
+  - public/index.html
+  - public/style.css
+  - public/app.js
+
+The final output must be a complete Replit project I can paste in and run immediately.
