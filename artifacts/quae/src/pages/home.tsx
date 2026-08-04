@@ -119,6 +119,8 @@ const PRODUCT_PRESETS = [
     ],
     accent: "from-pink-500/20 to-violet-500/20",
     dot: "#f9a8d4",
+    thumbFrom: "#be185d",
+    thumbTo: "#7c3aed",
   },
   {
     product: "Streamline Pro",
@@ -135,6 +137,8 @@ const PRODUCT_PRESETS = [
     ],
     accent: "from-emerald-500/20 to-cyan-500/20",
     dot: "#6ee7b7",
+    thumbFrom: "#065f46",
+    thumbTo: "#0e7490",
   },
   {
     product: "BrewCraft Cold Brew",
@@ -151,6 +155,8 @@ const PRODUCT_PRESETS = [
     ],
     accent: "from-amber-500/20 to-orange-500/20",
     dot: "#fcd34d",
+    thumbFrom: "#92400e",
+    thumbTo: "#c2410c",
   },
   {
     product: "Apex Leather Jacket",
@@ -167,6 +173,8 @@ const PRODUCT_PRESETS = [
     ],
     accent: "from-slate-500/20 to-zinc-500/20",
     dot: "#cbd5e1",
+    thumbFrom: "#1e293b",
+    thumbTo: "#374151",
   },
 ] as const;
 
@@ -277,28 +285,70 @@ function AnimatedStudioMockup() {
             {/* Divider */}
             <div className="border-t border-white/[0.06]" />
 
-            {/* AI Script preview */}
+            {/* AI Script preview + video thumbnail */}
             <div>
               <div className="flex items-center gap-1.5 mb-3">
                 <Wand2 className="h-3 w-3 text-violet-400" />
                 <span className="text-[10px] text-violet-400 font-bold uppercase tracking-wider">AI-Generated Script</span>
               </div>
-              <div className="space-y-2 min-h-[108px]">
-                {preset.scriptLines.map((line, i) => (
-                  <AnimatePresence key={`${presetIdx}-${i}`}>
-                    {visibleLines > i && (
-                      <motion.div
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.35, ease: "easeOut" }}
-                        className="flex items-start gap-2"
-                      >
-                        <span className="text-[10px] text-violet-400/50 font-bold mt-0.5 flex-shrink-0 w-4">{String(i + 1).padStart(2, "0")}</span>
-                        <span className="text-[11px] text-white/55 leading-relaxed">{line}</span>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                ))}
+              <div className="flex gap-3">
+                {/* Script lines */}
+                <div className="flex-1 space-y-2 min-h-[108px]">
+                  {preset.scriptLines.map((line, i) => (
+                    <AnimatePresence key={`${presetIdx}-${i}`}>
+                      {visibleLines > i && (
+                        <motion.div
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.35, ease: "easeOut" }}
+                          className="flex items-start gap-2"
+                        >
+                          <span className="text-[10px] text-violet-400/50 font-bold mt-0.5 flex-shrink-0 w-4">{String(i + 1).padStart(2, "0")}</span>
+                          <span className="text-[11px] text-white/55 leading-relaxed">{line}</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  ))}
+                </div>
+
+                {/* Portrait video thumbnail */}
+                <motion.div
+                  key={presetIdx}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+                  className="flex-shrink-0 w-[72px] self-stretch"
+                >
+                  <div
+                    className="relative w-full h-full min-h-[108px] rounded-xl overflow-hidden border border-white/[0.08] flex items-center justify-center group cursor-default"
+                    style={{
+                      background: `linear-gradient(160deg, ${preset.thumbFrom} 0%, ${preset.thumbTo} 100%)`,
+                    }}
+                  >
+                    {/* Simulated noise/grain overlay */}
+                    <div className="absolute inset-0 opacity-20"
+                      style={{
+                        backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")",
+                        backgroundSize: "80px 80px",
+                      }}
+                    />
+                    {/* Vignette */}
+                    <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.55) 100%)" }} />
+                    {/* Simulated scene lines */}
+                    <div className="absolute inset-x-2 bottom-3 space-y-1 opacity-50">
+                      <div className="h-[2px] rounded-full bg-white/40 w-3/4" />
+                      <div className="h-[2px] rounded-full bg-white/25 w-1/2" />
+                    </div>
+                    {/* Play button */}
+                    <div className="relative z-10 h-7 w-7 rounded-full bg-black/50 border border-white/25 backdrop-blur-sm flex items-center justify-center shadow-lg">
+                      <Play className="h-3 w-3 text-white fill-white ml-0.5" />
+                    </div>
+                    {/* Duration badge */}
+                    <div className="absolute top-1.5 right-1.5 z-10 px-1 py-0.5 rounded bg-black/50 backdrop-blur-sm">
+                      <span className="text-[8px] text-white/70 font-bold tabular-nums">{preset.duration}</span>
+                    </div>
+                  </div>
+                </motion.div>
               </div>
             </div>
 
