@@ -9,6 +9,7 @@
 export type ProjectStatsByStatus = {
   draft: number;
   processing: number;
+  narrating: number;
   completed: number;
   failed: number;
 };

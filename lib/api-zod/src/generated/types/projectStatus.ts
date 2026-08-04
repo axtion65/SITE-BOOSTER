@@ -12,6 +12,7 @@ export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus];
 export const ProjectStatus = {
   draft: 'draft',
   processing: 'processing',
+  narrating: 'narrating',
   completed: 'completed',
   failed: 'failed',
 } as const;

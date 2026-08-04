@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, usersTable, projectsTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
 import {
   submitFalVideoRender, pollFalVideoRender, isFalToken,
@@ -65,6 +65,23 @@ function archiveVideoAsync(ctx: ArchiveJobContext) {
       const { ObjectStorageService } = await import("../lib/objectStorage");
       const storage = new ObjectStorageService();
 
+      // Transition to "narrating" so the client can show "Adding voiceover…" instead
+      // of a broken silent video. Guard: status='processing' AND videoUrl=falUrl —
+      // prevents overwriting a project whose re-render has already started.
+      const wonNarrating = await db.update(projectsTable)
+        .set({ status: "narrating", updatedAt: new Date() })
+        .where(and(
+          eq(projectsTable.id, projectId),
+          eq(projectsTable.status, "processing"),
+          eq(projectsTable.videoUrl, falUrl),
+        ))
+        .returning({ id: projectsTable.id });
+
+      if (wonNarrating.length === 0) {
+        console.log(`[projects] Archival race: project ${projectId} was re-rendered — skipping narration`);
+        return;
+      }
+
       if (voiceoverText) {
         try {
           const { generateSpeechBuffer } = await import("../lib/tts");
@@ -93,17 +110,14 @@ function archiveVideoAsync(ctx: ArchiveJobContext) {
         permanentPath = await storage.uploadVideoFromUrl(falUrl);
       }
 
-      // Transition to completed — guarded by BOTH status='processing' AND videoUrl=falUrl.
-      // • status guard: prevents overwriting a project already failed/refunded by the
-      //   timeout watcher (which now skips narrating rows but could win on a crash).
-      // • videoUrl guard: prevents overwriting a project whose rerender has started
-      //   (rerender sets videoUrl=null, breaking this condition).
+      // Transition to completed — guarded by status='narrating' (we own this state
+      // exclusively; a re-render would reset to 'processing' and clear videoUrl,
+      // so we can rely on the status alone here).
       const completed = await db.update(projectsTable)
         .set({ status: "completed", videoUrl: permanentPath, updatedAt: new Date() })
         .where(and(
           eq(projectsTable.id, projectId),
-          eq(projectsTable.status, "processing"),
-          eq(projectsTable.videoUrl, falUrl),
+          eq(projectsTable.status, "narrating"),
         ))
         .returning({ id: projectsTable.id });
 
@@ -121,7 +135,7 @@ function archiveVideoAsync(ctx: ArchiveJobContext) {
       }
     } catch (err) {
       console.error("[projects] Archival failed — failing project and refunding credits:", err);
-      // Prevent project from being stuck in "processing" forever
+      // Prevent project from being stuck in "narrating" forever
       await failAndRefund(projectId, userId, creditCost, isAdmin).catch(() => {});
     }
   });
@@ -164,7 +178,7 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
     const updated = await tx
       .update(projectsTable)
       .set({ status: "failed", updatedAt: new Date() })
-      .where(and(eq(projectsTable.id, projectId), eq(projectsTable.status, "processing")))
+      .where(and(eq(projectsTable.id, projectId), inArray(projectsTable.status, ["processing", "narrating"])))
       .returning({ id: projectsTable.id });
 
     if (updated.length === 0) return; // Another path already resolved this project
@@ -188,7 +202,7 @@ router.get("/projects/stats", async (req, res) => {
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
 
   const projects = await db.select().from(projectsTable).where(eq(projectsTable.userId, userId));
-  const byStatus = { draft: 0, processing: 0, completed: 0, failed: 0 };
+  const byStatus = { draft: 0, processing: 0, narrating: 0, completed: 0, failed: 0 };
   for (const p of projects) {
     const s = p.status as keyof typeof byStatus;
     if (s in byStatus) byStatus[s]++;

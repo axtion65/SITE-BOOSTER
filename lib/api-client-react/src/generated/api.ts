@@ -37,8 +37,8 @@ import type {
   ProjectUpdate,
   PromptExpandInput,
   RegenerateSceneInput,
-  RegeneratedScene,
   RenderingModel,
+  SceneRegeneration,
   SignInInput,
   SignUpInput,
   SuccessResponse,
@@ -806,14 +806,19 @@ export const useExpandPrompt = <TError = ErrorType<ErrorResponse>,
     }
 
 export const getRegenerateSceneUrl = () => {
+
+
+
+
   return `/api/studio/regenerate-scene`
 }
 
 /**
- * @summary Regenerate a single scene's description and visual direction using AI
+ * @summary Regenerate a single scene in an existing video script using Claude
  */
-export const regenerateScene = async (regenerateSceneInput: RegenerateSceneInput, options?: RequestInit): Promise<RegeneratedScene> => {
-  return customFetch<RegeneratedScene>(getRegenerateSceneUrl(),
+export const regenerateScene = async (regenerateSceneInput: RegenerateSceneInput, options?: RequestInit): Promise<SceneRegeneration> => {
+
+  return customFetch<SceneRegeneration>(getRegenerateSceneUrl(),
   {
     ...options,
     method: 'POST',
@@ -821,6 +826,10 @@ export const regenerateScene = async (regenerateSceneInput: RegenerateSceneInput
     body: JSON.stringify(regenerateSceneInput)
   }
 );}
+
+
+
+
 
 export const getRegenerateSceneMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateScene>>, TError,{data: BodyType<RegenerateSceneInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -833,19 +842,28 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
+
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof regenerateScene>>, {data: BodyType<RegenerateSceneInput>}> = (props) => {
           const {data} = props ?? {};
-          return regenerateScene(data, requestOptions)
+
+          return  regenerateScene(data,requestOptions)
         }
 
-  return { mutationFn, ...mutationOptions }}
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
 
     export type RegenerateSceneMutationResult = NonNullable<Awaited<ReturnType<typeof regenerateScene>>>
     export type RegenerateSceneMutationBody = BodyType<RegenerateSceneInput>
     export type RegenerateSceneMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Regenerate a single scene's description and visual direction using AI
+ * @summary Regenerate a single scene in an existing video script using Claude
  */
 export const useRegenerateScene = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateScene>>, TError,{data: BodyType<RegenerateSceneInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

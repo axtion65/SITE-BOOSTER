@@ -177,6 +177,31 @@ export const ExpandPromptResponse = zod.object({
 
 
 /**
+ * @summary Regenerate a single scene in an existing video script using Claude
+ */
+export const RegenerateSceneBody = zod.object({
+  "sceneIndex": zod.number().optional(),
+  "sceneNumber": zod.number(),
+  "currentDescription": zod.string().nullish(),
+  "currentVisualDirection": zod.string().nullish(),
+  "totalScenes": zod.number().optional(),
+  "productName": zod.string(),
+  "description": zod.string(),
+  "targetAudience": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "duration": zod.string().nullish(),
+  "templateType": zod.string().nullish(),
+  "templateName": zod.string().nullish(),
+  "hint": zod.string().nullish()
+})
+
+export const RegenerateSceneResponse = zod.object({
+  "description": zod.string(),
+  "visualDirection": zod.string()
+})
+
+
+/**
  * @summary List available AI rendering models/engines
  */
 export const ListRenderingModelsResponseItem = zod.object({
@@ -237,7 +262,7 @@ export const ListProjectsResponseItem = zod.object({
   "userId": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'completed', 'failed']),
+  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']),
   "renderingModelId": zod.string(),
   "script": zod.string().nullish(),
   "expandedScript": zod.string().nullish(),
@@ -273,7 +298,7 @@ export const CreateProjectResponse = zod.object({
   "userId": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'completed', 'failed']),
+  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']),
   "renderingModelId": zod.string(),
   "script": zod.string().nullish(),
   "expandedScript": zod.string().nullish(),
@@ -300,7 +325,7 @@ export const GetProjectResponse = zod.object({
   "userId": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'completed', 'failed']),
+  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']),
   "renderingModelId": zod.string(),
   "script": zod.string().nullish(),
   "expandedScript": zod.string().nullish(),
@@ -330,7 +355,7 @@ export const UpdateProjectBody = zod.object({
   "expandedScript": zod.string().nullish(),
   "platform": zod.string().nullish(),
   "duration": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'completed', 'failed']).optional()
+  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']).optional()
 })
 
 export const UpdateProjectResponse = zod.object({
@@ -338,7 +363,7 @@ export const UpdateProjectResponse = zod.object({
   "userId": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'completed', 'failed']),
+  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']),
   "renderingModelId": zod.string(),
   "script": zod.string().nullish(),
   "expandedScript": zod.string().nullish(),
@@ -373,6 +398,7 @@ export const GetProjectStatsResponse = zod.object({
   "byStatus": zod.object({
   "draft": zod.number(),
   "processing": zod.number(),
+  "narrating": zod.number(),
   "completed": zod.number(),
   "failed": zod.number()
 }),

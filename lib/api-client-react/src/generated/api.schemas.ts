@@ -103,12 +103,13 @@ export interface ExpandedScript {
 }
 
 export interface RegenerateSceneInput {
-  /** Index of the scene to regenerate (0-based) */
-  sceneIndex: number;
+  sceneIndex?: number;
   sceneNumber: number;
-  currentDescription: string;
-  currentVisualDirection: string;
-  totalScenes: number;
+  /** @nullable */
+  currentDescription?: string | null;
+  /** @nullable */
+  currentVisualDirection?: string | null;
+  totalScenes?: number;
   productName: string;
   description: string;
   /** @nullable */
@@ -121,11 +122,11 @@ export interface RegenerateSceneInput {
   templateType?: string | null;
   /** @nullable */
   templateName?: string | null;
-  /** Optional user hint to guide the regeneration */
+  /** @nullable */
   hint?: string | null;
 }
 
-export interface RegeneratedScene {
+export interface SceneRegeneration {
   description: string;
   visualDirection: string;
 }
@@ -167,6 +168,7 @@ export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus];
 export const ProjectStatus = {
   draft: 'draft',
   processing: 'processing',
+  narrating: 'narrating',
   completed: 'completed',
   failed: 'failed',
 } as const;
@@ -224,6 +226,7 @@ export type ProjectUpdateStatus = typeof ProjectUpdateStatus[keyof typeof Projec
 export const ProjectUpdateStatus = {
   draft: 'draft',
   processing: 'processing',
+  narrating: 'narrating',
   completed: 'completed',
   failed: 'failed',
 } as const;
@@ -247,6 +250,7 @@ export interface ProjectUpdate {
 export type ProjectStatsByStatus = {
   draft: number;
   processing: number;
+  narrating: number;
   completed: number;
   failed: number;
 };

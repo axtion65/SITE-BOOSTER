@@ -238,6 +238,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /studio/regenerate-scene:
+    post:
+      operationId: regenerateScene
+      tags: [studio]
+      summary: Regenerate a single scene in an existing video script using Claude
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegenerateSceneInput"
+      responses:
+        "200":
+          description: Regenerated scene
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SceneRegeneration"
+        "400":
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: AI error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /studio/models:
     get:
       operationId: listRenderingModels
@@ -646,6 +679,46 @@ components:
         estimatedDuration:
           type: ["string", "null"]
 
+    RegenerateSceneInput:
+      type: object
+      required: [sceneNumber, productName, description]
+      properties:
+        sceneIndex:
+          type: integer
+        sceneNumber:
+          type: integer
+        currentDescription:
+          type: ["string", "null"]
+        currentVisualDirection:
+          type: ["string", "null"]
+        totalScenes:
+          type: integer
+        productName:
+          type: string
+        description:
+          type: string
+        targetAudience:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        duration:
+          type: ["string", "null"]
+        templateType:
+          type: ["string", "null"]
+        templateName:
+          type: ["string", "null"]
+        hint:
+          type: ["string", "null"]
+
+    SceneRegeneration:
+      type: object
+      required: [description, visualDirection]
+      properties:
+        description:
+          type: string
+        visualDirection:
+          type: string
+
     RenderingModel:
       type: object
       required: [id, name, description, capabilities, tier]
@@ -701,7 +774,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [draft, processing, completed, failed]
+          enum: [draft, processing, narrating, completed, failed]
         renderingModelId:
           type: string
         script:
@@ -769,7 +842,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [draft, processing, completed, failed]
+          enum: [draft, processing, narrating, completed, failed]
 
     ProjectStats:
       type: object
@@ -784,11 +857,13 @@ components:
               type: integer
             processing:
               type: integer
+            narrating:
+              type: integer
             completed:
               type: integer
             failed:
               type: integer
-          required: [draft, processing, completed, failed]
+          required: [draft, processing, narrating, completed, failed]
         creditsUsed:
           type: integer
         creditsRemaining:

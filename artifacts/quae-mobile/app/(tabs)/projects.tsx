@@ -31,6 +31,7 @@ const FILTERS: { key: StatusFilter; label: string }[] = [
 const STATUS_COLORS: Record<string, string> = {
   draft: '#a1a1aa',
   processing: '#f59e0b',
+  narrating: '#38bdf8',
   completed: '#22c55e',
   failed: '#ef4343',
 };
@@ -38,6 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
   processing: 'Rendering',
+  narrating: 'Adding Voiceover',
   completed: 'Completed',
   failed: 'Failed',
 };

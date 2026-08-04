@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, projectsTable, usersTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { MODEL_CREDIT_COSTS } from "../lib/falvideo";
 
 const router = Router();
@@ -20,7 +20,7 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
     const updated = await tx
       .update(projectsTable)
       .set({ status: "failed", updatedAt: new Date() })
-      .where(and(eq(projectsTable.id, projectId), eq(projectsTable.status, "processing")))
+      .where(and(eq(projectsTable.id, projectId), inArray(projectsTable.status, ["processing", "narrating"])))
       .returning({ id: projectsTable.id });
 
     if (updated.length === 0) return;
@@ -127,6 +127,22 @@ router.post("/webhooks/fal", async (req, res) => {
           const { ObjectStorageService } = await import("../lib/objectStorage");
           const storage = new ObjectStorageService();
 
+          // Transition to "narrating" so the client can show "Adding voiceover…" instead
+          // of a broken silent video. Guard: status='processing' AND videoUrl=falUrl.
+          const wonNarrating = await db.update(projectsTable)
+            .set({ status: "narrating", updatedAt: new Date() })
+            .where(and(
+              eq(projectsTable.id, projectId),
+              eq(projectsTable.status, "processing"),
+              eq(projectsTable.videoUrl, falUrl),
+            ))
+            .returning({ id: projectsTable.id });
+
+          if (wonNarrating.length === 0) {
+            console.log(`[webhook/fal] Archival race: project ${projectId} was re-rendered — skipping narration`);
+            return;
+          }
+
           // Extract voiceoverText from expandedScript for narration
           let voiceoverText: string | undefined;
           try {
@@ -162,15 +178,13 @@ router.post("/webhooks/fal", async (req, res) => {
             permanentPath = await storage.uploadVideoFromUrl(falUrl);
           }
 
-          // Transition to completed — guarded by status='processing' AND videoUrl=falUrl.
-          // A concurrent rerender (sets videoUrl=null) or a timeout failure both break
-          // one of these conditions, preventing this stale job from overwriting them.
+          // Transition to completed — guarded by status='narrating' (we own this state
+          // exclusively; a re-render resets to 'processing' and clears videoUrl).
           const completed = await db.update(projectsTable)
             .set({ status: "completed", videoUrl: permanentPath, updatedAt: new Date() })
             .where(and(
               eq(projectsTable.id, projectId),
-              eq(projectsTable.status, "processing"),
-              eq(projectsTable.videoUrl, falUrl),
+              eq(projectsTable.status, "narrating"),
             ))
             .returning({ id: projectsTable.id });
 

@@ -65,6 +65,12 @@ function StatusPill({ status }: { status: string }) {
           Rendering
         </span>
       );
+    case "narrating":
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30 animate-pulse">
+          Adding Voiceover
+        </span>
+      );
     case "failed":
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-red-500/20 text-red-400 border border-red-500/30">
@@ -91,7 +97,7 @@ export default function StudioProjectDetail() {
   const [rerendering, setRerendering] = useState(false);
   const { toast } = useToast();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isProcessing = project?.status === "processing";
+  const isProcessing = project?.status === "processing" || project?.status === "narrating";
   const elapsed = useElapsed(isProcessing, project?.createdAt);
   const signedProductImageUrl = usePrivateImageUrl(project?.productImageUrl);
 
@@ -221,47 +227,70 @@ export default function StudioProjectDetail() {
               <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] overflow-hidden">
                 <div className="aspect-video w-full flex items-center justify-center relative bg-black">
 
-                  {/* PROCESSING */}
+                  {/* PROCESSING / NARRATING */}
                   {isProcessing && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 bg-[#080808]">
                       <div className="relative mb-8">
-                        <div className="h-24 w-24 rounded-full bg-violet-600/20 flex items-center justify-center animate-pulse">
-                          <div className="h-16 w-16 rounded-full bg-violet-600/30 flex items-center justify-center">
-                            <Zap className="h-8 w-8 text-violet-400 animate-bounce" />
+                        {project?.status === "narrating" ? (
+                          <div className="h-24 w-24 rounded-full bg-sky-600/20 flex items-center justify-center animate-pulse">
+                            <div className="h-16 w-16 rounded-full bg-sky-600/30 flex items-center justify-center">
+                              <Mail className="h-8 w-8 text-sky-400 animate-bounce" />
+                            </div>
                           </div>
-                        </div>
-                        <div className="absolute inset-0 rounded-full border-2 border-violet-500/30 animate-spin" style={{ animationDuration: '3s' }} />
-                      </div>
-
-                      <p className="text-white font-black text-xl mb-1">Rendering your video…</p>
-                      <p className="text-white/40 text-sm mb-5 max-w-sm">
-                        AI video generation takes several minutes. You can leave this page — it'll be here when you come back.
-                      </p>
-
-                      <div className="mb-5 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs text-white/40 max-w-xs">
-                        <span className="text-white/70 font-semibold">Output: {clipLength}</span>
-                        {" "}— AI video models generate short clips regardless of script length.
-                        {modelKey !== 'kling' && modelKey !== 'kling-1.6' && (
-                          <span className="text-violet-400"> Upgrade to Kling for 10-sec clips.</span>
+                        ) : (
+                          <div className="h-24 w-24 rounded-full bg-violet-600/20 flex items-center justify-center animate-pulse">
+                            <div className="h-16 w-16 rounded-full bg-violet-600/30 flex items-center justify-center">
+                              <Zap className="h-8 w-8 text-violet-400 animate-bounce" />
+                            </div>
+                          </div>
                         )}
+                        <div className={`absolute inset-0 rounded-full border-2 animate-spin ${project?.status === "narrating" ? "border-sky-500/30" : "border-violet-500/30"}`} style={{ animationDuration: '3s' }} />
                       </div>
 
-                      <div className="w-full max-w-xs mb-2">
-                        <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-1000 ${overEstimate ? 'bg-amber-400' : 'bg-gradient-to-r from-violet-600 to-fuchsia-500'}`}
-                            style={{ width: `${Math.max(pct, 3)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between w-full max-w-xs text-[11px] mb-1">
-                        <span className="text-white/30">Elapsed: {fmt(elapsed)}</span>
-                        <span className={overEstimate ? "text-amber-400 font-semibold" : "text-white/30"}>
-                          {overEstimate ? "Taking longer than usual…" : `Est. ~${fmt(estimateSec)}`}
-                        </span>
-                      </div>
-                      {overEstimate && (
-                        <p className="text-[11px] text-white/20 mb-4 max-w-xs">Still in queue — fal.ai can be slower during peak hours. Hang tight.</p>
+                      {project?.status === "narrating" ? (
+                        <>
+                          <p className="text-white font-black text-xl mb-1">Adding voiceover…</p>
+                          <p className="text-white/40 text-sm mb-5 max-w-sm">
+                            Mixing narration audio into your video. This takes about 30 seconds — hang tight.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-white font-black text-xl mb-1">Rendering your video…</p>
+                          <p className="text-white/40 text-sm mb-5 max-w-sm">
+                            AI video generation takes several minutes. You can leave this page — it'll be here when you come back.
+                          </p>
+                        </>
+                      )}
+
+                      {project?.status !== "narrating" && (
+                        <>
+                          <div className="mb-5 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs text-white/40 max-w-xs">
+                            <span className="text-white/70 font-semibold">Output: {clipLength}</span>
+                            {" "}— AI video models generate short clips regardless of script length.
+                            {modelKey !== 'kling' && modelKey !== 'kling-1.6' && (
+                              <span className="text-violet-400"> Upgrade to Kling for 10-sec clips.</span>
+                            )}
+                          </div>
+
+                          <div className="w-full max-w-xs mb-2">
+                            <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-1000 ${overEstimate ? 'bg-amber-400' : 'bg-gradient-to-r from-violet-600 to-fuchsia-500'}`}
+                                style={{ width: `${Math.max(pct, 3)}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between w-full max-w-xs text-[11px] mb-1">
+                            <span className="text-white/30">Elapsed: {fmt(elapsed)}</span>
+                            <span className={overEstimate ? "text-amber-400 font-semibold" : "text-white/30"}>
+                              {overEstimate ? "Taking longer than usual…" : `Est. ~${fmt(estimateSec)}`}
+                            </span>
+                          </div>
+                          {overEstimate && (
+                            <p className="text-[11px] text-white/20 mb-4 max-w-xs">Still in queue — fal.ai can be slower during peak hours. Hang tight.</p>
+                          )}
+                        </>
                       )}
 
                       <div className="flex flex-col items-center gap-2 mt-2">
@@ -336,7 +365,7 @@ export default function StudioProjectDetail() {
                   )}
 
                   {/* DRAFT / no video */}
-                  {project.status !== 'completed' && project.status !== 'processing' && project.status !== 'failed' && (
+                  {project.status !== 'completed' && project.status !== 'processing' && project.status !== 'narrating' && project.status !== 'failed' && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
                       <div className="h-16 w-16 rounded-2xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center mb-5">
                         <Film className="h-8 w-8 text-violet-400/40" />

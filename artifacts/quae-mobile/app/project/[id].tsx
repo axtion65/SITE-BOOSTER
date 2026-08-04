@@ -21,6 +21,7 @@ import { usePrivateImageUrl } from '@/hooks/usePrivateImageUrl';
 const STATUS_COLORS: Record<string, string> = {
   draft: '#a1a1aa',
   processing: '#f59e0b',
+  narrating: '#38bdf8',
   completed: '#22c55e',
   failed: '#ef4343',
 };
@@ -28,6 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
   processing: 'Rendering',
+  narrating: 'Adding Voiceover',
   completed: 'Completed',
   failed: 'Failed',
 };
@@ -40,9 +42,9 @@ export default function ProjectDetailScreen() {
 
   const { data: project, isLoading, refetch, error } = useGetProject(id ?? '');
 
-  // Poll every 5s while rendering
+  // Poll every 5s while rendering or adding voiceover
   useEffect(() => {
-    if (project?.status !== 'processing') return;
+    if (project?.status !== 'processing' && project?.status !== 'narrating') return;
     const interval = setInterval(() => {
       void refetch();
     }, 5000);
@@ -181,6 +183,18 @@ export default function ProjectDetailScreen() {
               </Text>
               <Text style={[styles.processingText, { color: colors.mutedForeground }]}>
                 This typically takes 1–5 minutes. We'll check in every 5 seconds.
+              </Text>
+            </View>
+          )}
+
+          {project.status === 'narrating' && (
+            <View style={[styles.videoPlaceholder, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <ActivityIndicator color="#38bdf8" size="large" />
+              <Text style={[styles.processingTitle, { color: colors.foreground }]}>
+                Adding voiceover...
+              </Text>
+              <Text style={[styles.processingText, { color: colors.mutedForeground }]}>
+                Mixing narration audio into your video. Almost done — usually under a minute.
               </Text>
             </View>
           )}
