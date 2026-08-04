@@ -261,22 +261,22 @@ async function uploadImageToFal(imageInput: string, falKey: string): Promise<str
     return imageInput;
   }
 
-  // Internal GCS object path — stream bytes from object storage and re-upload to fal.ai
+  // Internal GCS object path — generate a signed URL so fal.ai can fetch it directly.
+  // We used to stream bytes and re-upload to storage.fal.run, but that hostname is
+  // unreachable from Replit's production environment (ENOTFOUND). Generating a signed
+  // URL only calls the local sidecar (127.0.0.1:1106) — no outbound DNS required.
   // Paths look like: /objects/uploads/uuid  OR  /api/storage/objects/uploads/uuid
   if (imageInput.startsWith('/objects/') || imageInput.startsWith('/api/storage/objects/')) {
     const { ObjectStorageService } = await import('./objectStorage');
     const svc = new ObjectStorageService();
-    // Normalise to the /objects/... form that getObjectEntityFile expects
+    // Normalise to the /objects/... form that getSignedObjectEntityUrl expects
     const objectPath = imageInput.startsWith('/api/storage')
       ? imageInput.slice('/api/storage'.length)
       : imageInput;
-    const file = await svc.getObjectEntityFile(objectPath);
-    const response = await svc.downloadObject(file);
-    const arrayBuf = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuf);
-    const mimeType = response.headers.get('content-type') ?? 'image/jpeg';
-    console.log(`[fal-video] Streaming GCS object to fal.ai (${buffer.length} bytes, ${mimeType})`);
-    return uploadBytesToFal(buffer, mimeType, falKey);
+    // 3-hour TTL — enough for fal.ai to fetch it during any queued render
+    const signedUrl = await svc.getSignedObjectEntityUrl(objectPath, 10800);
+    console.log(`[fal-video] Using signed GCS URL for product image (fal.ai will fetch directly)`);
+    return signedUrl;
   }
 
   // base64 data URL
