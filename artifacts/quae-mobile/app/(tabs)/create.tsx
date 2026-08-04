@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -112,7 +113,7 @@ export default function CreateScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   const [step, setStep] = useState<Step>('template');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -281,8 +282,38 @@ export default function CreateScreen() {
     void Haptics.selectionAsync();
   };
 
+  // Credit cost threshold — models at or above this get a confirmation prompt
+  const CONFIRM_CREDIT_THRESHOLD = 100;
+
   const handleRender = async () => {
     if (!selectedModel) return;
+
+    const renderCost: number = (selectedModel as any).creditCost ?? 30;
+    const userCredits = user?.credits ?? 0;
+    const afterBalance = userCredits - renderCost;
+
+    // Show confirmation for expensive models
+    if (renderCost >= CONFIRM_CREDIT_THRESHOLD) {
+      const balanceLine = `Your balance: ${userCredits} credits\nAfter render: ${Math.max(0, afterBalance)} credits`;
+      const insufficient = afterBalance < 0;
+
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          'Confirm Render',
+          `Model: ${selectedModel.name}\nCost: ${renderCost} credits\n\n${balanceLine}${insufficient ? '\n\n⚠ Not enough credits for this render.' : ''}`,
+          insufficient
+            ? [{ text: 'OK', style: 'cancel', onPress: () => resolve(false) }]
+            : [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Confirm & Render', style: 'default', onPress: () => resolve(true) },
+              ],
+          { cancelable: true, onDismiss: () => resolve(false) },
+        );
+      });
+
+      if (!confirmed) return;
+    }
+
     setStep('creating');
     try {
       await createProject({

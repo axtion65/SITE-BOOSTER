@@ -15,6 +15,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ExpandedScript } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -238,6 +239,11 @@ function Wizard() {
       setRegeneratingIdx(null);
     }
   };
+
+  // Credit confirmation dialog
+  const [showRenderConfirm, setShowRenderConfirm] = useState(false);
+  // Models costing ≥ this many credits get a confirmation dialog; cheaper ones proceed directly
+  const CONFIRM_CREDIT_THRESHOLD = 100;
 
   // Tracks whether the user intentionally completed a render (skip unload prompt)
   const renderStartedRef = useRef(false);
@@ -1189,45 +1195,138 @@ function Wizard() {
               )}
 
               {/* Cost summary + CTA */}
-              <div className="p-5 rounded-xl bg-primary/5 border border-primary/20 space-y-4">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="space-y-0.5">
-                    <p className="text-sm text-muted-foreground">
-                      Model: <span className="text-white font-semibold">{selectedModel?.name ?? "Ovi"}</span>
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Cost: <span className="font-bold text-amber-400">{(selectedModel as any)?.creditCost ?? 30} credits</span>
-                      <span className="text-muted-foreground"> ({userCredits} remaining)</span>
-                    </p>
+              {(() => {
+                const renderCost = (selectedModel as any)?.creditCost ?? 30;
+                const afterBalance = userCredits - renderCost;
+                const needsConfirm = renderCost >= CONFIRM_CREDIT_THRESHOLD;
+                return (
+                  <div className="p-5 rounded-xl bg-primary/5 border border-primary/20 space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <div className="space-y-0.5">
+                        <p className="text-sm text-muted-foreground">
+                          Model: <span className="text-white font-semibold">{selectedModel?.name ?? "Ovi"}</span>
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Cost: <span className="font-bold text-amber-400">{renderCost} credits</span>
+                          <span className="text-muted-foreground"> ({userCredits} remaining → {Math.max(0, afterBalance)} after)</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
+                        <Zap className="h-3 w-3 text-primary" />
+                        <span>Credits deducted when render starts</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="outline" size="lg" onClick={() => setStep(3)} className="flex-shrink-0">
+                        Back
+                      </Button>
+                      <Button
+                        size="lg"
+                        onClick={() => {
+                          if (needsConfirm) {
+                            setShowRenderConfirm(true);
+                          } else {
+                            void handleSaveProject();
+                          }
+                        }}
+                        disabled={createMutation.isPending}
+                        className="flex-1 font-bold shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
+                      >
+                        {createMutation.isPending ? (
+                          <><Spinner className="mr-2" /> Submitting…</>
+                        ) : (
+                          <><Download className="mr-2 h-5 w-5" /> Confirm &amp; Start Render</>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
-                    <Zap className="h-3 w-3 text-primary" />
-                    <span>Credits deducted when render starts</span>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <Button variant="outline" size="lg" onClick={() => setStep(3)} className="flex-shrink-0">
-                    Back
-                  </Button>
-                  <Button
-                    size="lg"
-                    onClick={handleSaveProject}
-                    disabled={createMutation.isPending}
-                    className="flex-1 font-bold shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]"
-                  >
-                    {createMutation.isPending ? (
-                      <><Spinner className="mr-2" /> Submitting…</>
-                    ) : (
-                      <><Download className="mr-2 h-5 w-5" /> Confirm &amp; Start Render</>
-                    )}
-                  </Button>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           )}
 
         </div>
       </div>
+
+      {/* Credit confirmation dialog — shown for high-cost models */}
+      {step === 4 && selectedModel && (() => {
+        const renderCost = (selectedModel as any)?.creditCost ?? 30;
+        const afterBalance = userCredits - renderCost;
+        return (
+          <Dialog open={showRenderConfirm} onOpenChange={setShowRenderConfirm}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-amber-400" />
+                  Confirm Render
+                </DialogTitle>
+                <DialogDescription>
+                  Review the credit cost before starting your render.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                {/* Model row */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                  <span className="text-sm text-muted-foreground">Model</span>
+                  <span className="text-sm font-semibold text-white">{selectedModel.name}</span>
+                </div>
+
+                {/* Cost row */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                  <span className="text-sm text-muted-foreground">Render cost</span>
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="h-4 w-4 text-amber-400" />
+                    <span className="text-base font-black text-amber-400">{renderCost}</span>
+                    <span className="text-sm text-muted-foreground">credits</span>
+                  </div>
+                </div>
+
+                {/* Balance rows */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-3 py-2 text-sm">
+                    <span className="text-muted-foreground">Your balance</span>
+                    <span className="font-semibold text-white">{userCredits} credits</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2 text-sm border-t border-white/10">
+                    <span className="text-muted-foreground">Balance after render</span>
+                    <span className={`font-semibold ${afterBalance < 0 ? "text-red-400" : "text-white"}`}>
+                      {Math.max(0, afterBalance)} credits
+                    </span>
+                  </div>
+                </div>
+
+                {afterBalance < 0 && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                    <span className="flex-shrink-0 mt-0.5">⚠</span>
+                    <span>You don't have enough credits for this render. Please top up your plan first.</span>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button variant="outline" onClick={() => setShowRenderConfirm(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowRenderConfirm(false);
+                    void handleSaveProject();
+                  }}
+                  disabled={createMutation.isPending || afterBalance < 0}
+                  className="font-bold"
+                >
+                  {createMutation.isPending ? (
+                    <><Spinner className="mr-2" /> Submitting…</>
+                  ) : (
+                    <><Download className="mr-2 h-4 w-4" /> Confirm &amp; Render</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }
