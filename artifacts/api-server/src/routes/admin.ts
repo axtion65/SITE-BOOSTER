@@ -256,4 +256,63 @@ router.post("/admin/migrate/base64-images", async (req, res) => {
   res.json({ total: rows.length, migrated, failed, results });
 });
 
+// ─── Backfill: set ACL on migrated product images that are missing it ─────────
+
+// POST /admin/backfill/image-acls
+// Scans every project whose productImageUrl is already an /objects/… path and
+// ensures the underlying GCS object has the correct private ACL metadata.
+// Objects uploaded via the normal upload flow already have ACL set; this only
+// touches objects that were migrated by an older version of migrate-base64 that
+// did not call setObjectAclPolicy.  Safe to re-run — objects that already have
+// an ACL policy are skipped.
+router.post("/admin/backfill/image-acls", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  // Fetch all projects that have an /objects/ path (already migrated)
+  const rows = await db
+    .select({ id: projectsTable.id, userId: projectsTable.userId, productImageUrl: projectsTable.productImageUrl })
+    .from(projectsTable)
+    .where(like(projectsTable.productImageUrl, "/objects/%"));
+
+  console.log(`[backfill-image-acls] Found ${rows.length} project(s) with /objects/ productImageUrl`);
+
+  const results: Array<{ id: string; status: "skipped" | "fixed" | "failed"; reason?: string }> = [];
+
+  for (const row of rows) {
+    const { id, userId, productImageUrl } = row;
+    if (!productImageUrl) continue;
+
+    try {
+      // Resolve the GCS File handle for this /objects/… path
+      const { ObjectStorageService } = await import("../lib/objectStorage");
+      const svc = new ObjectStorageService();
+      const file = await svc.getObjectEntityFile(productImageUrl);
+
+      // Check whether the ACL metadata is already set
+      const { getObjectAclPolicy } = await import("../lib/objectAcl");
+      const existing = await getObjectAclPolicy(file);
+      if (existing) {
+        results.push({ id, status: "skipped", reason: "ACL already set" });
+        continue;
+      }
+
+      // Set the correct private ACL so the owner can access their image
+      await setObjectAclPolicy(file, { owner: userId, visibility: "private" });
+      console.log(`[backfill-image-acls] Fixed ACL for project ${id} (owner: ${userId})`);
+      results.push({ id, status: "fixed" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[backfill-image-acls] Failed for project ${id}:`, message);
+      results.push({ id, status: "failed", reason: message });
+    }
+  }
+
+  const fixed   = results.filter((r) => r.status === "fixed").length;
+  const skipped = results.filter((r) => r.status === "skipped").length;
+  const failed  = results.filter((r) => r.status === "failed").length;
+  console.log(`[backfill-image-acls] Done — ${fixed} fixed, ${skipped} skipped, ${failed} failed`);
+  res.json({ total: rows.length, fixed, skipped, failed, results });
+});
+
 export default router;
