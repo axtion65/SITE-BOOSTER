@@ -338,9 +338,20 @@ export async function submitFalVideoRender(
     throw new Error(`fal.ai submit failed: ${res.status}`);
   }
 
-  const data = await res.json() as { request_id: string };
-  const token = `fal:${modelPath}:${data.request_id}`;
-  console.log(`[fal-video] Submitted, token: ${token}`);
+  const data = await res.json() as {
+    request_id: string;
+    status_url?: string;
+    response_url?: string;
+  };
+
+  // Prefer fal.ai's own status/response URLs over constructing them manually.
+  // This avoids URL construction bugs with versioned model paths.
+  const statusUrl  = data.status_url  ?? `https://queue.fal.run/${modelPath}/requests/${data.request_id}/status`;
+  const responseUrl = data.response_url ?? `https://queue.fal.run/${modelPath}/requests/${data.request_id}`;
+
+  // token format v2: "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
+  const token = `fal2:${data.request_id}|||${statusUrl}|||${responseUrl}`;
+  console.log(`[fal-video] Submitted, request_id: ${data.request_id}, status_url: ${statusUrl}`);
   return token;
 }
 
@@ -351,15 +362,32 @@ export async function pollFalVideoRender(
   const falKey = process.env.FAL_KEY;
   if (!falKey) return { status: 'failed' };
 
-  // token = "fal:<modelPath>:<requestId>"
-  const parts = token.slice('fal:'.length).split(':');
-  const requestId = parts[parts.length - 1];
-  const modelPath = parts.slice(0, -1).join(':');
+  // token v2: "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
+  // token v1: "fal:<modelPath>:<requestId>"  (legacy — kept for old in-flight projects)
+  let statusUrl: string;
+  let responseUrl: string;
+  if (token.startsWith('fal2:')) {
+    const [, requestId, sUrl, rUrl] = token.split('|||');
+    // requestId is after "fal2:" prefix
+    const rid = requestId.slice('fal2:'.length);
+    statusUrl  = sUrl  ?? '';
+    responseUrl = rUrl ?? '';
+    if (!statusUrl || !responseUrl) {
+      console.error('[fal-video] Malformed fal2 token');
+      return { status: 'failed' };
+    }
+    console.log(`[fal-video] Polling (v2) request ${rid}`);
+  } else {
+    // Legacy v1 token
+    const parts = token.slice('fal:'.length).split(':');
+    const requestId = parts[parts.length - 1];
+    const modelPath = parts.slice(0, -1).join(':');
+    statusUrl  = `https://queue.fal.run/${modelPath}/requests/${requestId}/status`;
+    responseUrl = `https://queue.fal.run/${modelPath}/requests/${requestId}`;
+    console.log(`[fal-video] Polling (v1 legacy) request ${requestId}`);
+  }
 
-  const statusRes = await fetch(
-    `https://queue.fal.run/${modelPath}/requests/${requestId}/status?logs=0`,
-    { headers: { 'Authorization': `Key ${falKey}` } }
-  );
+  const statusRes = await fetch(statusUrl, { headers: { 'Authorization': `Key ${falKey}` } });
 
   if (!statusRes.ok) {
     const body = await statusRes.text().catch(() => '(unreadable)');
@@ -381,10 +409,7 @@ export async function pollFalVideoRender(
   if (statusData.status !== 'COMPLETED') return { status: 'processing' };
 
   // COMPLETED — fetch result
-  const resultRes = await fetch(
-    `https://queue.fal.run/${modelPath}/requests/${requestId}`,
-    { headers: { 'Authorization': `Key ${falKey}` } }
-  );
+  const resultRes = await fetch(responseUrl, { headers: { 'Authorization': `Key ${falKey}` } });
 
   if (!resultRes.ok) {
     console.error(`[fal-video] Result fetch error ${resultRes.status}`);
