@@ -1,7 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import { pinoHttp } from "pino-http";
-import router from "./routes";
+import type { Request, Response } from "express";
+
 import { WebhookHandlers } from "./webhookHandlers";
 import { logger } from "./lib/logger";
 
@@ -39,6 +40,7 @@ app.use(pinoHttp({
     },
   },
 }));
+;
 
 
 app.use(cors());
