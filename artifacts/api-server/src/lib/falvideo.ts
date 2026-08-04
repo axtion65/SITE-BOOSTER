@@ -362,6 +362,11 @@ export async function pollFalVideoRender(
   );
 
   if (!statusRes.ok) {
+    // 404/405 = job no longer exists on fal.ai (expired or never queued) → treat as failed
+    if (statusRes.status === 404 || statusRes.status === 405) {
+      console.error(`[fal-video] Poll ${statusRes.status} — job gone on fal.ai, marking failed`);
+      return { status: 'failed' };
+    }
     console.error(`[fal-video] Poll error ${statusRes.status}`);
     return { status: 'processing' };
   }
