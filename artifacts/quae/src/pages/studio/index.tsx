@@ -1256,8 +1256,8 @@ function Wizard() {
                           Model: <span className="text-white font-semibold">{selectedModel?.name ?? "Ovi"}</span>
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Cost: <span className="font-bold text-amber-400">{renderCost} credits</span>
-                          <span className="text-muted-foreground"> ({userCredits} remaining → {Math.max(0, afterBalance)} after)</span>
+                          Cost: <span className={`font-bold ${isAdminUser ? "text-green-400" : "text-amber-400"}`}>{isAdminUser ? "FREE (admin)" : `${renderCost} credits`}</span>
+                          {!isAdminUser && <span className="text-muted-foreground"> ({userCredits} remaining → {Math.max(0, afterBalance)} after)</span>}
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
@@ -1326,26 +1326,29 @@ function Wizard() {
                   <span className="text-sm text-muted-foreground">Render cost</span>
                   <div className="flex items-center gap-1.5">
                     <Zap className="h-4 w-4 text-amber-400" />
-                    <span className="text-base font-black text-amber-400">{renderCost}</span>
-                    <span className="text-sm text-muted-foreground">credits</span>
+                    {isAdminUser
+                      ? <span className="text-base font-black text-green-400">FREE (admin)</span>
+                      : <><span className="text-base font-black text-amber-400">{renderCost}</span><span className="text-sm text-muted-foreground">credits</span></>}
                   </div>
                 </div>
 
-                {/* Balance rows */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between px-3 py-2 text-sm">
-                    <span className="text-muted-foreground">Your balance</span>
-                    <span className="font-semibold text-white">{userCredits} credits</span>
+                {/* Balance rows — hidden for admin since they're never charged */}
+                {!isAdminUser && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Your balance</span>
+                      <span className="font-semibold text-white">{userCredits} credits</span>
+                    </div>
+                    <div className="flex items-center justify-between px-3 py-2 text-sm border-t border-white/10">
+                      <span className="text-muted-foreground">Balance after render</span>
+                      <span className={`font-semibold ${afterBalance < 0 ? "text-red-400" : "text-white"}`}>
+                        {Math.max(0, afterBalance)} credits
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between px-3 py-2 text-sm border-t border-white/10">
-                    <span className="text-muted-foreground">Balance after render</span>
-                    <span className={`font-semibold ${afterBalance < 0 ? "text-red-400" : "text-white"}`}>
-                      {Math.max(0, afterBalance)} credits
-                    </span>
-                  </div>
-                </div>
+                )}
 
-                {afterBalance < 0 && (
+                {!isAdminUser && afterBalance < 0 && (
                   <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
                     <span className="flex-shrink-0 mt-0.5">⚠</span>
                     <span>You don't have enough credits for this render. Please top up your plan first.</span>
@@ -1362,7 +1365,7 @@ function Wizard() {
                     setShowRenderConfirm(false);
                     void handleSaveProject();
                   }}
-                  disabled={createMutation.isPending || afterBalance < 0}
+                  disabled={createMutation.isPending || (!isAdminUser && afterBalance < 0)}
                   className="font-bold"
                 >
                   {createMutation.isPending ? (
