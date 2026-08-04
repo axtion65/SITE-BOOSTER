@@ -2,6 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign, Sparkles, ChevronRight, Wand2, Film, ChevronDown } from "lucide-react";
+import { TEMPLATE_NAMES } from "@/lib/template-constants";
+// ⚠️  TEMPLATE SYNC RULE
+//     Template names come from the shared catalog in lib/templates/src/index.ts.
+//     Add, rename, or remove a template there — TypeScript errors here will point
+//     to every spot in PRODUCT_PRESETS and HOME_TEMPLATES that needs updating.
+//     See lib/template-constants.ts for the full checklist.
 
 // ─── Hero demo video assets (served from object storage) ─────────────────────
 // Upload script: artifacts/api-server/scripts/upload-hero-assets.ts
@@ -103,12 +109,16 @@ function Navbar() {
 
 // ─── Animated Studio Mockup ───────────────────────────────────────────────────
 
+// ─── Hero mockup demo data ────────────────────────────────────────────────────
+// The `template` field MUST match a value from TEMPLATE_NAMES (imported above).
+// TypeScript will error here if you use a string that isn't in TEMPLATE_NAMES,
+// reminding you to add the new name there first and keep everything in sync.
 const PRODUCT_PRESETS = [
   {
     product: "HydroGlow Face Serum",
     category: "Skincare · E-Commerce",
     audience: "Women 25–40 interested in anti-aging",
-    template: "Shopify Product Ad",
+    template: TEMPLATE_NAMES.SHOPIFY_PROMO,
     templateColor: "#4ade80",
     duration: "15s",
     scriptLines: [
@@ -126,7 +136,7 @@ const PRODUCT_PRESETS = [
     product: "Streamline Pro",
     category: "SaaS · Productivity",
     audience: "Startup founders & remote teams",
-    template: "Product Demo",
+    template: TEMPLATE_NAMES.PRODUCT_DEMO,
     templateColor: "#34d399",
     duration: "30s",
     scriptLines: [
@@ -144,7 +154,7 @@ const PRODUCT_PRESETS = [
     product: "BrewCraft Cold Brew",
     category: "Food & Beverage",
     audience: "Coffee lovers & busy professionals",
-    template: "TikTok Viral Hook",
+    template: TEMPLATE_NAMES.TIKTOK_VIRAL_HOOK,
     templateColor: "#69C9D0",
     duration: "15s",
     scriptLines: [
@@ -162,7 +172,7 @@ const PRODUCT_PRESETS = [
     product: "Apex Leather Jacket",
     category: "Fashion · Apparel",
     audience: "Fashion-forward men 22–35",
-    template: "UGC Review Style",
+    template: TEMPLATE_NAMES.UGC_REVIEW,
     templateColor: "#f0f0f0",
     duration: "30s",
     scriptLines: [
@@ -495,9 +505,13 @@ function LogoBar() {
   );
 }
 
+// ─── Templates marketing grid ─────────────────────────────────────────────────
+// The `name` field MUST match a value from TEMPLATE_NAMES (imported above).
+// TypeScript will error here if you use a string that isn't in TEMPLATE_NAMES,
+// reminding you to add the new name there first and keep everything in sync.
 const HOME_TEMPLATES = [
   {
-    name: "Shopify Product Ad",
+    name: TEMPLATE_NAMES.SHOPIFY_PROMO,
     desc: "Drive purchases with a polished product showcase",
     platform: "Instagram · TikTok",
     duration: "15s",
@@ -505,7 +519,7 @@ const HOME_TEMPLATES = [
     accent: "#4ade80",
   },
   {
-    name: "TikTok Viral Hook",
+    name: TEMPLATE_NAMES.TIKTOK_VIRAL_HOOK,
     desc: "Stop-the-scroll opening that keeps viewers watching",
     platform: "TikTok",
     duration: "15s",
@@ -513,7 +527,7 @@ const HOME_TEMPLATES = [
     accent: "#69C9D0",
   },
   {
-    name: "UGC Review Style",
+    name: TEMPLATE_NAMES.UGC_REVIEW,
     desc: "Authentic, organic-feeling testimonial video",
     platform: "TikTok · Reels",
     duration: "30s",
@@ -521,7 +535,7 @@ const HOME_TEMPLATES = [
     accent: "#f0f0f0",
   },
   {
-    name: "Before & After",
+    name: TEMPLATE_NAMES.BEFORE_AND_AFTER,
     desc: "Show the transformation your product delivers",
     platform: "All platforms",
     duration: "30s",
@@ -529,7 +543,7 @@ const HOME_TEMPLATES = [
     accent: "#a78bfa",
   },
   {
-    name: "Problem / Solution",
+    name: TEMPLATE_NAMES.FLASH_SALE,
     desc: "Agitate the pain, then introduce your fix",
     platform: "YouTube Shorts",
     duration: "30s",
@@ -537,7 +551,7 @@ const HOME_TEMPLATES = [
     accent: "#f87171",
   },
   {
-    name: "Product Demo",
+    name: TEMPLATE_NAMES.PRODUCT_DEMO,
     desc: "Walk through features and benefits clearly",
     platform: "YouTube · Amazon",
     duration: "60s",

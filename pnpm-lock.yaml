@@ -103,6 +103,9 @@ importers:
       '@workspace/integrations-anthropic-ai':
         specifier: workspace:*
         version: link:../../lib/integrations-anthropic-ai
+      '@workspace/templates':
+        specifier: workspace:*
+        version: link:../../lib/templates
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -353,6 +356,9 @@ importers:
       '@workspace/object-storage-web':
         specifier: workspace:*
         version: link:../../lib/object-storage-web
+      '@workspace/templates':
+        specifier: workspace:*
+        version: link:../../lib/templates
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0
@@ -756,6 +762,8 @@ importers:
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.17
+
+  lib/templates: {}
 
   scripts:
     devDependencies:
