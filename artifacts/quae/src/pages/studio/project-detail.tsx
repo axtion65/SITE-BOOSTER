@@ -295,8 +295,8 @@ export default function StudioProjectDetail() {
                     />
                   )}
 
-                  {/* COMPLETED — video error fallback (expired link) */}
-                  {project.status === 'completed' && videoError && (
+                  {/* COMPLETED — video error fallback (expired link or missing URL) */}
+                  {project.status === 'completed' && (videoError || !project.videoUrl) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
                       <div className="h-16 w-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
                         <RotateCcw className="h-8 w-8 text-amber-400" />
