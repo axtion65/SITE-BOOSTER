@@ -335,6 +335,20 @@ export default function CreateScreen() {
     }
   }, [expandedScript, productName, description, platform, selectedTemplate, token]);
 
+  // Wrapper setters: automatically clear a stale script when key inputs change after generation
+  const handleSetProductName = (value: string) => {
+    if (expandedScript && value !== productName) setExpandedScript(null);
+    setProductName(value);
+  };
+  const handleSetDescription = (value: string) => {
+    if (expandedScript && value !== description) setExpandedScript(null);
+    setDescription(value);
+  };
+  const handleSetPlatform = (value: string) => {
+    if (expandedScript && value !== platform) setExpandedScript(null);
+    setPlatform(value);
+  };
+
   const handleDescribeContinue = async () => {
     if (!productName.trim()) return;
     setScriptError('');
@@ -492,11 +506,11 @@ export default function CreateScreen() {
         {step === 'describe' && (
           <DescribeStep
             productName={productName}
-            setProductName={setProductName}
+            setProductName={handleSetProductName}
             description={description}
-            setDescription={setDescription}
+            setDescription={handleSetDescription}
             platform={platform}
-            setPlatform={setPlatform}
+            setPlatform={handleSetPlatform}
             imagePreviewUri={imagePreviewUri}
             resolvedImageUri={resolvedImageUri}
             imageUploading={imageUploading}

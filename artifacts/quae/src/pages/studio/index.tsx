@@ -275,6 +275,20 @@ function Wizard() {
   // Track whether the user has edited the generated script
   const [scriptEdited, setScriptEdited] = useState(false);
 
+  // Wrapper setters: automatically clear a stale script when key inputs change after generation
+  const handleProductNameChange = (value: string) => {
+    if (expandedScript && value !== productName) setExpandedScript(null);
+    setProductName(value);
+  };
+  const handleDescriptionChange = (value: string) => {
+    if (expandedScript && value !== description) setExpandedScript(null);
+    setDescription(value);
+  };
+  const handlePlatformChange = (value: string) => {
+    if (expandedScript && value !== platform) setExpandedScript(null);
+    setPlatform(value);
+  };
+
   // Per-scene regeneration state
   const [regeneratingIdx, setRegeneratingIdx] = useState<number | null>(null);
   const [showHintFor, setShowHintFor] = useState<number | null>(null);
@@ -620,7 +634,7 @@ function Wizard() {
                     placeholder="e.g. Lumina Sleep Mask"
                     className="h-12 text-lg"
                     value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
+                    onChange={(e) => handleProductNameChange(e.target.value)}
                   />
                 </div>
 
@@ -630,7 +644,7 @@ function Wizard() {
                     placeholder="What does it do? Why is it great? What problem does it solve?"
                     className="min-h-[120px] text-base resize-none"
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={(e) => handleDescriptionChange(e.target.value)}
                   />
                 </div>
 
@@ -720,7 +734,7 @@ function Wizard() {
                   </div>
                   <div className="space-y-2">
                     <Label>Platform</Label>
-                    <Select value={platform} onValueChange={setPlatform}>
+                    <Select value={platform} onValueChange={handlePlatformChange}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="tiktok">TikTok</SelectItem>
