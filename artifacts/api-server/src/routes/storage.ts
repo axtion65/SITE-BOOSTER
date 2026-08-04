@@ -259,8 +259,9 @@ router.get('/storage/object-signed-url/*path', async (req: Request, res: Respons
       return;
     }
 
-    const url = await objectStorageService.getSignedObjectEntityUrl(objectPath, 900);
-    res.json({ url });
+    const ttl = 900;
+    const url = await objectStorageService.getSignedObjectEntityUrl(objectPath, ttl);
+    res.json({ url, expiresIn: ttl });
   } catch (error) {
     if (error instanceof ObjectNotFoundError) {
       res.status(404).json({ error: 'Object not found' });
