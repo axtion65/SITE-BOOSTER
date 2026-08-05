@@ -174,6 +174,8 @@ function buildVideoPrompt(script: ExpandedScript, platform: string, duration: st
   ).join(' ');
 
   const parts: string[] = [
+
+   'IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, watermarks, signs, labels, website names, or written language of any kind. Use visuals only.', 
     // Template-specific direction takes priority
     templateDirection ? `Video format directive: ${templateDirection}` : '',
 
