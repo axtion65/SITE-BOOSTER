@@ -190,7 +190,11 @@ Avoid generic AI-looking scenes, random imagery, distorted people, or disconnect
 
 Every scene must support the same product, customer, and story.
 
-The viewer should finish the video thinking: "I need this."`,
+The viewer should finish the video thinking:
+
+"I need this.
+I need it now.
+Where can I buy it?"
 
   'IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, watermarks, signs, labels, website names, or written language of any kind. Use visuals only.',
 
