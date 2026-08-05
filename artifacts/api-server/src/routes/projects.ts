@@ -7,6 +7,31 @@ import {
   MODEL_CREDIT_COSTS, buildFalWebhookUrl, type ExpandedScript
 } from "../lib/falvideo";
 import { TEMPLATES } from "./templates";
+import { logger } from "../lib/logger";
+
+/** Log every field PostgreSQL/Drizzle exposes on a DB error. */
+function logDbError(context: string, err: any): void {
+  // Drizzle wraps the raw pg error in err.cause — unwrap it.
+  const cause: any = err?.cause ?? err;
+  logger.error({
+    context,
+    // Drizzle-level
+    drizzle_message: err?.message,
+    drizzle_stack: err?.stack,
+    // PostgreSQL-level (may live on cause or err directly)
+    message:    cause?.message,
+    pg_code:    cause?.code,
+    pg_detail:  cause?.detail,
+    pg_hint:    cause?.hint,
+    pg_table:   cause?.table,
+    pg_column:  cause?.column,
+    pg_constraint: cause?.constraint,
+    pg_schema:  cause?.schema,
+    pg_where:   cause?.where,
+    pg_routine: cause?.routine,
+    pg_stack:   cause?.stack,
+  }, `DB error: ${context}`);
+}
 
 const router = Router();
 import { resolveUserIdFromToken } from "./auth";
@@ -284,7 +309,10 @@ router.post("/projects", async (req, res) => {
     productImageUrl: parsed.data.productImageUrl ?? null,
     voiceId: parsed.data.voiceId ?? null,
     status: "processing",
-  }).returning();
+  }).returning().catch((err: any) => {
+    logDbError("INSERT projects", err);
+    throw err; // Express 5 global handler returns 500
+  });
 
   // Submit fal.ai video render synchronously before responding
   if (process.env.FAL_KEY && parsed.data.expandedScript) {

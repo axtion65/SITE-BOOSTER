@@ -46,12 +46,51 @@ async function runStartupMigrations() {
   }
 
   // ── projects ───────────────────────────────────────────────────────────────
+  // Create with all columns for fresh deployments.
   await pool.query(`
-    ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS voice_id TEXT;
+    CREATE TABLE IF NOT EXISTS projects (
+      id                 TEXT PRIMARY KEY,
+      user_id            TEXT NOT NULL,
+      title              TEXT NOT NULL,
+      description        TEXT,
+      status             TEXT NOT NULL DEFAULT 'draft',
+      rendering_model_id TEXT NOT NULL DEFAULT 'ovi',
+      script             TEXT,
+      expanded_script    TEXT,
+      platform           TEXT,
+      duration           TEXT,
+      video_url          TEXT,
+      thumbnail_url      TEXT,
+      template_id        TEXT,
+      product_image_url  TEXT,
+      voice_id           TEXT,
+      created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `).catch((err: any) => {
-    logger.error({ pg_code: err.code, pg_detail: err.detail, err }, "Migration failed: ALTER projects");
+    logger.error({ pg_code: err.code, pg_detail: err.detail, err }, "Migration failed: CREATE projects");
     throw err;
   });
+
+  // Back-fill columns added after initial deploy on existing databases.
+  const projectAlters: string[] = [
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS rendering_model_id TEXT NOT NULL DEFAULT 'ovi'`,
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS expanded_script TEXT`,
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS platform TEXT`,
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS duration TEXT`,
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS video_url TEXT`,
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`,
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS template_id TEXT`,
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS product_image_url TEXT`,
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS voice_id TEXT`,
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+  ];
+  for (const sql of projectAlters) {
+    await pool.query(sql).catch((err: any) => {
+      logger.error({ pg_code: err.code, pg_detail: err.detail, sql, err }, "Migration failed: ALTER projects");
+      throw err;
+    });
+  }
 
   // ── email_queue ────────────────────────────────────────────────────────────
   await pool.query(`
