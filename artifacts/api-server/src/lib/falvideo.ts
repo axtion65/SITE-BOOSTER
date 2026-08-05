@@ -145,8 +145,8 @@ const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
   "testimonial-compilation":
     "Vertical 9:16. Quick cuts between different people in different settings — visual variety is key. Each face is centered, talking directly to camera. Show emotion through facial expressions only. Never display written text.. Builds to a montage crescendo of overlapping voices/faces.",
 
-  "shopify-promo":
-    "Lifestyle aesthetic. Product shown in aspirational real-world settings — kitchen, bedroom, outdoor. Golden hour lighting preferred. Model interaction with product (not just display). Strong closing product hero shot with price/offer overlay.",
+"shopify-promo":
+  "Create an aspirational lifestyle commercial. Show a relatable customer using the product in a beautiful real-world setting and experiencing a clear emotional benefit. Use premium cinematic lighting, authentic reactions, smooth camera movement, and a strong product hero shot at the end. Make the viewer imagine owning the product and wanting it immediately. Never display written text, captions, prices, logos, or offer overlays.",
 
   "tutorial":
     "Step-by-step clarity. Overhead or close-up angles for technique shots. Hands prominently featured. Show each step visually only. Never display written instructions.. Before/during/after of each step shown. Clean, well-lit, distraction-free.",
