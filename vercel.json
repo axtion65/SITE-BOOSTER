@@ -1,7 +1,7 @@
 {
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @workspace/quae run build",
-  "outputDirectory": "artifacts/quae/dist/public",
+  "buildCommand": "pnpm --filter @workspace/quae run build && cp -r artifacts/quae/dist/public ./public",
+  "outputDirectory": "public",
   "framework": null,
   "rewrites": [
     {
