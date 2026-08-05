@@ -1,9 +1,17 @@
 import { Router } from "express";
 import { ExpandPromptBody } from "@workspace/api-zod";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import OpenAI from "openai";
 import { resolveUserIdFromToken } from "./auth";
 
 const router = Router();
+
+// Initialise OpenAI client lazily so the server starts even without the key
+// (routes that call the API will fail at request time, not at boot).
+function getOpenAI(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+  return new OpenAI({ apiKey });
+}
 
 // Real fal.ai models — credits shown to users
 const RENDERING_MODELS = [
@@ -202,7 +210,7 @@ router.get("/studio/models", (_req, res) => {
   res.json(RENDERING_MODELS);
 });
 
-// Script generation via Replit Anthropic integration — reliable, no fal.ai model name dependency
+// Script generation via OpenAI
 router.post("/studio/expand-prompt", async (req, res) => {
   const parsed = ExpandPromptBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
@@ -264,25 +272,27 @@ IMPORTANT: This is a ${effectiveDuration} video — the script, scenes, and voic
 The hook must stop the scroll in the first 2-3 seconds. Every scene must be purposeful. The script must feel like it was made FOR this specific template format — not a generic ad.`;
 
   try {
-    console.log(`[claude] Generating script — template: ${templateType ?? "generic"}, platform: ${platform}, duration: ${duration}`);
+    console.log(`[openai] Generating script — template: ${templateType ?? "generic"}, platform: ${platform}, duration: ${duration}`);
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+    const completion = await getOpenAI().chat.completions.create({
+      model: "gpt-4o",
       max_tokens: 8192,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
     });
 
-    const text = message.content[0]?.type === "text" ? message.content[0].text : "";
+    const text = completion.choices[0]?.message?.content ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error("[claude] no JSON found in response:", text.slice(0, 300));
+      console.error("[openai] no JSON found in response:", text.slice(0, 300));
       res.status(500).json({ error: "Failed to parse AI response" });
       return;
     }
     res.json(JSON.parse(jsonMatch[0]));
   } catch (err: any) {
-    console.error("[claude] error:", err?.message ?? err);
+    console.error("[openai] expand-prompt error:", err?.message ?? err);
     res.status(500).json({ error: "AI generation failed — please try again in a moment" });
   }
 });
@@ -361,25 +371,27 @@ ${hint ? `\nUser guidance: ${hint}` : ""}
 Write a fresh version of this scene. The description should be vivid and purposeful. The visualDirection should be specific about camera, movement, and text overlays. Do NOT copy the existing text — rewrite it with fresh creative energy while keeping it consistent with the product and ad format.`;
 
   try {
-    console.log(`[claude] Regenerating scene ${sceneNumber}/${totalScenes} — hint: ${hint ? "yes" : "none"}`);
+    console.log(`[openai] Regenerating scene ${sceneNumber}/${totalScenes} — hint: ${hint ? "yes" : "none"}`);
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+    const completion = await getOpenAI().chat.completions.create({
+      model: "gpt-4o",
       max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
     });
 
-    const text = message.content[0]?.type === "text" ? message.content[0].text : "";
+    const text = completion.choices[0]?.message?.content ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error("[claude] no JSON in regenerate-scene response:", text.slice(0, 300));
+      console.error("[openai] no JSON in regenerate-scene response:", text.slice(0, 300));
       res.status(500).json({ error: "Failed to parse AI response" });
       return;
     }
     res.json(JSON.parse(jsonMatch[0]));
   } catch (err: any) {
-    console.error("[claude] regenerate-scene error:", err?.message ?? err);
+    console.error("[openai] regenerate-scene error:", err?.message ?? err);
     res.status(500).json({ error: "AI generation failed — please try again in a moment" });
   }
 });
