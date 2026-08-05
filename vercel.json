@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://site-booster.replit.app/api/:path*"
+     "destination": "https://site-booster-production.up.railway.app/api/:path*"
     },
     {
       "source": "/(.*)",
