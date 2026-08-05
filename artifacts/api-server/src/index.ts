@@ -5,11 +5,55 @@ import { startEmailQueueWorker } from "./lib/emailQueueWorker";
 import { pool } from "@workspace/db";
 
 // Idempotent schema migration — runs before the server accepts requests.
-// Ensures email_queue exists even in fresh deployments with no prior migration.
+// Safe to run on every startup: CREATE/ALTER IF NOT EXISTS never destroys data.
 async function runStartupMigrations() {
+  // ── users ──────────────────────────────────────────────────────────────────
+  // Create the full table on a fresh database; existing databases skip this.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id                    TEXT PRIMARY KEY,
+      email                 TEXT NOT NULL UNIQUE,
+      name                  TEXT,
+      password_hash         TEXT NOT NULL,
+      plan                  TEXT NOT NULL DEFAULT 'free',
+      credits               INTEGER NOT NULL DEFAULT 90,
+      stripe_customer_id    TEXT,
+      stripe_subscription_id TEXT,
+      is_admin              BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `).catch((err: any) => {
+    logger.error({ pg_code: err.code, pg_detail: err.detail, err }, "Migration failed: CREATE users");
+    throw err;
+  });
+
+  // Back-fill columns that were added after the initial deploy.
+  // Each statement is safe to run when the column already exists.
+  const userAlters: string[] = [
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER NOT NULL DEFAULT 90`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'`,
+  ];
+  for (const sql of userAlters) {
+    await pool.query(sql).catch((err: any) => {
+      logger.error({ pg_code: err.code, pg_detail: err.detail, sql, err }, "Migration failed: ALTER users");
+      throw err;
+    });
+  }
+
+  // ── projects ───────────────────────────────────────────────────────────────
   await pool.query(`
     ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS voice_id TEXT;
-  `);
+  `).catch((err: any) => {
+    logger.error({ pg_code: err.code, pg_detail: err.detail, err }, "Migration failed: ALTER projects");
+    throw err;
+  });
+
+  // ── email_queue ────────────────────────────────────────────────────────────
   await pool.query(`
     CREATE TABLE IF NOT EXISTS email_queue (
       id TEXT PRIMARY KEY,
@@ -24,7 +68,11 @@ async function runStartupMigrations() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       sent_at TIMESTAMPTZ
     );
-  `);
+  `).catch((err: any) => {
+    logger.error({ pg_code: err.code, pg_detail: err.detail, err }, "Migration failed: CREATE email_queue");
+    throw err;
+  });
+
   logger.info("DB migrations OK");
 }
 

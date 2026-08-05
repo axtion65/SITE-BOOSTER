@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type NextFunction } from "express";
 import cors from "cors";
 import { pinoHttp } from "pino-http";
 import type { Request, Response } from "express";
@@ -42,5 +42,21 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/api", router);
+
+// Global error handler — Express 5 routes async rejections here automatically.
+// Logs the PostgreSQL error code/detail so Railway logs show the real cause.
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error({
+    err,
+    pg_code: err.code,
+    pg_detail: err.detail,
+    pg_hint: err.hint,
+    pg_table: err.table,
+    pg_constraint: err.constraint,
+  }, "Unhandled route error");
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 export default app;
