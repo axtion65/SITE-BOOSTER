@@ -204,7 +204,8 @@ Build excitement.
 Show the product solving a real problem.
 
 End with a premium hero shot that makes the viewer want to own it immediately.
-  'IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, watermarks, signs, labels, website names, or written language of any kind. Use visuals only.',
+
+IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, watermarks, signs, labels, website names, or written language of any kind. Use visuals only.`,
 
   // Template-specific direction takes priority
   templateDirection ? `Video format directive: ${templateDirection}` : '',
