@@ -371,7 +371,7 @@ function parseToken(
 }
 
 
-}
+
 
 // Poll fal.ai for render status — called on every GET /projects/:id
 export async function pollFalVideoRender(
