@@ -447,7 +447,7 @@ async trySetObjectEntityAclPolicy(
 
 
 
-}
+
   async canAccessObjectEntity({
     userId,
     objectFile,
