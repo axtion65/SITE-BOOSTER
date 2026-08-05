@@ -134,9 +134,8 @@ const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
   "product-unboxing":
     "Close-up macro shots of packaging details. Camera starts on the shipping box, reveals inner packaging, then product. Slow deliberate movements at key moments (first reveal), faster during secondary reveals. ASMR-adjacent — show texture, weight, material quality visually. No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.",
 
-  "flash-sale":
-    "High contrast, high saturation. Red and bold colors suggest urgency. Big bold text for price/discount. Fast paced. Clock or countdown visual element if possible. Every frame communicates: LIMITED TIME.",
-
+"flash-sale":
+  "High contrast, high saturation. Fast-paced editing. Show customers rushing to buy, empty shelves, excitement, premium product shots, urgency, and scarcity using visuals only. Every frame should make viewers feel they might miss out. Never display written text, captions, prices, or countdown numbers.",
   "amazon-listing":
     "Clean, professional. White or neutral background for product shots. 360-degree product rotation implied. Scale reference shots (hand holding, next to common object). Multiple hero angles. Well-lit, color-accurate product representation.",
 
