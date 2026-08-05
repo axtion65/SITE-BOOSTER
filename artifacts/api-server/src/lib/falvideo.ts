@@ -349,7 +349,7 @@ export async function submitFalVideoRender(
 // Supports:
 //   current: "fal:<modelPath>:<requestId>"  (modelPath has no colons — uses '/')
 //   legacy:  "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
-if (!rid || !statusUrl || !responseUrl) {
+
 function parseToken(
   token: string,
 ): { modelPath: string; requestId: string } | null {
@@ -370,16 +370,7 @@ function parseToken(
   };
 }
 
-  sole.error('[fal-video] Malformed fal2 token', {
-      hasRequestId: Boolean(rid),
-      hasStatusUrl: Boolean(statusUrl),
-      hasResponseUrl: Boolean(responseUrl),
-    });
-    return { status: 'failed' };
-  }
 
-  console.log(`[fal-video] Polling (v2) request ${rid}`);
-}  return null;
 }
 
 // Poll fal.ai for render status — called on every GET /projects/:id
