@@ -191,10 +191,19 @@ Every scene must support the same product, customer, and story.
 
 The viewer should finish the video thinking:
 
-"I need this.
-I need it now.
-Where can I buy it?"
+The viewer should immediately understand why the product matters.
 
+Every scene should increase desire.
+
+Build curiosity.
+
+Build trust.
+
+Build excitement.
+
+Show the product solving a real problem.
+
+End with a premium hero shot that makes the viewer want to own it immediately.
   'IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, watermarks, signs, labels, website names, or written language of any kind. Use visuals only.',
 
   // Template-specific direction takes priority
