@@ -197,7 +197,7 @@ Every scene should increase desire.
 
 Build curiosity.
 
-Build trust.
+Build trust. 
 
 Build excitement.
 
