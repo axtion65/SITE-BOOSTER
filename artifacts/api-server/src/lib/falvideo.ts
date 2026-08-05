@@ -324,7 +324,7 @@ export async function submitFalVideoRender(
   const prompt = buildVideoPrompt(script, platform, duration, templateType);
   const modelParams = buildModelParams(modelKey, durationSec);
 
-  console.log(`[fal-video] Submitting ${modelPath} | template: ${templateType ?? 'generic'} | duration: ${duration} | image: ${hasImage} → model params:`, modelParams);
+  console.log(`[fal-video] renderingModelId="${renderingModelId}" → fal="${modelPath}" | hasImage=${hasImage} | template=${templateType ?? 'generic'} | duration=${duration} | params:`, modelParams);
 
   // image_url is the param name for both wan and kling image-to-video endpoints
   const body: Record<string, unknown> = { prompt, ...modelParams };
