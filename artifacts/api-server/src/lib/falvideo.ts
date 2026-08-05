@@ -360,18 +360,24 @@ function parseToken(token: string): { modelPath: string; requestId: string } | n
       requestId: rest.slice(colonIdx + 1),
     };
   }
-  if (token.startsWith('fal2:')) {
-    // "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
-    const parts = token.split('|||');
-    const requestId = parts[0]!.slice('fal2:'.length); // strip prefix from segment 0
-    const statusUrl = parts[1] ?? '';
-    // Extract modelPath from status URL:
-    // https://queue.fal.run/<modelPath>/requests/<requestId>/status
-    const m = statusUrl.match(/^https:\/\/queue\.fal\.run\/(.+?)\/requests\//);
-    const modelPath = m?.[1] ?? '';
-    if (!requestId || !modelPath) return null;
-    return { modelPath, requestId };
+if (token.startsWith('fal2:')) {
+  const [requestPart, sUrl, rUrl] = token.split('|||');
+  const rid = requestPart.slice('fal2:'.length);
+
+  statusUrl = sUrl ?? '';
+  responseUrl = rUrl ?? '';
+
+  if (!rid || !statusUrl || !responseUrl) {
+    console.error('[fal-video] Malformed fal2 token', {
+      hasRequestId: Boolean(rid),
+      hasStatusUrl: Boolean(statusUrl),
+      hasResponseUrl: Boolean(responseUrl),
+    });
+    return { status: 'failed' };
   }
+
+  console.log(`[fal-video] Polling (v2) request ${rid}`);
+}
   return null;
 }
 
