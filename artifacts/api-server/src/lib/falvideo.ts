@@ -377,8 +377,7 @@ if (token.startsWith('fal2:')) {
   }
 
   console.log(`[fal-video] Polling (v2) request ${rid}`);
-}
-  return null;
+}  return null;
 }
 
 // Poll fal.ai for render status — called on every GET /projects/:id
