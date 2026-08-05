@@ -47,7 +47,7 @@ const PLAN_LABEL: Record<string, string> = { free: 'Free', creator: 'Creator', a
 const PLATFORM_OPTIONS = ['tiktok', 'instagram', 'youtube', 'amazon'];
 
 // Models that support image conditioning
-const IMAGE_CONDITION_MODELS = new Set(['wan', 'kling', 'kling-1.6']);
+const IMAGE_CONDITION_MODELS = new Set(['ltx-fast', 'wan', 'kling', 'kling-1.6']);
 
 const DRAFT_KEY = '@quae/studio_draft';
 
@@ -181,11 +181,11 @@ export default function CreateScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-select Wan 2.5 as the default model when models load and nothing is chosen from a draft
+  // Auto-select LTX Fast as the default model when models load and nothing is chosen from a draft
   useEffect(() => {
     if (!models?.length || selectedModel) return;
-    const wan = models.find((m) => m.id === 'wan') ?? models[0];
-    if (wan) setSelectedModel(wan);
+    const ltxFast = models.find((m) => m.id === 'ltx-fast') ?? models[0];
+    if (ltxFast) setSelectedModel(ltxFast);
   }, [models]);
 
   // Persist draft whenever relevant state changes

@@ -16,10 +16,10 @@ function getOpenAI(): OpenAI {
 // Real fal.ai models — credits shown to users
 const RENDERING_MODELS = [
   {
-    id: "ltx",
-    name: "LTX Video",
-    description: "Ultra-fast renders in ~60 seconds. Best for quick iteration — 15 credits per video.",
-    capabilities: ["~60s render", "Great for testing", "All platforms", "Commercial use"],
+    id: "ltx-fast",
+    name: "Fast Draft — LTX Fast",
+    description: "Renders in ~30 seconds using LTX 2.3 Fast. Perfect for rapid iteration and previewing your concept — 15 credits per video.",
+    capabilities: ["~30s render", "Image conditioning", "All platforms", "Commercial use"],
     creditCost: 15,
     tier: "free",
     badge: "Fastest",
@@ -36,17 +36,17 @@ const RENDERING_MODELS = [
   {
     id: "wan",
     name: "Wan 2.5",
-    description: "High-quality cinematic video. 200 credits per video.",
-    capabilities: ["Cinematic quality", "Detailed scenes", "Pro motion", "All platforms"],
+    description: "High-quality cinematic video with image conditioning. 200 credits per video.",
+    capabilities: ["Cinematic quality", "Image conditioning", "Pro motion", "All platforms"],
     creditCost: 200,
     tier: "starter",
     badge: "Popular",
   },
   {
     id: "kling",
-    name: "Kling 2.5 Turbo",
-    description: "Premium AI video with ultra-realistic rendering. 300 credits per video.",
-    capabilities: ["Ultra-realistic", "Product focus", "Premium output", "Brand-safe"],
+    name: "Higher Quality — Kling",
+    description: "Premium AI video with ultra-realistic rendering using Kling 2.5. 300 credits per video.",
+    capabilities: ["Ultra-realistic", "Image conditioning", "Premium output", "Brand-safe"],
     creditCost: 300,
     tier: "pro",
     badge: "Premium",
@@ -223,7 +223,7 @@ router.post("/studio/expand-prompt", async (req, res) => {
   // Hard cap: each model only outputs up to this many seconds regardless of what the
   // script asks for — so cap the script duration to match and avoid wasted narration.
   const MODEL_MAX_SECONDS: Record<string, number> = {
-    ltx: 5, ovi: 10, wan: 10, kling: 10, 'kling-1.6': 10, veo3: 8,
+    'ltx-fast': 5, ltx: 5, ovi: 10, wan: 10, kling: 10, 'kling-1.6': 10, veo3: 8,
   };
   const modelMax = renderingModelId ? (MODEL_MAX_SECONDS[renderingModelId] ?? null) : null;
   const requestedSec = (() => {

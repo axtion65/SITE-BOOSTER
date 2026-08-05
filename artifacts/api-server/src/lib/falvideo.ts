@@ -21,6 +21,8 @@ export interface ExpandedScript {
 // Model IDs on fal.ai
 const FAL_MODEL_IDS: Record<string, string> = {
   'ltx':         'fal-ai/ltx-video',
+  'ltx-fast':    'fal-ai/ltx-2.3/text-to-video/fast',
+  'ltx-fast-img':'fal-ai/ltx-2.3/image-to-video/fast',
   'ovi':         'fal-ai/ovi',
   'wan':         'fal-ai/wan/v2.2/text-to-video',
   'wan-img':     'fal-ai/wan/v2.2/image-to-video',
@@ -30,10 +32,11 @@ const FAL_MODEL_IDS: Record<string, string> = {
 };
 
 // Credits charged per model (1 credit = $0.01)
-// LTX costs ~$0.015/clip → 15 credits = $0.15 → ~10x margin
+// LTX Fast costs ~$0.015/clip → 15 credits = $0.15 → ~10x margin
 // Ovi costs $0.20/clip flat → 30 credits = $0.30 → 1.5x margin
 export const MODEL_CREDIT_COSTS: Record<string, number> = {
   'ltx':       15,
+  'ltx-fast':  15,
   'quae-v1':   30,
   'ovi':       30,
   'wan':      200,
@@ -52,21 +55,23 @@ export const PLAN_CREDITS: Record<string, number> = {
 
 // Estimated render time in seconds — shown in the waiting UI
 export const MODEL_RENDER_ESTIMATE: Record<string, number> = {
-  'ltx':    60,  // ~1 min (very fast)
-  'ovi':   120,  // ~2 min
-  'wan':   180,  // ~3 min
-  'kling': 240,  // ~4 min
-  'veo3':  480,  // ~8 min
+  'ltx':      60,  // ~1 min (very fast)
+  'ltx-fast': 30,  // ~30 sec (LTX 2.3 Fast — the new default)
+  'ovi':     120,  // ~2 min
+  'wan':     180,  // ~3 min
+  'kling':   240,  // ~4 min
+  'veo3':    480,  // ~8 min
 };
 
 // What each model actually outputs (max clip duration the API will honour)
 // These are hard model limits — duration in prompt text is ignored by the AI video models
 const MODEL_MAX_SECONDS: Record<string, number> = {
-  'ltx':   5,    // LTX: 121 frames @ 24fps ≈ 5s
-  'ovi':   10,
-  'wan':   10,   // ~81-129 frames @ ~13fps
-  'kling': 10,   // "5" or "10" string param
-  'veo3':  8,    // Google Veo3 default output
+  'ltx':      5,   // LTX: 121 frames @ 24fps ≈ 5s
+  'ltx-fast': 5,   // LTX 2.3 Fast: same frame budget, faster inference
+  'ovi':      10,
+  'wan':      10,  // ~81-129 frames @ ~13fps
+  'kling':    10,  // "5" or "10" string param
+  'veo3':     8,   // Google Veo3 default output
 };
 
 // Parse "15s" → 15, "1m" → 60
@@ -82,8 +87,9 @@ function buildModelParams(modelKey: string, durationSec: number): Record<string,
   const capped = Math.min(durationSec, MODEL_MAX_SECONDS[modelKey] ?? 10);
 
   switch (modelKey) {
+    case 'ltx-fast':
     case 'ltx':
-      // LTX Video: 24fps, 121 frames ≈ 5 seconds (model default)
+      // LTX 2.3 Fast / LTX Video: 24fps, 121 frames ≈ 5 seconds
       return {
         num_frames: 121,
         negative_prompt: 'low quality, blurry, watermark, text overlay, distorted faces',
@@ -193,6 +199,7 @@ function buildVideoPrompt(script: ExpandedScript, platform: string, duration: st
 }
 
 function getModelId(renderingModelId: string, hasImage = false): string {
+  if (renderingModelId === 'ltx-fast') return hasImage ? FAL_MODEL_IDS['ltx-fast-img'] : FAL_MODEL_IDS['ltx-fast'];
   if (renderingModelId === 'ltx') return FAL_MODEL_IDS.ltx;
   if (renderingModelId === 'wan') return hasImage ? FAL_MODEL_IDS['wan-img'] : FAL_MODEL_IDS.wan;
   if (renderingModelId === 'kling' || renderingModelId === 'kling-1.6') return hasImage ? FAL_MODEL_IDS['kling-img'] : FAL_MODEL_IDS.kling;
@@ -201,6 +208,7 @@ function getModelId(renderingModelId: string, hasImage = false): string {
 }
 
 function getModelKey(renderingModelId: string): string {
+  if (renderingModelId === 'ltx-fast') return 'ltx-fast';
   if (renderingModelId === 'ltx') return 'ltx';
   if (renderingModelId === 'wan') return 'wan';
   if (renderingModelId === 'kling' || renderingModelId === 'kling-1.6') return 'kling';

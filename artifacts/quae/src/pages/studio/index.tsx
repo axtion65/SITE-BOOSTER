@@ -145,7 +145,7 @@ function Wizard() {
   const savedDraft = hasTemplateParams ? null : loadDraft();
 
   const [step, setStep] = useState(savedDraft?.step ?? 1);
-  const [modelId, setModelId] = useState<string>(savedDraft?.modelId ?? "wan");
+  const [modelId, setModelId] = useState<string>(savedDraft?.modelId ?? "ltx-fast");
   const [voiceId, setVoiceId] = useState<string>(savedDraft?.voiceId ?? "alloy");
 
   // Step 1 State
@@ -490,7 +490,7 @@ function Wizard() {
 
   // Canonical model clip limits — must match MODEL_MAX_SECONDS in api-server/src/lib/falvideo.ts
   const MODEL_MAX_SECONDS: Record<string, number> = {
-    ltx: 5, ovi: 10, wan: 10, kling: 10, "kling-1.6": 10, veo3: 8,
+    "ltx-fast": 5, ltx: 5, ovi: 10, wan: 10, kling: 10, "kling-1.6": 10, veo3: 8,
   };
 
   // Parse "15s" → 15, "30s" → 30, "1m" → 60
@@ -520,7 +520,7 @@ function Wizard() {
   }
 
   // Whether the selected model supports image conditioning
-  const imageModels = ["wan", "kling", "kling-1.6"];
+  const imageModels = ["ltx-fast", "wan", "kling", "kling-1.6"];
   const selectedModelSupportsImage = imageModels.includes(modelId);
 
   return (
@@ -1216,6 +1216,10 @@ function Wizard() {
               {/* Model example output */}
               {(() => {
                 const modelExamples: Record<string, { label: string; description: string; videoUrl?: string }> = {
+                  "ltx-fast": {
+                    label: "Fast Draft — LTX Fast",
+                    description: "Renders in ~30 seconds using LTX 2.3 Fast. Stylized clips up to 5 sec — ideal for rapid concept drafts before committing to a premium render.",
+                  },
                   ltx: {
                     label: "LTX Video",
                     description: "Fast, stylized clips up to 5 sec. Great for concept visualization with a dreamlike quality.",
