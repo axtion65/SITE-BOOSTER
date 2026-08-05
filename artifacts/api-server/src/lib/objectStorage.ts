@@ -426,27 +426,24 @@ export class ObjectStorageService {
     return rawPath;
   }
 
-  async trySetObjectEntityAclPolicy(
-    rawPath: string,
-    aclPolicy: ObjectAclPolicy,
-  ): Promise<string> {
-    const normalizedPath =
-      this.normalizeObjectEntityPath(rawPath);
+async trySetObjectEntityAclPolicy(
+  rawPath: string,
+  _aclPolicy: ObjectAclPolicy,
+): Promise<string> {
+  const normalizedPath = this.normalizeObjectEntityPath(rawPath);
 
-    if (!normalizedPath.startsWith("/")) {
-      return normalizedPath;
-    }
-
-    const objectFile =
-      await this.getObjectEntityFile(normalizedPath);
-
-    await setObjectAclPolicy(
-      objectFile as any,
-      aclPolicy,
-    );
-
-    return `/objects/${objectFile.objectName}`;
+  // Railway S3 objects remain private.
+  // Signed URLs control access, so Replit/GCS ACL finalization is not needed.
+  if (normalizedPath.startsWith("/objects/")) {
+    return normalizedPath;
   }
+
+  if (normalizedPath.startsWith("/api/storage/objects/")) {
+    return `/objects/${normalizeKey(normalizedPath)}`;
+  }
+
+  return normalizedPath;
+}
 
   async canAccessObjectEntity({
     userId,
