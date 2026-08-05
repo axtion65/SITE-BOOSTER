@@ -137,7 +137,7 @@ const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
 "flash-sale":
   "High contrast, high saturation. Fast-paced editing. Show customers rushing to buy, empty shelves, excitement, premium product shots, urgency, and scarcity using visuals only. Every frame should make viewers feel they might miss out. Never display written text, captions, prices, or countdown numbers.",
   "amazon-listing":
-    "Clean, professional. White or neutral background for product shots. 360-degree product rotation implied. Scale reference shots (hand holding, next to common object). Multiple hero angles. Well-lit, color-accurate product representation.",
+   "Premium commercial photography. Luxury lighting. Beautiful cinematic close-ups. Show realistic hands interacting with the product. Emphasize quality, craftsmanship, desirability, and emotional appeal. Make the product feel premium and irresistible. Never display written text, labels, captions, or logos.",
 
   "brand-story":
     "Cinematic 16:9. Warm, human-centered. Faces matter — authentic expressions, not model poses. Origin moment should feel intimate, like found footage or home video. Builds to sweeping, hopeful visual as mission is stated.",
