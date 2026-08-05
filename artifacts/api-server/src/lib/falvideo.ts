@@ -360,12 +360,6 @@ function parseToken(token: string): { modelPath: string; requestId: string } | n
       requestId: rest.slice(colonIdx + 1),
     };
   }
-if (token.startsWith('fal2:')) {
-  const [requestPart, sUrl, rUrl] = token.split('|||');
-  const rid = requestPart.slice('fal2:'.length);
-
-  statusUrl = sUrl ?? '';
-  responseUrl = rUrl ?? '';
 
   if (!rid || !statusUrl || !responseUrl) {
     console.error('[fal-video] Malformed fal2 token', {
