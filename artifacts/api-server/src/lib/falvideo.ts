@@ -94,7 +94,8 @@ function buildModelParams(modelKey: string, durationSec: number): Record<string,
       // LTX 2.3 Fast / LTX Video: 24fps, 121 frames ≈ 5 seconds
       return {
         num_frames: 121,
-        negative_prompt: 'low quality, blurry, watermark, text overlay, distorted faces',
+       negative_prompt:
+  'text, words, letters, captions, subtitles, logos, watermarks, signs, labels, typography, written language, misspelled text, gibberish text, low quality, blurry, distorted faces',
       };
 
     case 'kling':
