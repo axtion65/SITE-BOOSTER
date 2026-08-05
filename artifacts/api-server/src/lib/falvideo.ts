@@ -349,20 +349,28 @@ export async function submitFalVideoRender(
 // Supports:
 //   current: "fal:<modelPath>:<requestId>"  (modelPath has no colons — uses '/')
 //   legacy:  "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
-function parseToken(token: string): { modelPath: string; requestId: string } | null {
-  if (token.startsWith('fal:')) {
-    // "fal:fal-ai/ltx-2.3/text-to-video/fast:abc-123"
-    const rest = token.slice('fal:'.length); // "fal-ai/ltx-2.3/text-to-video/fast:abc-123"
-    const colonIdx = rest.lastIndexOf(':');   // split on the LAST colon only
-    if (colonIdx < 0) return null;
-    return {
-      modelPath: rest.slice(0, colonIdx),
-      requestId: rest.slice(colonIdx + 1),
-    };
+if (!rid || !statusUrl || !responseUrl) {
+function parseToken(
+  token: string,
+): { modelPath: string; requestId: string } | null {
+  if (!token.startsWith("fal:")) {
+    return null;
   }
 
-  if (!rid || !statusUrl || !responseUrl) {
-    console.error('[fal-video] Malformed fal2 token', {
+  const rest = token.substring(4);
+  const lastColon = rest.lastIndexOf(":");
+
+  if (lastColon === -1) {
+    return null;
+  }
+
+  return {
+    modelPath: rest.substring(0, lastColon),
+    requestId: rest.substring(lastColon + 1),
+  };
+}
+
+  sole.error('[fal-video] Malformed fal2 token', {
       hasRequestId: Boolean(rid),
       hasStatusUrl: Boolean(statusUrl),
       hasResponseUrl: Boolean(responseUrl),
