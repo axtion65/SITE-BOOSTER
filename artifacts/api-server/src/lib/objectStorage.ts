@@ -445,6 +445,8 @@ async trySetObjectEntityAclPolicy(
   return normalizedPath;
 }
 
+  return normalizedPath;
+}
   async canAccessObjectEntity({
     userId,
     objectFile,
