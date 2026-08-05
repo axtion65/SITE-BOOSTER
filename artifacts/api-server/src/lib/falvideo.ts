@@ -140,7 +140,7 @@ const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
    "Premium commercial photography. Luxury lighting. Beautiful cinematic close-ups. Show realistic hands interacting with the product. Emphasize quality, craftsmanship, desirability, and emotional appeal. Make the product feel premium and irresistible. Never display written text, labels, captions, or logos.",
 
   "brand-story":
-    "Cinematic 16:9. Warm, human-centered. Faces matter — authentic expressions, not model poses. Origin moment should feel intimate, like found footage or home video. Builds to sweeping, hopeful visual as mission is stated.",
+    "Cinematic luxury commercial. Tell an emotional story through realistic people and authentic moments. Begin with a relatable problem, then reveal the product naturally as the solution. Build trust with genuine reactions, beautiful lighting, premium camera movement, and emotionally satisfying visuals. End with the customer happy, confident, and transformed. Make the viewer imagine owning the product and wanting it immediately. Never display written text, captions, logos, labels, subtitles, or watermarks.",
 
   "testimonial-compilation":
     "Vertical 9:16. Quick cuts between different people in different settings — visual variety is key. Each face is centered, talking directly to camera. Show emotion through facial expressions only. Never display written text.. Builds to a montage crescendo of overlapping voices/faces.",
