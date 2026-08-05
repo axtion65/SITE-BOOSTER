@@ -1,7 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import { pinoHttp } from "pino-http";
-import router from "./routes";
+import type { Request, Response } from "express";
+
 import { WebhookHandlers } from "./webhookHandlers";
 import { logger } from "./lib/logger";
 
@@ -25,14 +26,22 @@ app.post(
   }
 );
 
-// pino-http v10: use named import; req.id is pino-http's own augmentation so typed as any
+import { pinoHttp } from "pino-http";
+import type { Request, Response } from "express";
+
 app.use(pinoHttp({
   logger,
   serializers: {
-    req(req: any) { return { id: req.id, method: req.method, url: req.url?.split("?")[0] }; },
-    res(res: any) { return { statusCode: res.statusCode }; },
+    req(req: Request) {
+      return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
+    },
+    res(res: Response) {
+      return { statusCode: res.statusCode };
+    },
   },
 }));
+;
+
 
 app.use(cors());
 app.use(express.json());
