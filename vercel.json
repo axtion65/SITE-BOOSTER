@@ -1,0 +1,20 @@
+{
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @workspace/quae run build",
+  "outputDirectory": "artifacts/quae/dist/public",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://site-booster.replit.app/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "env": {
+    "BASE_PATH": "/",
+    "PORT": "3000"
+  }
+}
