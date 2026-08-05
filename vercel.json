@@ -1,8 +1,9 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @workspace/quae run build && cp -r artifacts/quae/dist/public ./public",
-  "outputDirectory": "public",
-  "framework": null,
+  "buildCommand": "pnpm --filter @workspace/quae run build",
+  "outputDirectory": "artifacts/quae/dist/public",
+  "framework": "vite",
   "rewrites": [
     {
       "source": "/api/:path*",
@@ -12,9 +13,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "env": {
-    "BASE_PATH": "/",
-    "PORT": "3000"
-  }
+  ]
 }
