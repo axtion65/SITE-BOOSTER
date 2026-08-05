@@ -1,6 +1,14 @@
-import { randomUUID } from 'crypto';
-import { Readable } from 'stream';
-import { File, Storage } from '@google-cloud/storage';
+import { randomUUID } from "crypto";
+import { Readable } from "stream";
+
+import {
+  CopyObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import {
   canAccessObject,
@@ -8,190 +16,436 @@ import {
   ObjectAclPolicy,
   ObjectPermission,
   setObjectAclPolicy,
-} from './objectAcl';
+} from "./objectAcl";
 
-const REPLIT_SIDECAR_ENDPOINT = 'http://127.0.0.1:1106';
+/**
+ * Railway provides an S3-compatible bucket.
+ *
+ * The bucket connector may expose either Railway's original variable names:
+ *   ENDPOINT, BUCKET, REGION, ACCESS_KEY_ID, SECRET_ACCESS_KEY
+ *
+ * or the AWS-style aliases shown in your SITE-BOOSTER service:
+ *   AWS_ENDPOINT_URL, AWS_S3_BUCKET_NAME, AWS_DEFAULT_REGION,
+ *   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+ */
+function requireEnv(...names: string[]): string {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
 
-export const objectStorageClient = new Storage({
+  throw new Error(
+    `Missing storage variable. Expected one of: ${names.join(", ")}`,
+  );
+}
+
+function getStorageConfig() {
+  return {
+    endpoint: requireEnv("AWS_ENDPOINT_URL", "ENDPOINT"),
+    bucket: requireEnv("AWS_S3_BUCKET_NAME", "BUCKET"),
+    region:
+      process.env.AWS_DEFAULT_REGION?.trim() ||
+      process.env.AWS_REGION?.trim() ||
+      process.env.REGION?.trim() ||
+      "auto",
+    accessKeyId: requireEnv("AWS_ACCESS_KEY_ID", "ACCESS_KEY_ID"),
+    secretAccessKey: requireEnv(
+      "AWS_SECRET_ACCESS_KEY",
+      "SECRET_ACCESS_KEY",
+    ),
+  };
+}
+
+const storageConfig = getStorageConfig();
+
+export const objectStorageClient = new S3Client({
+  endpoint: storageConfig.endpoint,
+  region: storageConfig.region,
   credentials: {
-    audience: 'replit',
-    subject_token_type: 'access_token',
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: 'external_account',
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: 'json',
-        subject_token_field_name: 'access_token',
-      },
-    },
-    universe_domain: 'googleapis.com',
+    accessKeyId: storageConfig.accessKeyId,
+    secretAccessKey: storageConfig.secretAccessKey,
   },
-  projectId: '',
+
+  // Railway Buckets are S3-compatible and work reliably with path-style URLs.
+  forcePathStyle: true,
 });
 
 export class ObjectNotFoundError extends Error {
   constructor() {
-    super('Object not found');
-    this.name = 'ObjectNotFoundError';
+    super("Object not found");
+    this.name = "ObjectNotFoundError";
     Object.setPrototypeOf(this, ObjectNotFoundError.prototype);
   }
+}
+
+/**
+ * Small Google-Storage-like compatibility wrapper.
+ *
+ * objectAcl.ts was written against Google Cloud Storage File objects. This
+ * wrapper implements the methods and properties that code commonly uses:
+ *
+ * - file.name
+ * - file.bucket.name
+ * - file.exists()
+ * - file.getMetadata()
+ * - file.setMetadata()
+ * - file.save()
+ *
+ * This lets the existing ACL helper continue working while the actual bytes
+ * are stored in Railway's S3-compatible bucket.
+ */
+export class S3ObjectFile {
+  readonly name: string;
+  readonly bucket: { name: string };
+
+  constructor(
+    readonly bucketName: string,
+    readonly objectName: string,
+  ) {
+    this.name = objectName;
+    this.bucket = { name: bucketName };
+  }
+
+  async exists(): Promise<[boolean]> {
+    try {
+      await objectStorageClient.send(
+        new HeadObjectCommand({
+          Bucket: this.bucketName,
+          Key: this.objectName,
+        }),
+      );
+
+      return [true];
+    } catch (error: any) {
+      const status = error?.$metadata?.httpStatusCode;
+      const name = error?.name;
+
+      if (
+        status === 404 ||
+        name === "NotFound" ||
+        name === "NoSuchKey"
+      ) {
+        return [false];
+      }
+
+      throw error;
+    }
+  }
+
+  async getMetadata(): Promise<[Record<string, unknown>]> {
+    try {
+      const result = await objectStorageClient.send(
+        new HeadObjectCommand({
+          Bucket: this.bucketName,
+          Key: this.objectName,
+        }),
+      );
+
+      return [
+        {
+          ...result.Metadata,
+          metadata: result.Metadata ?? {},
+          contentType:
+            result.ContentType ?? "application/octet-stream",
+          size: result.ContentLength,
+          cacheControl: result.CacheControl,
+          etag: result.ETag,
+          updated: result.LastModified?.toISOString(),
+        },
+      ];
+    } catch (error: any) {
+      const status = error?.$metadata?.httpStatusCode;
+
+      if (
+        status === 404 ||
+        error?.name === "NotFound" ||
+        error?.name === "NoSuchKey"
+      ) {
+        throw new ObjectNotFoundError();
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Preserve object bytes and replace S3 metadata.
+   *
+   * This supports the existing objectAcl.ts helper, which may store its ACL
+   * policy in custom object metadata.
+   */
+  async setMetadata(
+    metadataInput: Record<string, any>,
+  ): Promise<[Record<string, unknown>]> {
+    const [current] = await this.getMetadata();
+
+    const nestedMetadata =
+      metadataInput.metadata &&
+      typeof metadataInput.metadata === "object"
+        ? metadataInput.metadata
+        : metadataInput;
+
+    const metadata: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(nestedMetadata)) {
+      if (value === undefined || value === null) continue;
+      if (typeof value === "object") {
+        metadata[key] = JSON.stringify(value);
+      } else {
+        metadata[key] = String(value);
+      }
+    }
+
+    await objectStorageClient.send(
+      new CopyObjectCommand({
+        Bucket: this.bucketName,
+        Key: this.objectName,
+        CopySource: encodeCopySource(
+          this.bucketName,
+          this.objectName,
+        ),
+        MetadataDirective: "REPLACE",
+        Metadata: metadata,
+        ContentType:
+          (metadataInput.contentType as string | undefined) ??
+          (current.contentType as string | undefined) ??
+          "application/octet-stream",
+        CacheControl:
+          (metadataInput.cacheControl as string | undefined) ??
+          (current.cacheControl as string | undefined),
+      }),
+    );
+
+    return this.getMetadata();
+  }
+
+  async save(
+    data: Buffer | Uint8Array | string,
+    options?: {
+      contentType?: string;
+      resumable?: boolean;
+      metadata?: Record<string, string>;
+      cacheControl?: string;
+    },
+  ): Promise<void> {
+    await objectStorageClient.send(
+      new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: this.objectName,
+        Body: data,
+        ContentType:
+          options?.contentType ?? "application/octet-stream",
+        Metadata: options?.metadata,
+        CacheControl: options?.cacheControl,
+      }),
+    );
+  }
+}
+
+function encodeCopySource(
+  bucketName: string,
+  objectName: string,
+): string {
+  const encodedKey = objectName
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
+
+  return `${encodeURIComponent(bucketName)}/${encodedKey}`;
+}
+
+function normalizeKey(value: string): string {
+  return value
+    .replace(/^\/+/, "")
+    .replace(/^api\/storage\/objects\//, "")
+    .replace(/^objects\//, "");
+}
+
+function internalObjectPath(objectName: string): string {
+  return `/api/storage/objects/${objectName}`;
 }
 
 export class ObjectStorageService {
   constructor() {}
 
+  /**
+   * Kept for compatibility with existing code.
+   *
+   * Railway uses one configured bucket, so this returns that bucket rather
+   * than requiring PUBLIC_OBJECT_SEARCH_PATHS.
+   */
   getPublicObjectSearchPaths(): Array<string> {
-    const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
-    const paths = Array.from(
-      new Set(
-        pathsStr
-          .split(',')
-          .map((path) => path.trim())
-          .filter((path) => path.length > 0),
-      ),
-    );
-    if (paths.length === 0) {
-      throw new Error(
-        "PUBLIC_OBJECT_SEARCH_PATHS not set. Create a bucket in 'Object Storage' " +
-          'tool and set PUBLIC_OBJECT_SEARCH_PATHS env var (comma-separated paths).',
-      );
-    }
-    return paths;
+    return [`/${storageConfig.bucket}`];
   }
 
+  /**
+   * Kept for compatibility with existing callers.
+   *
+   * This is no longer an environment variable. It represents the root of the
+   * Railway S3 bucket.
+   */
   getPrivateObjectDir(): string {
-    const dir = process.env.PRIVATE_OBJECT_DIR || '';
-    if (!dir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          'tool and set PRIVATE_OBJECT_DIR env var.',
-      );
-    }
-    return dir;
+    return `/${storageConfig.bucket}`;
   }
 
-  async searchPublicObject(filePath: string): Promise<File | null> {
-    for (const searchPath of this.getPublicObjectSearchPaths()) {
-      const fullPath = `${searchPath}/${filePath}`;
+  async searchPublicObject(
+    filePath: string,
+  ): Promise<S3ObjectFile | null> {
+    const objectName = normalizeKey(filePath);
+    const file = new S3ObjectFile(
+      storageConfig.bucket,
+      objectName,
+    );
 
-      const { bucketName, objectName } = parseObjectPath(fullPath);
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
-
-      const [exists] = await file.exists();
-      if (exists) {
-        return file;
-      }
-    }
-
-    return null;
+    const [exists] = await file.exists();
+    return exists ? file : null;
   }
 
   async downloadObject(
-    file: File,
+    file: S3ObjectFile,
     cacheTtlSec: number = 3600,
   ): Promise<Response> {
-    const [metadata] = await file.getMetadata();
-    const aclPolicy = await getObjectAclPolicy(file);
-    const isPublic = aclPolicy?.visibility === 'public';
+    const result = await objectStorageClient.send(
+      new GetObjectCommand({
+        Bucket: file.bucketName,
+        Key: file.objectName,
+      }),
+    );
 
-    const nodeStream = file.createReadStream();
-    const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+    if (!result.Body) {
+      throw new ObjectNotFoundError();
+    }
+
+    let isPublic = false;
+
+    try {
+      const aclPolicy = await getObjectAclPolicy(file as any);
+      isPublic = aclPolicy?.visibility === "public";
+    } catch (error) {
+      console.warn(
+        "[objectStorage] Could not read ACL metadata; treating object as private",
+        error,
+      );
+    }
+
+    const webStream = result.Body.transformToWebStream();
 
     const headers: Record<string, string> = {
-      'Content-Type':
-        (metadata.contentType as string) || 'application/octet-stream',
-      'Cache-Control': `${isPublic ? 'public' : 'private'}, max-age=${cacheTtlSec}`,
+      "Content-Type":
+        result.ContentType ?? "application/octet-stream",
+      "Cache-Control": `${
+        isPublic ? "public" : "private"
+      }, max-age=${cacheTtlSec}`,
     };
-    if (metadata.size) {
-      headers['Content-Length'] = String(metadata.size);
+
+    if (result.ContentLength !== undefined) {
+      headers["Content-Length"] = String(
+        result.ContentLength,
+      );
+    }
+
+    if (result.ETag) {
+      headers.ETag = result.ETag;
     }
 
     return new Response(webStream, { headers });
   }
 
+  /**
+   * Creates a signed PUT URL for direct browser uploads.
+   *
+   * The uploaded object is stored at:
+   * uploads/<uuid>
+   */
   async getObjectEntityUploadURL(): Promise<string> {
-    const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          'tool and set PRIVATE_OBJECT_DIR env var.',
-      );
-    }
-
     const objectId = randomUUID();
-    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const objectName = `uploads/${objectId}`;
 
-    const { bucketName, objectName } = parseObjectPath(fullPath);
-
-    return signObjectURL({
-      bucketName,
-      objectName,
-      method: 'PUT',
-      ttlSec: 900,
-    });
+    return getSignedUrl(
+      objectStorageClient,
+      new PutObjectCommand({
+        Bucket: storageConfig.bucket,
+        Key: objectName,
+        ContentType: "application/octet-stream",
+      }),
+      { expiresIn: 900 },
+    );
   }
 
-  async getObjectEntityFile(objectPath: string): Promise<File> {
-    if (!objectPath.startsWith('/objects/')) {
+  async getObjectEntityFile(
+    objectPath: string,
+  ): Promise<S3ObjectFile> {
+    const objectName = normalizeKey(objectPath);
+
+    if (!objectName) {
       throw new ObjectNotFoundError();
     }
 
-    const parts = objectPath.slice(1).split('/');
-    if (parts.length < 2) {
-      throw new ObjectNotFoundError();
-    }
+    const objectFile = new S3ObjectFile(
+      storageConfig.bucket,
+      objectName,
+    );
 
-    const entityId = parts.slice(1).join('/');
-    let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith('/')) {
-      entityDir = `${entityDir}/`;
-    }
-    const objectEntityPath = `${entityDir}${entityId}`;
-    const { bucketName, objectName } = parseObjectPath(objectEntityPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const objectFile = bucket.file(objectName);
     const [exists] = await objectFile.exists();
+
     if (!exists) {
       throw new ObjectNotFoundError();
     }
+
     return objectFile;
   }
 
   normalizeObjectEntityPath(rawPath: string): string {
-    if (!rawPath.startsWith('https://storage.googleapis.com/')) {
-      return rawPath;
+    if (
+      rawPath.startsWith("/objects/") ||
+      rawPath.startsWith("/api/storage/objects/")
+    ) {
+      return `/objects/${normalizeKey(rawPath)}`;
     }
 
-    const url = new URL(rawPath);
-    const rawObjectPath = url.pathname;
+    try {
+      const url = new URL(rawPath);
+      const endpoint = new URL(storageConfig.endpoint);
 
-    let objectEntityDir = this.getPrivateObjectDir();
-    if (!objectEntityDir.endsWith('/')) {
-      objectEntityDir = `${objectEntityDir}/`;
+      // Path-style Railway S3 URL:
+      // /<bucket>/<object-key>
+      if (url.host === endpoint.host) {
+        const pathname = decodeURIComponent(url.pathname);
+        const bucketPrefix = `/${storageConfig.bucket}/`;
+
+        if (pathname.startsWith(bucketPrefix)) {
+          return `/objects/${pathname.slice(
+            bucketPrefix.length,
+          )}`;
+        }
+      }
+    } catch {
+      // rawPath was not an absolute URL.
     }
 
-    if (!rawObjectPath.startsWith(objectEntityDir)) {
-      return rawObjectPath;
-    }
-
-    const entityId = rawObjectPath.slice(objectEntityDir.length);
-    return `/objects/${entityId}`;
+    return rawPath;
   }
 
   async trySetObjectEntityAclPolicy(
     rawPath: string,
     aclPolicy: ObjectAclPolicy,
   ): Promise<string> {
-    const normalizedPath = this.normalizeObjectEntityPath(rawPath);
-    if (!normalizedPath.startsWith('/')) {
+    const normalizedPath =
+      this.normalizeObjectEntityPath(rawPath);
+
+    if (!normalizedPath.startsWith("/")) {
       return normalizedPath;
     }
 
-    const objectFile = await this.getObjectEntityFile(normalizedPath);
-    await setObjectAclPolicy(objectFile, aclPolicy);
-    return normalizedPath;
+    const objectFile =
+      await this.getObjectEntityFile(normalizedPath);
+
+    await setObjectAclPolicy(
+      objectFile as any,
+      aclPolicy,
+    );
+
+    return `/objects/${objectFile.objectName}`;
   }
 
   async canAccessObjectEntity({
@@ -200,131 +454,104 @@ export class ObjectStorageService {
     requestedPermission,
   }: {
     userId?: string;
-    objectFile: File;
+    objectFile: S3ObjectFile;
     requestedPermission?: ObjectPermission;
   }): Promise<boolean> {
     return canAccessObject({
       userId,
-      objectFile,
-      requestedPermission: requestedPermission ?? ObjectPermission.READ,
+      objectFile: objectFile as any,
+      requestedPermission:
+        requestedPermission ?? ObjectPermission.READ,
     });
   }
 
   /**
-   * Download a video from an external URL (e.g. fal.media) and store it
-   * permanently in private object storage.  Returns the internal API path
-   * `/api/storage/objects/videos/<uuid>.mp4` which can later be resolved to
-   * a fresh signed URL via getSignedObjectEntityUrl.
+   * Downloads a generated video from fal.media and stores it permanently in
+   * the Railway bucket.
+   *
+   * Returns:
+   * /api/storage/objects/videos/<uuid>.mp4
    */
-  async uploadVideoFromUrl(videoUrl: string): Promise<string> {
-    const privateDir = this.getPrivateObjectDir();
+  async uploadVideoFromUrl(
+    videoUrl: string,
+  ): Promise<string> {
     const objectId = randomUUID();
-    const fullPath = `${privateDir}/videos/${objectId}.mp4`;
-    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const objectName = `videos/${objectId}.mp4`;
 
-    const resp = await fetch(videoUrl, { signal: AbortSignal.timeout(180_000) });
-    if (!resp.ok) throw new Error(`Video download failed: HTTP ${resp.status} from ${videoUrl}`);
-
-    const buffer = Buffer.from(await resp.arrayBuffer());
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    await file.save(buffer, { contentType: 'video/mp4', resumable: false });
-
-    console.log(`[objectStorage] Archived video → ${fullPath} (${buffer.length} bytes)`);
-    return `/api/storage/objects/videos/${objectId}.mp4`;
-  }
-
-  /**
-   * Upload a video Buffer directly to permanent private object storage.
-   * Returns the internal API path `/api/storage/objects/videos/<uuid>.mp4`.
-   * Use this instead of uploadVideoFromUrl when you already have the bytes
-   * (e.g. after FFmpeg post-processing).
-   */
-  async uploadVideoBuffer(buffer: Buffer): Promise<string> {
-    const privateDir = this.getPrivateObjectDir();
-    const objectId = randomUUID();
-    const fullPath = `${privateDir}/videos/${objectId}.mp4`;
-    const { bucketName, objectName } = parseObjectPath(fullPath);
-
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    await file.save(buffer, { contentType: 'video/mp4', resumable: false });
-
-    console.log(`[objectStorage] Uploaded video buffer → ${fullPath} (${buffer.length} bytes)`);
-    return `/api/storage/objects/videos/${objectId}.mp4`;
-  }
-
-  /**
-   * Generate a short-lived signed GET URL for a private object entity.
-   * Callers should verify ownership via canAccessObjectEntity before calling this.
-   */
-  async getSignedObjectEntityUrl(objectPath: string, ttlSec: number = 900): Promise<string> {
-    const objectFile = await this.getObjectEntityFile(objectPath);
-    return signObjectURL({
-      bucketName: objectFile.bucket.name,
-      objectName: objectFile.name,
-      method: 'GET',
-      ttlSec,
+    const response = await fetch(videoUrl, {
+      signal: AbortSignal.timeout(180_000),
     });
+
+    if (!response.ok) {
+      throw new Error(
+        `Video download failed: HTTP ${response.status} from ${videoUrl}`,
+      );
+    }
+
+    const buffer = Buffer.from(
+      await response.arrayBuffer(),
+    );
+
+    await objectStorageClient.send(
+      new PutObjectCommand({
+        Bucket: storageConfig.bucket,
+        Key: objectName,
+        Body: buffer,
+        ContentType: "video/mp4",
+        CacheControl: "private, max-age=31536000",
+      }),
+    );
+
+    console.log(
+      `[objectStorage] Archived video → s3://${storageConfig.bucket}/${objectName} (${buffer.length} bytes)`,
+    );
+
+    return internalObjectPath(objectName);
   }
-}
 
-function parseObjectPath(path: string): {
-  bucketName: string;
-  objectName: string;
-} {
-  if (!path.startsWith('/')) {
-    path = `/${path}`;
+  /**
+   * Stores a video buffer in the Railway bucket.
+   */
+  async uploadVideoBuffer(
+    buffer: Buffer,
+  ): Promise<string> {
+    const objectId = randomUUID();
+    const objectName = `videos/${objectId}.mp4`;
+
+    await objectStorageClient.send(
+      new PutObjectCommand({
+        Bucket: storageConfig.bucket,
+        Key: objectName,
+        Body: buffer,
+        ContentType: "video/mp4",
+        CacheControl: "private, max-age=31536000",
+      }),
+    );
+
+    console.log(
+      `[objectStorage] Uploaded video buffer → s3://${storageConfig.bucket}/${objectName} (${buffer.length} bytes)`,
+    );
+
+    return internalObjectPath(objectName);
   }
-  const pathParts = path.split('/');
-  if (pathParts.length < 3) {
-    throw new Error('Invalid path: must contain at least a bucket name');
-  }
 
-  const bucketName = pathParts[1];
-  const objectName = pathParts.slice(2).join('/');
+  /**
+   * Returns a short-lived signed GET URL for an existing private object.
+   */
+  async getSignedObjectEntityUrl(
+    objectPath: string,
+    ttlSec: number = 900,
+  ): Promise<string> {
+    const objectFile =
+      await this.getObjectEntityFile(objectPath);
 
-  return {
-    bucketName,
-    objectName,
-  };
-}
-
-async function signObjectURL({
-  bucketName,
-  objectName,
-  method,
-  ttlSec,
-}: {
-  bucketName: string;
-  objectName: string;
-  method: 'GET' | 'PUT' | 'DELETE' | 'HEAD';
-  ttlSec: number;
-}): Promise<string> {
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(30_000),
-    },
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`,
+    return getSignedUrl(
+      objectStorageClient,
+      new GetObjectCommand({
+        Bucket: objectFile.bucketName,
+        Key: objectFile.objectName,
+      }),
+      { expiresIn: ttlSec },
     );
   }
-
-  const { signed_url: signedURL } = await response.json() as { signed_url: string };
-  return signedURL;
 }
