@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter @workspace/quae run build",
-  "outputDirectory": "artifacts/quae/dist",
+  "outputDirectory": "artifacts/quae/dist/public",
   "framework": "vite",
   "rewrites": [
     {
@@ -11,7 +11,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/index.html" 
+      "destination": "/index.html"
     }
   ]
 }
