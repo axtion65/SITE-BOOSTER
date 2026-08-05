@@ -9,12 +9,11 @@
     "start": "node ./build.mjs && node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "@fal-ai/client": "^1.10.1",
-    "@google-cloud/storage": "^7.21.0",
-    "@workspace/api-zod": "workspace:*",
-    "@workspace/db": "workspace:*",
-    "@workspace/templates": "workspace:*",
+"dependencies": {
+  "@aws-sdk/client-s3": "^3.864.0",
+  "@aws-sdk/s3-request-presigner": "^3.864.0",
+  "@fal-ai/client": "^1.10.1",
+  "@google-cloud/storage": "^7.21.0",    "@workspace/templates": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "drizzle-orm": "catalog:",
