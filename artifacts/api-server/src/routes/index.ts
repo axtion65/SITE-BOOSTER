@@ -9,6 +9,7 @@ import billingRouter from "./billing";
 import feedbackRouter from "./feedback";
 import storageRouter from "./storage";
 import webhooksRouter from "./webhooks";
+import debugFalRouter from "./debugFal";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(billingRouter);
 router.use(feedbackRouter);
 router.use(storageRouter);
 router.use(webhooksRouter);
+router.use(debugFalRouter);
 
 export default router;
