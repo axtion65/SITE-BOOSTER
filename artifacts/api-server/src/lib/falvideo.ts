@@ -3,6 +3,8 @@
 // Wan 2.5: $0.05/sec
 // Kling 2.5: $0.07/sec (premium)
 
+import { fal } from "@fal-ai/client";
+
 export interface ExpandedScript {
   script: string;
   hook: string;
@@ -327,40 +329,50 @@ export async function submitFalVideoRender(
   console.log(`[fal-video] renderingModelId="${renderingModelId}" → fal="${modelPath}" | hasImage=${hasImage} | template=${templateType ?? 'generic'} | duration=${duration} | params:`, modelParams);
 
   // image_url is the param name for both wan and kling image-to-video endpoints
-  const body: Record<string, unknown> = { prompt, ...modelParams };
-  if (falImageUrl) body.image_url = falImageUrl;
-  if (webhookUrl) body.webhook_url = webhookUrl;
+  const input: Record<string, unknown> = { prompt, ...modelParams };
+  if (falImageUrl) input.image_url = falImageUrl;
 
-  const res = await fetch(`https://queue.fal.run/${modelPath}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Key ${falKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
+  // Use the official @fal-ai/client — no manual URL construction, no custom auth headers.
+  fal.config({ credentials: falKey });
 
-  if (!res.ok) {
-    const err = await res.text();
-    console.error(`[fal-video] Submit error ${res.status}:`, err);
-    throw new Error(`fal.ai submit failed: ${res.status}`);
-  }
+  const enqueued = await (fal.queue as any).submit(modelPath, { input });
+  const requestId: string = enqueued.request_id;
 
-  const data = await res.json() as {
-    request_id: string;
-    status_url?: string;
-    response_url?: string;
-  };
-
-  // Prefer fal.ai's own status/response URLs over constructing them manually.
-  // This avoids URL construction bugs with versioned model paths.
-  const statusUrl  = data.status_url  ?? `https://queue.fal.run/${modelPath}/requests/${data.request_id}/status`;
-  const responseUrl = data.response_url ?? `https://queue.fal.run/${modelPath}/requests/${data.request_id}`;
-
-  // token format v2: "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
-  const token = `fal2:${data.request_id}|||${statusUrl}|||${responseUrl}`;
-  console.log(`[fal-video] Submitted, request_id: ${data.request_id}, status_url: ${statusUrl}`);
+  // Token: "fal:<modelPath>:<requestId>"
+  // modelPath uses '/' separators — no colons — so split(':') works unambiguously.
+  const token = `fal:${modelPath}:${requestId}`;
+  console.log(`[fal-video] Submitted | modelPath="${modelPath}" | requestId="${requestId}"`);
   return token;
+}
+
+// Parse token → { modelPath, requestId }
+// Supports:
+//   current: "fal:<modelPath>:<requestId>"  (modelPath has no colons — uses '/')
+//   legacy:  "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
+function parseToken(token: string): { modelPath: string; requestId: string } | null {
+  if (token.startsWith('fal:')) {
+    // "fal:fal-ai/ltx-2.3/text-to-video/fast:abc-123"
+    const rest = token.slice('fal:'.length); // "fal-ai/ltx-2.3/text-to-video/fast:abc-123"
+    const colonIdx = rest.lastIndexOf(':');   // split on the LAST colon only
+    if (colonIdx < 0) return null;
+    return {
+      modelPath: rest.slice(0, colonIdx),
+      requestId: rest.slice(colonIdx + 1),
+    };
+  }
+  if (token.startsWith('fal2:')) {
+    // "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
+    const parts = token.split('|||');
+    const requestId = parts[0]!.slice('fal2:'.length); // strip prefix from segment 0
+    const statusUrl = parts[1] ?? '';
+    // Extract modelPath from status URL:
+    // https://queue.fal.run/<modelPath>/requests/<requestId>/status
+    const m = statusUrl.match(/^https:\/\/queue\.fal\.run\/(.+?)\/requests\//);
+    const modelPath = m?.[1] ?? '';
+    if (!requestId || !modelPath) return null;
+    return { modelPath, requestId };
+  }
+  return null;
 }
 
 // Poll fal.ai for render status — called on every GET /projects/:id
@@ -370,79 +382,67 @@ export async function pollFalVideoRender(
   const falKey = process.env.FAL_KEY;
   if (!falKey) return { status: 'failed' };
 
-  // token v2: "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
-  // token v1: "fal:<modelPath>:<requestId>"  (legacy — kept for old in-flight projects)
-  let statusUrl: string;
-  let responseUrl: string;
-  if (token.startsWith('fal2:')) {
-    const [, requestId, sUrl, rUrl] = token.split('|||');
-    // requestId is after "fal2:" prefix
-    const rid = requestId.slice('fal2:'.length);
-    statusUrl  = sUrl  ?? '';
-    responseUrl = rUrl ?? '';
-    if (!statusUrl || !responseUrl) {
-      console.error('[fal-video] Malformed fal2 token');
-      return { status: 'failed' };
-    }
-    console.log(`[fal-video] Polling (v2) request ${rid}`);
-  } else {
-    // Legacy v1 token
-    const parts = token.slice('fal:'.length).split(':');
-    const requestId = parts[parts.length - 1];
-    const modelPath = parts.slice(0, -1).join(':');
-    statusUrl  = `https://queue.fal.run/${modelPath}/requests/${requestId}/status`;
-    responseUrl = `https://queue.fal.run/${modelPath}/requests/${requestId}`;
-    console.log(`[fal-video] Polling (v1 legacy) request ${requestId}`);
+  const parsed = parseToken(token);
+  if (!parsed) {
+    console.error('[fal-video] Unrecognised token format — marking failed');
+    return { status: 'failed' };
   }
+  const { modelPath, requestId } = parsed;
 
-  const statusRes = await fetch(statusUrl, { headers: { 'Authorization': `Key ${falKey}` } });
+  // Use the official @fal-ai/client for all status and result calls.
+  fal.config({ credentials: falKey });
 
-  if (!statusRes.ok) {
-    const body = await statusRes.text().catch(() => '(unreadable)');
-    // 404/405 = job no longer exists on fal.ai (expired or never queued) → treat as failed
-    // NOTE: if this fires within 15s of submission it is a race condition —
-    // the 15s hold-off in projects.ts should prevent us from ever reaching here that early.
-    if (statusRes.status === 404 || statusRes.status === 405) {
-      console.error(`[fal-video] Poll ${statusRes.status} — job gone on fal.ai, marking failed. Body: ${body}`);
+  // ── Status check ──────────────────────────────────────────────────────────
+  let pollStatus: string;
+  try {
+    const statusRes = await (fal.queue as any).status(modelPath, { requestId, logs: true });
+    pollStatus = statusRes?.status ?? 'UNKNOWN';
+  } catch (err: any) {
+    const httpStatus = err?.status ?? 0;
+    const body = err?.body ?? err?.message ?? String(err);
+    // 404/405 = job no longer exists on fal.ai (expired or never queued)
+    if (httpStatus === 404 || httpStatus === 405) {
+      console.error(`[fal-video] Poll ${httpStatus} — job gone, marking failed. body: ${body}`);
       return { status: 'failed' };
     }
-    console.error(`[fal-video] Poll error ${statusRes.status}. Body: ${body}`);
+    console.error(`[fal-video] Poll error http=${httpStatus}:`, body);
     return { status: 'processing' };
   }
 
-  const statusData = await statusRes.json() as { status: string };
-  console.log(`[fal-video] Poll status: ${statusData.status}`);
+  console.log(`[fal-video] modelPath="${modelPath}" | requestId="${requestId}" | status="${pollStatus}"`);
 
-  if (statusData.status === 'FAILED') return { status: 'failed' };
-  if (statusData.status !== 'COMPLETED') return { status: 'processing' };
+  if (pollStatus === 'FAILED') return { status: 'failed' };
+  if (pollStatus !== 'COMPLETED') return { status: 'processing' };
 
-  // COMPLETED — fetch result
-  const resultRes = await fetch(responseUrl, { headers: { 'Authorization': `Key ${falKey}` } });
-
-  if (!resultRes.ok) {
-    console.error(`[fal-video] Result fetch error ${resultRes.status}`);
+  // ── COMPLETED — fetch result ───────────────────────────────────────────────
+  let raw: any;
+  try {
+    raw = await (fal.queue as any).result(modelPath, { requestId });
+  } catch (err: any) {
+    const body = err?.body ?? err?.message ?? String(err);
+    console.error(`[fal-video] Result fetch error:`, body);
     return { status: 'processing' };
   }
 
-  const result = await resultRes.json() as any;
-  const output = result?.output ?? result;
-  const url =
-    output?.video?.url ??
-    output?.video_url ??
-    output?.url ??
-    output?.videos?.[0]?.url ??
-    output?.video ??
-    result?.video?.url ??
-    result?.video_url ??
+  // result shape: { data: { video: { url } } } or flat { video: { url } }
+  const out: any = raw?.data ?? raw;
+  const url: string | null =
+    out?.video?.url     ??
+    out?.video_url      ??
+    out?.url            ??
+    out?.videos?.[0]?.url ??
+    out?.video          ??
+    raw?.video?.url     ??
+    raw?.video_url      ??
     null;
 
   if (url && typeof url === 'string') {
-    console.log(`[fal-video] Got video URL`);
+    console.log(`[fal-video] Done — video_url="${url}"`);
     return { status: 'done', url };
   }
 
-  console.error('[fal-video] COMPLETED but no URL. result keys:', Object.keys(result ?? {}));
-  console.error('[fal-video] Full result:', JSON.stringify(result).slice(0, 500));
+  console.error('[fal-video] COMPLETED but no video URL. raw keys:', Object.keys(raw ?? {}));
+  console.error('[fal-video] raw:', JSON.stringify(raw).slice(0, 500));
   return { status: 'failed' };
 }
 
@@ -451,21 +451,10 @@ export function isFalToken(value: string | null): boolean {
 }
 
 /**
- * Extract the fal.ai request_id from either token format:
- *   v1 (legacy): "fal:<modelPath>:<requestId>"
- *   v2:          "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
- * Returns null for unrecognised tokens.
+ * Extract the fal.ai request_id from a stored token.
+ * current: "fal:<modelPath>:<requestId>"
+ * legacy:  "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
  */
 export function extractFalRequestId(token: string): string | null {
-  if (token.startsWith('fal2:')) {
-    // "fal2:<requestId>|||<statusUrl>|||<responseUrl>"
-    const afterPrefix = token.slice('fal2:'.length);
-    return afterPrefix.split('|||')[0] ?? null;
-  }
-  if (token.startsWith('fal:')) {
-    // "fal:<modelPath>:<requestId>"
-    const parts = token.split(':');
-    return parts[parts.length - 1] ?? null;
-  }
-  return null;
+  return parseToken(token)?.requestId ?? null;
 }
