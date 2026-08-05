@@ -230,7 +230,7 @@ IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, waterma
 
     // Music
     script.suggestedMusic ? `Music/mood: ${script.suggestedMusic}.` : '',
-  ];
+
 `
 IMPORTANT:
 Never generate any visible text, captions, subtitles, logos, labels, UI elements, signs, website addresses, or written words inside the video.
