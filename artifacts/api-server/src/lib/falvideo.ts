@@ -445,9 +445,8 @@ export async function pollFalVideoRender(
 }
 
 export function isFalToken(value: string | null): boolean {
-  return typeof value === 'string' && (value.startsWith('fal:') || value.startsWith('fal2:'));
+  return typeof value === "string" && value.startsWith("fal:");
 }
-
 /**
  * Extract the fal.ai request_id from a stored token.
  * current: "fal:<modelPath>:<requestId>"
