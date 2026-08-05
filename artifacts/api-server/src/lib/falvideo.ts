@@ -124,16 +124,15 @@ const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
     "Vertical 9:16. Rapid cuts every 2-3 seconds. Strong visual emphasis in TikTok style. Never display any written text.. First frame is a pattern interrupt — something unexpected or shocking. High energy throughout. Trending audio feel.",
 
   "ugc-review":
-    "Vertical 9:16. Handheld camera feel — slight shake, natural movement. Talking-to-camera framing. Natural home or outdoor lighting. Authentic, unpolished aesthetic. No product on white background. Real-life context throughout.",No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.
+    "Vertical 9:16. Handheld camera feel — slight shake, natural movement. Talking-to-camera framing. Natural home or outdoor lighting. Authentic, unpolished aesthetic. No product on white background. ...Real-life context throughout. No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.",
 
   "before-after":
-    "Vertical 9:16. Stark visual contrast between first half and second half. Before: muted colors, low energy environment. After: bright, warm, high energy. Consider split-screen or hard cut at midpoint. Transformation is VISUAL, not just narrated.",No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.
+    "Vertical 9:16. Stark visual contrast between first half and second half. Before: muted colors, low energy environment. After: bright, warm, high energy. Consider split-screen or hard cut at midpoint....Transformation is VISUAL, not just narrated. No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.",
 
   "product-demo":
-    "Widescreen 16:9 or vertical 9:16. Close-up hands-on product shots. Multiple angles — overhead, close macro, side profile. Show the product in actual use, not just display. Clean but not sterile. Professional lighting.",No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.
-
+    "Widescreen 16:9 or vertical 9:16. Close-up hands-on product shots. Multiple angles — overhead, close macro, side profile. Show the product in actual use, not just display. Clean but not sterile....Professional lighting. No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.",
   "product-unboxing":
-    "Close-up macro shots of packaging details. Camera starts on the shipping box, reveals inner packaging, then product. Slow deliberate movements at key moments (first reveal), faster during secondary reveals. ASMR-adjacent — show texture, weight, material quality visually.",No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.
+    "Close-up macro shots of packaging details. Camera starts on the shipping box, reveals inner packaging, then product. Slow deliberate movements at key moments (first reveal), faster during secondary reveals. ASMR-adjacent — show texture, weight, material quality visually. No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.",
 
   "flash-sale":
     "High contrast, high saturation. Red and bold colors suggest urgency. Big bold text for price/discount. Fast paced. Clock or countdown visual element if possible. Every frame communicates: LIMITED TIME.",
