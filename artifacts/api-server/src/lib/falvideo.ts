@@ -175,9 +175,29 @@ function buildVideoPrompt(script: ExpandedScript, platform: string, duration: st
 
   const parts: string[] = [
 
-   'IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, watermarks, signs, labels, website names, or written language of any kind. Use visuals only.', 
-    // Template-specific direction takes priority
-    templateDirection ? `Video format directive: ${templateDirection}` : '',
+  `You are an award-winning commercial director and viral marketing expert.
+
+Your goal is not merely to generate a video. Your goal is to create a persuasive advertisement that makes the viewer want the product or service.
+
+The first 2 seconds must stop the viewer from scrolling.
+
+Show a clear problem, emotional tension, the product as the solution, and a satisfying transformation.
+
+Use realistic people, authentic reactions, cinematic lighting, believable environments, premium camera movement, and natural facial expressions.
+
+Focus on benefits, lifestyle, emotion, trust, and desire—not technical features.
+
+Avoid generic AI-looking scenes, random imagery, distorted people, or disconnected shots.
+
+Every scene must support the same product, customer, and story.
+
+The viewer should finish the video thinking: "I need this."`,
+
+  'IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, watermarks, signs, labels, website names, or written language of any kind. Use visuals only.',
+
+  // Template-specific direction takes priority
+  templateDirection ? `Video format directive: ${templateDirection}` : '',
+ 
 
     // Opening hook — most important for AI to prioritize
     script.hook ? `Opening hook (first 2-3 seconds): ${script.hook}.` : '',
