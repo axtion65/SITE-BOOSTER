@@ -121,7 +121,7 @@ function buildModelParams(modelKey: string, durationSec: number): Record<string,
 // Template-type specific cinematic direction
 const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
   "tiktok-viral-hook":
-    "Vertical 9:16. Rapid cuts every 2-3 seconds. Bold text overlays in TikTok style. First frame is a pattern interrupt — something unexpected or shocking. High energy throughout. Trending audio feel.",
+    "Vertical 9:16. Rapid cuts every 2-3 seconds. Strong visual emphasis in TikTok style. Never display any written text.. First frame is a pattern interrupt — something unexpected or shocking. High energy throughout. Trending audio feel.",
 
   "ugc-review":
     "Vertical 9:16. Handheld camera feel — slight shake, natural movement. Talking-to-camera framing. Natural home or outdoor lighting. Authentic, unpolished aesthetic. No product on white background. Real-life context throughout.",
