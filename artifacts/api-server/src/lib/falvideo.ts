@@ -124,16 +124,16 @@ const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
     "Vertical 9:16. Rapid cuts every 2-3 seconds. Strong visual emphasis in TikTok style. Never display any written text.. First frame is a pattern interrupt — something unexpected or shocking. High energy throughout. Trending audio feel.",
 
   "ugc-review":
-    "Vertical 9:16. Handheld camera feel — slight shake, natural movement. Talking-to-camera framing. Natural home or outdoor lighting. Authentic, unpolished aesthetic. No product on white background. Real-life context throughout.",
+    "Vertical 9:16. Handheld camera feel — slight shake, natural movement. Talking-to-camera framing. Natural home or outdoor lighting. Authentic, unpolished aesthetic. No product on white background. Real-life context throughout.",No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.
 
   "before-after":
-    "Vertical 9:16. Stark visual contrast between first half and second half. Before: muted colors, low energy environment. After: bright, warm, high energy. Consider split-screen or hard cut at midpoint. Transformation is VISUAL, not just narrated.",
+    "Vertical 9:16. Stark visual contrast between first half and second half. Before: muted colors, low energy environment. After: bright, warm, high energy. Consider split-screen or hard cut at midpoint. Transformation is VISUAL, not just narrated.",No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.
 
   "product-demo":
-    "Widescreen 16:9 or vertical 9:16. Close-up hands-on product shots. Multiple angles — overhead, close macro, side profile. Show the product in actual use, not just display. Clean but not sterile. Professional lighting.",
+    "Widescreen 16:9 or vertical 9:16. Close-up hands-on product shots. Multiple angles — overhead, close macro, side profile. Show the product in actual use, not just display. Clean but not sterile. Professional lighting.",No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.
 
   "product-unboxing":
-    "Close-up macro shots of packaging details. Camera starts on the shipping box, reveals inner packaging, then product. Slow deliberate movements at key moments (first reveal), faster during secondary reveals. ASMR-adjacent — show texture, weight, material quality visually.",
+    "Close-up macro shots of packaging details. Camera starts on the shipping box, reveals inner packaging, then product. Slow deliberate movements at key moments (first reveal), faster during secondary reveals. ASMR-adjacent — show texture, weight, material quality visually.",No visible text, captions, subtitles, logos, labels, or written words. Tell the story using visuals only.
 
   "flash-sale":
     "High contrast, high saturation. Red and bold colors suggest urgency. Big bold text for price/discount. Fast paced. Clock or countdown visual element if possible. Every frame communicates: LIMITED TIME.",
@@ -145,13 +145,13 @@ const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
     "Cinematic 16:9. Warm, human-centered. Faces matter — authentic expressions, not model poses. Origin moment should feel intimate, like found footage or home video. Builds to sweeping, hopeful visual as mission is stated.",
 
   "testimonial-compilation":
-    "Vertical 9:16. Quick cuts between different people in different settings — visual variety is key. Each face is centered, talking directly to camera. Text quote overlays on each clip. Builds to a montage crescendo of overlapping voices/faces.",
+    "Vertical 9:16. Quick cuts between different people in different settings — visual variety is key. Each face is centered, talking directly to camera. Show emotion through facial expressions only. Never display written text.. Builds to a montage crescendo of overlapping voices/faces.",
 
   "shopify-promo":
     "Lifestyle aesthetic. Product shown in aspirational real-world settings — kitchen, bedroom, outdoor. Golden hour lighting preferred. Model interaction with product (not just display). Strong closing product hero shot with price/offer overlay.",
 
   "tutorial":
-    "Step-by-step clarity. Overhead or close-up angles for technique shots. Hands prominently featured. Step number text overlays on each new step. Before/during/after of each step shown. Clean, well-lit, distraction-free.",
+    "Step-by-step clarity. Overhead or close-up angles for technique shots. Hands prominently featured. Show each step visually only. Never display written instructions.. Before/during/after of each step shown. Clean, well-lit, distraction-free.",
 
   "instagram-reel":
     "Aesthetic-first. Every frame is Instagram-worthy on its own. Specific color grade direction matters. Mix of lifestyle shots, product close-ups, and one hero moment. Trending Reel format pacing — quick but deliberate.",
