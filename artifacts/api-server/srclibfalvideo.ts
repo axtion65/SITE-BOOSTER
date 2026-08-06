@@ -212,16 +212,16 @@ IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, waterma
  
 
     // Opening hook — most important for AI to prioritize
-    script.hook ? `Opening hook (first 2-3 seconds): ${script.hook}.` : '',
+    
 
     // Scene breakdown
     sceneLines ? `Scene breakdown: ${sceneLines}` : '',
 
     // Voiceover narrative arc
-    script.voiceoverText ? `Voiceover/narration: "${script.voiceoverText.slice(0, 400)}"` : '',
+  
 
     // CTA
-    script.callToAction ? `Closing CTA: ${script.callToAction}.` : '',
+ 
 
     // Base format if no template direction
     !templateDirection
