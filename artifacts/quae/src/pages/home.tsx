@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign, Sparkles, ChevronRight, Wand2, Film, ChevronDown } from "lucide-react";
 import { TEMPLATE_NAMES } from "@/lib/template-constants";
+import { PLAN_CATALOG, formatUsd } from "@workspace/plans";
 // ⚠️  TEMPLATE SYNC RULE
 //     Template names come from the shared catalog in lib/templates/src/index.ts.
 //     Add, rename, or remove a template there — TypeScript errors here will point
@@ -670,51 +671,7 @@ function HowItWorksSection() {
   );
 }
 
-const PLANS = [
-  {
-    name: "Free",
-    monthly: 0,
-    desc: "Try it out",
-    credits: 90,
-    videos: "3 videos",
-    features: ["3 AI videos (Ovi)", "All 12 templates", "TikTok, Reels, Shorts", "720p export"],
-    cta: "Start Free",
-    highlight: false,
-  },
-  {
-    name: "Starter",
-    monthly: 29,
-    annual: 278,
-    desc: "Solo creators & small brands",
-    credits: 600,
-    videos: "~20 Ovi or 3 Wan videos",
-    features: ["600 credits/month", "Ovi + Wan 2.5 models", "All platforms", "1080p export", "Priority support"],
-    cta: "Get Starter",
-    highlight: false,
-  },
-  {
-    name: "Pro",
-    monthly: 49,
-    annual: 470,
-    desc: "Growing brands & teams",
-    credits: 2000,
-    videos: "~66 Ovi or 6 Kling videos",
-    features: ["2,000 credits/month", "All models + Kling 2.5", "All platforms", "4K export", "Priority rendering", "Video history"],
-    cta: "Get Pro",
-    highlight: true,
-  },
-  {
-    name: "Agency",
-    monthly: 149,
-    annual: 1430,
-    desc: "Agencies & high-volume teams",
-    credits: 6000,
-    videos: "~200 Ovi or 4 Veo 3 videos",
-    features: ["6,000 credits/month", "All models + Veo 3", "All platforms", "4K export", "Fastest rendering", "Team workspace", "API access"],
-    cta: "Get Agency",
-    highlight: false,
-  },
-];
+const PLANS = PLAN_CATALOG;
 
 function PricingSection() {
   const [annual, setAnnual] = useState(true);
@@ -738,33 +695,33 @@ function PricingSection() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           {PLANS.map((plan, i) => (
             <div key={i} className={`relative rounded-2xl p-6 border transition-all hover:-translate-y-0.5 hover:shadow-xl ${
-              plan.highlight
+              plan.mostPopular
                 ? "border-violet-500/60 bg-violet-500/[0.06] shadow-lg shadow-violet-500/10"
                 : "border-white/[0.06] bg-white/[0.02] hover:border-white/15"
             }`}>
-              {plan.highlight && (
+              {plan.mostPopular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-violet-500 text-white text-[10px] font-black rounded-full uppercase tracking-widest whitespace-nowrap shadow-lg shadow-violet-500/30">
                   Most Popular
                 </div>
               )}
               <div className="mb-5">
                 <h3 className="font-black text-white text-lg mb-0.5">{plan.name}</h3>
-                <p className="text-[11px] text-white/30 h-8">{plan.desc}</p>
+                <p className="text-[11px] text-white/30 h-8">{plan.description}</p>
               </div>
               <div className="mb-1">
-                {plan.monthly === 0 ? (
+                {plan.monthlyPriceCents === 0 ? (
                   <span className="text-4xl font-black text-white">Free</span>
                 ) : (
                   <>
                     <span className="text-4xl font-black text-white">
-                      ${annual && plan.annual ? Math.round(plan.annual / 12) : plan.monthly}
+                      ${annual ? Math.round(plan.annualPriceCents / 1200) : plan.monthlyPriceCents / 100}
                     </span>
                     <span className="text-white/30 text-sm">/mo</span>
                   </>
                 )}
               </div>
-              {annual && plan.annual ? (
-                <div className="text-xs text-green-400 mb-5 font-semibold">${plan.annual}/yr — save ${(plan.monthly * 12) - plan.annual}</div>
+              {annual && plan.annualPriceCents ? (
+                <div className="text-xs text-green-400 mb-5 font-semibold">${formatUsd(plan.annualPriceCents)}/yr — save ${formatUsd(plan.monthlyPriceCents * 12 - plan.annualPriceCents)}</div>
               ) : (
                 <div className="mb-5 h-4" />
               )}
@@ -782,7 +739,7 @@ function PricingSection() {
               <Link
                 href="/signin"
                 className={`w-full flex items-center justify-center h-10 rounded-xl text-sm font-bold transition-all ${
-                  plan.highlight
+                  plan.mostPopular
                     ? "bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20"
                     : "bg-white/[0.05] hover:bg-white/10 text-white border border-white/[0.08] hover:border-white/15"
                 }`}

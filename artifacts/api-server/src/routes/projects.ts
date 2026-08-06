@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, usersTable, projectsTable } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
+import { PLAN_BY_SLUG, isPlanSlug } from "@workspace/plans";
 import {
   submitFalVideoRender, pollFalVideoRender, isFalToken,
   MODEL_CREDIT_COSTS, buildFalWebhookUrl, type ExpandedScript
@@ -234,7 +235,7 @@ router.get("/projects/stats", async (req, res) => {
     if (s in byStatus) byStatus[s]++;
   }
 
-  const maxCredits = { free: 90, starter: 600, pro: 2000, agency: 6000 }[user.plan ?? "free"] ?? 90;
+  const maxCredits = isPlanSlug(user.plan) ? PLAN_BY_SLUG[user.plan].credits : PLAN_BY_SLUG.free.credits;
   const creditsUsed = Math.max(0, maxCredits - user.credits);
   res.json({ total: projects.length, byStatus, creditsUsed, creditsRemaining: user.credits });
 });

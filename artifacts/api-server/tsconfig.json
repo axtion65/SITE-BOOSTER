@@ -20,6 +20,9 @@
     },
     {
       "path": "../../lib/templates"
+    },
+    {
+      "path": "../../lib/plans"
     }
   ]
 }

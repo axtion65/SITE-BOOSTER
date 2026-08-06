@@ -7,10 +7,10 @@ const router = Router();
 
 const getUserIdFromHeader = resolveUserIdFromToken;
 
-// GET /api/billing/plans — return plans from Stripe
+// GET /api/billing/plans — return the application catalog with configured Stripe price IDs
 router.get("/billing/plans", async (_req, res) => {
   try {
-    const plans = await stripeService.listPlans();
+    const plans = stripeService.listPlans();
     res.json({ plans });
   } catch (err) {
     console.error("[billing] plans error", err);
@@ -25,6 +25,10 @@ router.post("/billing/checkout", async (req, res) => {
 
   const { priceId } = req.body;
   if (!priceId) { res.status(400).json({ error: "priceId required" }); return; }
+  if (!stripeService.isConfiguredPriceId(priceId)) {
+    res.status(400).json({ error: "Price is not configured for checkout" });
+    return;
+  }
 
   try {
     const user = await storage.getUser(userId);

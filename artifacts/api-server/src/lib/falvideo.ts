@@ -47,14 +47,6 @@ export const MODEL_CREDIT_COSTS: Record<string, number> = {
   'veo3':    1500,
 };
 
-// Plan credit allocations
-export const PLAN_CREDITS: Record<string, number> = {
-  'free':    90,
-  'starter': 600,
-  'pro':     2000,
-  'agency':  6000,
-};
-
 // Estimated render time in seconds — shown in the waiting UI
 export const MODEL_RENDER_ESTIMATE: Record<string, number> = {
   'ltx':      60,  // ~1 min (very fast)
