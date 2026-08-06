@@ -6,6 +6,7 @@ import { UpdateAdminUserBody } from "@workspace/api-zod";
 import { resolveUserFromToken } from "./auth";
 import { objectStorageClient } from "../lib/objectStorage";
 import { setObjectAclPolicy } from "../lib/objectAcl";
+import { PLAN_CATALOG, type PlanSlug } from "@workspace/plans";
 
 const router = Router();
 
@@ -30,9 +31,9 @@ router.get("/admin/stats", async (req, res) => {
 
   const planCounts = await db.select({ plan: usersTable.plan, cnt: count() })
     .from(usersTable).groupBy(usersTable.plan);
-  const usersByPlan = { free: 0, starter: 0, pro: 0, agency: 0 };
+  const usersByPlan = Object.fromEntries(PLAN_CATALOG.map(plan => [plan.slug, 0])) as Record<PlanSlug, number>;
   for (const row of planCounts) {
-    if (row.plan in usersByPlan) usersByPlan[row.plan as keyof typeof usersByPlan] = Number(row.cnt);
+    if (row.plan in usersByPlan) usersByPlan[row.plan as PlanSlug] = Number(row.cnt);
   }
 
   res.json({

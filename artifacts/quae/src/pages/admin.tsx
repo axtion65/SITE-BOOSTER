@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { PAID_PLANS, PLAN_CATALOG } from "@workspace/plans";
 
 export default function Admin() {
   return (
@@ -121,7 +122,7 @@ function BroadcastPanel() {
               <SelectContent>
                 <SelectItem value="all">All Users</SelectItem>
                 <SelectItem value="free">Free Plan Only</SelectItem>
-                <SelectItem value="paid">Paid Plans Only (Starter / Pro / Agency)</SelectItem>
+                <SelectItem value="paid">Paid Plans Only ({PAID_PLANS.map(plan => plan.name).join(" / ")})</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -269,10 +270,9 @@ function SubscribersList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Plans</SelectItem>
-              <SelectItem value="free">Free</SelectItem>
-              <SelectItem value="starter">Starter</SelectItem>
-              <SelectItem value="pro">Pro</SelectItem>
-              <SelectItem value="agency">Agency</SelectItem>
+              {PLAN_CATALOG.map(plan => (
+                <SelectItem key={plan.slug} value={plan.slug}>{plan.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -436,10 +436,9 @@ function AdminUsersTable() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Plans</SelectItem>
-              <SelectItem value="free">Free</SelectItem>
-              <SelectItem value="starter">Starter</SelectItem>
-              <SelectItem value="pro">Pro</SelectItem>
-              <SelectItem value="agency">Agency</SelectItem>
+              {PLAN_CATALOG.map(plan => (
+                <SelectItem key={plan.slug} value={plan.slug}>{plan.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -470,10 +469,9 @@ function AdminUsersTable() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="free">Free</SelectItem>
-                      <SelectItem value="starter">Starter</SelectItem>
-                      <SelectItem value="pro">Pro</SelectItem>
-                      <SelectItem value="agency">Agency</SelectItem>
+                      {PLAN_CATALOG.map(plan => (
+                        <SelectItem key={plan.slug} value={plan.slug}>{plan.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </TableCell>

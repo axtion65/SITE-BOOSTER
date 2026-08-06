@@ -17,6 +17,12 @@
     },
     {
       "path": "./lib/object-storage-web"
+    },
+    {
+      "path": "./lib/templates"
+    },
+    {
+      "path": "./lib/plans"
     }
   ]
 }

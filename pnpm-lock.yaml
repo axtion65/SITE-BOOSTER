@@ -109,6 +109,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      '@workspace/plans':
+        specifier: workspace:*
+        version: link:../../lib/plans
       '@workspace/templates':
         specifier: workspace:*
         version: link:../../lib/templates
@@ -486,6 +489,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/plans':
+        specifier: workspace:*
+        version: link:../../lib/plans
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -771,6 +777,8 @@ importers:
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.17
+
+  lib/plans: {}
 
   lib/templates: {}
 
