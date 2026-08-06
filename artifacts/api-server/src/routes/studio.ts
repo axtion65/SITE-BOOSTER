@@ -70,8 +70,8 @@ Rules for this template:
 - Hook must be a pattern interrupt: POV format, shocking stat, bold contrarian claim, or a "wait what?" moment
 - Zero slow burn. Scene 1 is already mid-action, not setup
 - Pacing is FAST: 2-3 second scenes max, rapid cuts
-- Text overlay directions are mandatory in every scene (TikTok lives on text)
-- CTA is direct and urgent: "link in bio", "comment NOW", "share this"
+- Every scene communicates through expressive action, striking props, and immediate visual contrast
+- CTA is delivered in voiceover while an emphatic gesture and immediate product interaction create urgency visually
 - Music: trending, high-energy, beat-matched to cuts
 - Total feel: raw, immediate, shareable — NOT polished corporate`,
 
@@ -122,13 +122,13 @@ Rules for this template:
   "flash-sale": `You are a direct response copywriter specializing in urgency-driven video. Every second of this video is engineered to create the feeling: "if I don't act RIGHT NOW I will miss this."
 
 Rules for this template:
-- Open with the deadline or scarcity — never reveal the product before establishing urgency
-- Price/discount reveal must be a visual moment — big, bold, undeniable
-- FOMO language throughout: "selling out", "won't last", "last chance", "midnight cutoff"
-- No time for storytelling — this is pure offer communication
-- CTA must include specific urgency mechanism: countdown timer direction, limited quantity, deadline
+- Open by showing scarcity through nearly empty shelving and accelerating fulfillment activity — never reveal the product before establishing urgency
+- Make the offer reveal a decisive visual moment through an abundant product bundle, excited reactions, and accelerated packing activity
+- Escalate urgency visually through increasingly sparse inventory, faster movement, and eager customers claiming the remaining packages
+- No time for a narrative arc — communicate the offer entirely through product quantity, action, reactions, and editing rhythm
+- CTA must make urgency tangible through rapidly emptying shelves, dwindling inventory, or a final package being claimed
 - Music: urgent, fast tempo, slightly anxious energy
-- Total feel: the energy of a flash sale notification that made you drop what you were doing`,
+- Total feel: the energy of spotting the final available item and rushing to claim it`,
 
   "amazon-listing": `You are an Amazon conversion specialist. Amazon shoppers are comparison shopping — your video must win the "why this one" argument before they go to a competitor.
 
@@ -137,8 +137,8 @@ Rules for this template:
 - Show the product from multiple angles with clean, well-lit visuals
 - Include a "vs alternatives" moment — what makes this better than what they might already have?
 - Show scale/dimensions in a relatable way (next to a common object, in someone's hand)
-- Star rating / review language can be woven in: "over X customers say..."
-- End with the purchase trigger: Prime shipping, warranty, guarantee
+- Convey customer confidence through a montage of varied people repeatedly choosing, using, and recommending the product
+- End with a reassuring ownership moment: swift doorstep delivery, durable use, and a visibly satisfied customer
 - Music: clean, professional, minimal
 - Total feel: a product you'd feel confident buying without reading all the reviews`,
 
@@ -162,7 +162,7 @@ Rules for this template:
 - Diversity of voice matters: different ages, backgrounds, use cases — all confirming the same core benefit
 - Build to a consensus moment: a beat where multiple voices echo the same result
 - End testimonial has the strongest result / most surprising outcome
-- Text overlays with key quotes reinforce each clip
+- Reinforce each clip with expressive reactions, matched actions, and clear product-result visuals
 - Music: upbeat, builds energy, social/shareable feel
 - Total feel: the comment section of a viral video brought to life`,
 
@@ -171,8 +171,8 @@ Rules for this template:
 Rules for this template:
 - Open in the lifestyle — show the result/feeling before the product
 - The product appears naturally in context, not forced or staged
-- Include a genuine "offer moment" — price, deal, or bundle that makes it a no-brainer
-- "Shop now" energy throughout — every scene should make them want to tap through
+- Include a genuine value moment — reveal a generous bundle or useful extras through an appealing product arrangement and delighted reaction
+- Sustain purchase momentum through aspirational product use, delighted reactions, and seamless delivery imagery
 - Show the purchase/shipping experience as part of the fantasy: unboxing, delivery excitement
 - Strong visual aesthetic — this is a DTC brand, not a mass market product
 - Music: trendy, aspirational, genre-appropriate to the product
@@ -182,7 +182,7 @@ Rules for this template:
 
 Rules for this template:
 - Open with a PROBLEM + PROMISE: "Here's why X isn't working — and how to fix it in 3 steps"
-- Numbered steps are visual — each step must have a clear text overlay with the number
+- Make each step visually distinct through sequential actions, changing camera positions, and clearly differentiated props
 - Close-up shots of hands doing the technique — viewers must be able to follow along
 - The product appears as THE TOOL that makes each step possible (not the subject, the tool)
 - Include a "common mistake" moment — this is a trust-building insight that shows expertise
@@ -195,7 +195,7 @@ Rules for this template:
 Rules for this template:
 - First frame must be visually stunning — a hero shot, not a talking head
 - Color grade direction matters: specify the mood (warm golden hour, cool minimal white, moody dark)
-- Text overlays should feel editorial, not sales-y — "the one product I bring everywhere"
+- Communicate the editorial idea through composed lifestyle imagery, purposeful product placement, and a recurring visual motif
 - Trend-aware: reference current Reel formats (day in my life, get ready with me, GRWM, aesthetic vlog)
 - Product appears in lifestyle context — never isolated on white background
 - CTA feels organic: "save this", "send to a friend who needs this", not "buy now"
@@ -205,6 +205,8 @@ Rules for this template:
 
 // Generic fallback for any template type not specifically defined
 const GENERIC_SYSTEM_PROMPT = `You are a world-class video ad scriptwriter for e-commerce brands. Transform product descriptions into cinematic, conversion-optimized video scripts.`;
+
+const VISUAL_STORYTELLING_RULE = `All meaning in the generated visuals must come from action, composition, props, performance, camera work, lighting, and editing. Do not include text overlays, captions, typography, written words, countdown timers, on-screen prices, star ratings, visible logos, or website URLs anywhere in the video.`;
 
 router.get("/studio/models", (_req, res) => {
   res.json(RENDERING_MODELS);
@@ -241,13 +243,15 @@ router.post("/studio/expand-prompt", async (req, res) => {
 
   const systemPrompt = `${baseSystemPrompt}
 
+${VISUAL_STORYTELLING_RULE}
+
 Respond with ONLY valid JSON (no markdown, no explanation):
 {
   "script": "full cinematic script",
   "hook": "scroll-stopping opening line (first 2-3 seconds)",
   "callToAction": "specific CTA text",
   "scenes": [
-    { "sceneNumber": 1, "description": "what happens in this scene", "duration": "3s", "visualDirection": "exact camera angle, movement, lighting, text overlays" }
+    { "sceneNumber": 1, "description": "what happens in this scene", "duration": "3s", "visualDirection": "exact camera angle, movement, lighting, performance, and visual storytelling" }
   ],
   "voiceoverText": "complete voiceover narration — every word spoken",
   "suggestedMusic": "specific music mood, tempo, and genre",
@@ -344,12 +348,14 @@ router.post("/studio/regenerate-scene", async (req, res) => {
 
   const systemPrompt = `${baseSystemPrompt}
 
+${VISUAL_STORYTELLING_RULE}
+
 You are rewriting a SINGLE scene from an existing video ad script. Keep it consistent with the overall product and video style.
 
 Respond with ONLY valid JSON (no markdown, no explanation):
 {
   "description": "what happens in this scene",
-  "visualDirection": "exact camera angle, movement, lighting, text overlays"
+  "visualDirection": "exact camera angle, movement, lighting, performance, and visual storytelling"
 }`;
 
   const userPrompt = `Rewrite Scene ${sceneNumber} of ${totalScenes} for this product:
@@ -368,7 +374,7 @@ Current visual direction:
 "${currentVisualDirection}"
 ${hint ? `\nUser guidance: ${hint}` : ""}
 
-Write a fresh version of this scene. The description should be vivid and purposeful. The visualDirection should be specific about camera, movement, and text overlays. Do NOT copy the existing text — rewrite it with fresh creative energy while keeping it consistent with the product and ad format.`;
+Write a fresh version of this scene. The description should be vivid and purposeful. The visualDirection should be specific about camera, movement, lighting, performance, and purely visual storytelling. Do NOT copy the existing scene — rewrite it with fresh creative energy while keeping it consistent with the product and ad format.`;
 
   try {
     console.log(`[openai] Regenerating scene ${sceneNumber}/${totalScenes} — hint: ${hint ? "yes" : "none"}`);
