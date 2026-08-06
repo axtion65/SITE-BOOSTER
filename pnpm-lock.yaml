@@ -109,6 +109,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      '@workspace/plans':
+        specifier: workspace:*
+        version: link:../../lib/plans
       '@workspace/templates':
         specifier: workspace:*
         version: link:../../lib/templates
@@ -365,6 +368,9 @@ importers:
       '@workspace/object-storage-web':
         specifier: workspace:*
         version: link:../../lib/object-storage-web
+      '@workspace/plans':
+        specifier: workspace:*
+        version: link:../../lib/plans
       '@workspace/templates':
         specifier: workspace:*
         version: link:../../lib/templates
@@ -771,6 +777,8 @@ importers:
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.17
+
+  lib/plans: {}
 
   lib/templates: {}
 

@@ -3,6 +3,7 @@ import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { SignInBody, SignUpBody, ForgotPasswordBody } from "@workspace/api-zod";
 import * as crypto from "crypto";
+import { PLAN_BY_SLUG } from "@workspace/plans";
 
 const router = Router();
 
@@ -109,7 +110,7 @@ router.post("/auth/signup", async (req, res) => {
     name: name ?? null,
     passwordHash: hashPassword(password),
     plan: "free",
-    credits: 300,
+    credits: PLAN_BY_SLUG.free.credits,
     isAdmin: false,
   }).returning();
   // Fire-and-forget welcome email

@@ -1,10 +1,22 @@
 import { storage } from './storage';
 import { getStripeClient } from './stripeClient';
-import { PLAN_CREDITS } from './lib/falvideo';
+import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type BillingInterval, type PaidPlanSlug } from '@workspace/plans';
 import type Stripe from 'stripe';
 
-function getPlanFromMetadata(metadata: Stripe.Metadata): string {
-  return metadata?.plan ?? 'starter';
+function getPlanFromMetadata(metadata: Stripe.Metadata): PaidPlanSlug | null {
+  const plan = metadata?.plan;
+  if (!plan || !isPlanSlug(plan) || plan === 'free') return null;
+  return plan;
+}
+
+const PRICE_ENV: Record<PaidPlanSlug, Record<BillingInterval, string>> = {
+  starter: { month: 'STRIPE_PRICE_STARTER_MONTHLY', year: 'STRIPE_PRICE_STARTER_ANNUAL' },
+  pro: { month: 'STRIPE_PRICE_PRO_MONTHLY', year: 'STRIPE_PRICE_PRO_ANNUAL' },
+  agency: { month: 'STRIPE_PRICE_AGENCY_MONTHLY', year: 'STRIPE_PRICE_AGENCY_ANNUAL' },
+};
+
+function isPaidPlanSlug(slug: string): slug is PaidPlanSlug {
+  return slug !== 'free' && isPlanSlug(slug);
 }
 
 export class StripeService {
@@ -33,36 +45,35 @@ export class StripeService {
     return stripe.billingPortal.sessions.create({ customer: customerId, return_url: returnUrl });
   }
 
-  async listPlans() {
-    const stripe = getStripeClient();
-    const products = await stripe.products.list({ active: true, expand: ['data.default_price'] });
-    const prices = await stripe.prices.list({ active: true });
+  listPlans() {
+    return PLAN_CATALOG.map(plan => ({
+      id: plan.slug,
+      slug: plan.slug,
+      name: plan.name,
+      description: plan.description,
+      credits: plan.credits,
+      monthlyPriceCents: plan.monthlyPriceCents,
+      annualPriceCents: plan.annualPriceCents,
+      features: plan.features,
+      mostPopular: plan.mostPopular,
+      prices: (['month', 'year'] as const).flatMap(interval => {
+        if (!isPaidPlanSlug(plan.slug)) return [];
+        const id = process.env[PRICE_ENV[plan.slug][interval]];
+        if (!id) return [];
+        return [{
+          id,
+          unitAmount: interval === 'month' ? plan.monthlyPriceCents : plan.annualPriceCents,
+          currency: 'usd',
+          recurring: { interval },
+        }];
+      }),
+    }));
+  }
 
-    const pricesByProduct: Record<string, Stripe.Price[]> = {};
-    for (const price of prices.data) {
-      const productId = typeof price.product === 'string' ? price.product : price.product.id;
-      if (!pricesByProduct[productId]) pricesByProduct[productId] = [];
-      pricesByProduct[productId].push(price);
-    }
-
-    return products.data
-      .filter(p => p.metadata?.plan) // only our plan products
-      .map(p => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        metadata: p.metadata,
-        prices: (pricesByProduct[p.id] ?? []).map(pr => ({
-          id: pr.id,
-          unitAmount: pr.unit_amount,
-          currency: pr.currency,
-          recurring: pr.recurring,
-        })),
-      }))
-      .sort((a, b) => {
-        const order = ['starter', 'pro', 'agency'];
-        return order.indexOf(a.metadata.plan) - order.indexOf(b.metadata.plan);
-      });
+  isConfiguredPriceId(priceId: string): boolean {
+    return Object.values(PRICE_ENV).some(intervals =>
+      Object.values(intervals).some(envName => process.env[envName] === priceId),
+    );
   }
 
   async syncUserSubscription(userId: string) {
@@ -84,7 +95,8 @@ export class StripeService {
     });
     const product = price.product as Stripe.Product;
     const plan = getPlanFromMetadata(product.metadata);
-    const credits = PLAN_CREDITS[plan] ?? PLAN_CREDITS.starter;
+    if (!plan) throw new Error(`Stripe product ${product.id} has no valid plan metadata`);
+    const credits = PLAN_BY_SLUG[plan].credits;
 
     return storage.updateUserStripeInfo(userId, {
       stripeSubscriptionId: sub.id,

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Film, Zap, CheckCircle2, Clock, PlusCircle, TrendingUp, Coins, ArrowRight } from "lucide-react";
+import { PLAN_BY_SLUG, isPlanSlug } from "@workspace/plans";
 
 export default function StudioDashboard() {
   return (
@@ -22,9 +23,8 @@ function DashboardContent() {
 
   const recentProjects = projects?.slice(0, 5) ?? [];
 
-  const planLabel = ({ free: "Free", starter: "Starter", creator: "Creator", pro: "Pro", agency: "Agency" } as Record<string, string>)[user?.plan ?? "free"] ?? "Free";
-  const maxCreditsMap: Record<string, number> = { free: 90, starter: 600, creator: 2000, pro: 2000, agency: 6000 };
-  const maxCredits = maxCreditsMap[user?.plan ?? "free"] ?? 90;
+  const planLabel = user?.plan && isPlanSlug(user.plan) ? PLAN_BY_SLUG[user.plan].name : PLAN_BY_SLUG.free.name;
+  const maxCredits = user?.plan && isPlanSlug(user.plan) ? PLAN_BY_SLUG[user.plan].credits : PLAN_BY_SLUG.free.credits;
   const creditsRemaining = user?.credits ?? 0;
   const creditsUsed = Math.max(0, maxCredits - creditsRemaining);
   const creditPct = maxCredits > 0 ? Math.min(100, Math.round((creditsRemaining / maxCredits) * 100)) : 0;

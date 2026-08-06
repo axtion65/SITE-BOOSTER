@@ -5,6 +5,7 @@ import { useSearch } from "wouter";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, Zap, Crown, ExternalLink, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PLAN_BY_SLUG, formatUsd, isPlanSlug, type PlanSlug } from "@workspace/plans";
 
 interface Price {
   id: string;
@@ -15,25 +16,16 @@ interface Price {
 
 interface Plan {
   id: string;
+  slug: PlanSlug;
   name: string;
   description: string;
-  metadata: Record<string, string>;
+  credits: number;
+  monthlyPriceCents: number;
+  annualPriceCents: number;
+  features: readonly string[];
+  mostPopular: boolean;
   prices: Price[];
 }
-
-const PLAN_ORDER = ["starter", "pro", "agency"];
-
-const PLAN_FEATURES: Record<string, string[]> = {
-  starter: ["600 credits/month", "Ovi + Wan 2.5 models", "All platforms", "1080p export", "Priority support"],
-  pro:     ["2,000 credits/month", "All models + Kling 2.5", "All platforms", "4K export", "Priority rendering", "Video history"],
-  agency:  ["6,000 credits/month", "All models + Veo 3", "All platforms", "4K export", "Fastest rendering", "Team workspace", "API access"],
-};
-
-const PLAN_CREDITS: Record<string, string> = {
-  starter: "600 credits",
-  pro: "2,000 credits",
-  agency: "6,000 credits",
-};
 
 const MODEL_COSTS = [
   { model: "Ovi",      cost: "30",    desc: "Video + audio",    color: "#818cf8" },
@@ -61,6 +53,7 @@ function BillingContent() {
   const search = useSearch();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [plansError, setPlansError] = useState<string | null>(null);
   const [annual, setAnnual] = useState(true);
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
@@ -90,12 +83,19 @@ function BillingContent() {
     }
   }, [search]);
 
-  // Load plans from Stripe
+  // Load the application catalog enriched with server-side Stripe price IDs.
   useEffect(() => {
     fetch("/api/billing/plans", { headers: authHeader() })
-      .then(r => r.json())
-      .then(data => setPlans(data.plans ?? []))
-      .catch(() => toast({ title: "Failed to load plans", variant: "destructive" }))
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error ?? "Failed to load billing plans");
+        if (!Array.isArray(data.plans)) throw new Error("Invalid billing plan response");
+        setPlans(data.plans);
+      })
+      .catch((error: Error) => {
+        setPlansError(error.message);
+        toast({ title: "Failed to load plans", description: error.message, variant: "destructive" });
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -138,12 +138,8 @@ function BillingContent() {
     }
   };
 
-  const sortedPlans = [...plans].sort(
-    (a, b) => PLAN_ORDER.indexOf(a.metadata?.plan) - PLAN_ORDER.indexOf(b.metadata?.plan)
-  );
-
-  const maxCredits: Record<string, number> = { free: 90, starter: 600, pro: 2000, agency: 6000 };
-  const creditPct = Math.round((credits / (maxCredits[currentPlan] ?? 90)) * 100);
+  const currentPlanDefinition = isPlanSlug(currentPlan) ? PLAN_BY_SLUG[currentPlan] : PLAN_BY_SLUG.free;
+  const creditPct = Math.round((credits / currentPlanDefinition.credits) * 100);
 
   return (
     <div className="min-h-full bg-[#050507] text-white">
@@ -193,7 +189,7 @@ function BillingContent() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-white/40">Credits remaining</span>
-              <span className="text-white font-bold">{credits.toLocaleString()} / {(maxCredits[currentPlan] ?? 90).toLocaleString()}</span>
+              <span className="text-white font-bold">{credits.toLocaleString()} / {currentPlanDefinition.credits.toLocaleString()}</span>
             </div>
             <div className="h-2 w-full rounded-full bg-white/[0.06] overflow-hidden">
               <div
@@ -241,24 +237,23 @@ function BillingContent() {
         {/* Plan cards */}
         {loading ? (
           <div className="flex justify-center py-16"><Spinner className="h-8 w-8" /></div>
-        ) : sortedPlans.length === 0 ? (
-          <div className="text-center py-16 text-white/30">
-            <p>No plans available right now.</p>
+        ) : plansError ? (
+          <div className="text-center py-12 px-6 rounded-2xl border border-red-500/20 bg-red-500/[0.06]">
+            <p className="font-bold text-red-300">Billing is temporarily unavailable.</p>
+            <p className="text-sm text-white/35 mt-2">We couldn’t load billing configuration. Please try again later.</p>
           </div>
         ) : (
           <div className="grid md:grid-cols-3 gap-4">
-            {sortedPlans.map((plan) => {
-              const planKey = plan.metadata?.plan;
+            {plans.map((plan) => {
+              const planKey = plan.slug;
               const isCurrent = currentPlan === planKey;
-              const isPopular = planKey === "pro";
+              const isPopular = plan.mostPopular;
               const interval = annual ? "year" : "month";
               const price = getPriceForInterval(plan, interval);
-              const displayAmount = price
-                ? annual
-                  ? Math.round((price.unitAmount / 100) / 12)
-                  : price.unitAmount / 100
-                : null;
-              const annualTotal = annual && price ? (price.unitAmount / 100).toFixed(0) : null;
+              const displayAmount = annual
+                ? Math.round(plan.annualPriceCents / 1200)
+                : plan.monthlyPriceCents / 100;
+              const annualTotal = annual ? formatUsd(plan.annualPriceCents) : null;
 
               return (
                 <div
@@ -287,14 +282,10 @@ function BillingContent() {
                     <p className="text-[11px] text-white/30 min-h-[2rem] leading-relaxed">{plan.description}</p>
                   </div>
 
-                  {displayAmount !== null ? (
-                    <div className="mb-1">
-                      <span className="text-4xl font-black text-white">${displayAmount}</span>
-                      <span className="text-white/30 text-sm">/mo</span>
-                    </div>
-                  ) : (
-                    <div className="text-4xl font-black text-white mb-1">—</div>
-                  )}
+                  <div className="mb-1">
+                    <span className="text-4xl font-black text-white">${displayAmount}</span>
+                    <span className="text-white/30 text-sm">/mo</span>
+                  </div>
                   {annualTotal ? (
                     <div className="text-xs text-green-400 mb-5 font-semibold">${annualTotal}/yr — save 20%</div>
                   ) : (
@@ -303,11 +294,11 @@ function BillingContent() {
 
                   {/* Credits highlight */}
                   <div className="p-3 rounded-xl bg-white/[0.04] text-[11px] text-white/50 mb-5 text-center border border-white/[0.06]">
-                    <span className="text-white font-black">{PLAN_CREDITS[planKey] ?? "—"}</span>/mo
+                    <span className="text-white font-black">{plan.credits.toLocaleString()} credits</span>/mo
                   </div>
 
                   <ul className="space-y-2.5 mb-6 flex-1">
-                    {(PLAN_FEATURES[planKey] ?? []).map((f, fi) => (
+                    {plan.features.map((f, fi) => (
                       <li key={fi} className="flex items-start gap-2 text-xs text-white/40">
                         <Check className="h-3.5 w-3.5 text-violet-400 mt-0.5 shrink-0" />
                         {f}
@@ -316,7 +307,7 @@ function BillingContent() {
                   </ul>
 
                   <button
-                    disabled={isCurrent || checkingOut === plan.id}
+                    disabled={isCurrent || !price || checkingOut === plan.id}
                     onClick={() => !isCurrent && handleUpgrade(plan)}
                     className={`w-full flex items-center justify-center h-10 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPopular
@@ -330,6 +321,10 @@ function BillingContent() {
                       <><Spinner className="h-4 w-4 mr-2" /> Redirecting…</>
                     ) : isCurrent ? (
                       "Current Plan"
+                    ) : plan.slug === "free" ? (
+                      "Free Plan"
+                    ) : !price ? (
+                      "Checkout not configured"
                     ) : (
                       `Upgrade to ${plan.name}`
                     )}
