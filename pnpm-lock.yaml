@@ -368,9 +368,6 @@ importers:
       '@workspace/object-storage-web':
         specifier: workspace:*
         version: link:../../lib/object-storage-web
-      '@workspace/plans':
-        specifier: workspace:*
-        version: link:../../lib/plans
       '@workspace/templates':
         specifier: workspace:*
         version: link:../../lib/templates
