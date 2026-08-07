@@ -671,10 +671,8 @@ function HowItWorksSection() {
   );
 }
 
-const PLANS = PLAN_CATALOG;
-
 function PricingSection() {
-  const [annual, setAnnual] = useState(true);
+  const [annual, setAnnual] = useState(false);
   return (
     <section id="pricing" className="py-28 px-6 border-t border-white/[0.05]">
       <div className="max-w-6xl mx-auto">
@@ -693,7 +691,7 @@ function PricingSection() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {PLANS.map((plan, i) => (
+          {PLAN_CATALOG.map((plan, i) => (
             <div key={i} className={`relative rounded-2xl p-6 border transition-all hover:-translate-y-0.5 hover:shadow-xl ${
               plan.mostPopular
                 ? "border-violet-500/60 bg-violet-500/[0.06] shadow-lg shadow-violet-500/10"
@@ -709,16 +707,10 @@ function PricingSection() {
                 <p className="text-[11px] text-white/30 h-8">{plan.description}</p>
               </div>
               <div className="mb-1">
-                {plan.monthlyPriceCents === 0 ? (
-                  <span className="text-4xl font-black text-white">Free</span>
-                ) : (
-                  <>
-                    <span className="text-4xl font-black text-white">
-                      ${annual ? Math.round(plan.annualPriceCents / 1200) : plan.monthlyPriceCents / 100}
-                    </span>
-                    <span className="text-white/30 text-sm">/mo</span>
-                  </>
-                )}
+                <span className="text-4xl font-black text-white">
+                  ${formatUsd(plan.monthlyPriceCents)}
+                </span>
+                <span className="text-white/30 text-sm">/mo</span>
               </div>
               {annual && plan.annualPriceCents ? (
                 <div className="text-xs text-green-400 mb-5 font-semibold">${formatUsd(plan.annualPriceCents)}/yr — save ${formatUsd(plan.monthlyPriceCents * 12 - plan.annualPriceCents)}</div>

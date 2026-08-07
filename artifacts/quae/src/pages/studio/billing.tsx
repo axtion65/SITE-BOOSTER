@@ -5,7 +5,7 @@ import { useSearch } from "wouter";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, Zap, Crown, ExternalLink, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { PLAN_BY_SLUG, formatUsd, isPlanSlug, type PlanSlug } from "@workspace/plans";
+import { PLAN_BY_SLUG, PLAN_CATALOG, formatUsd, isPlanSlug, type PlanSlug } from "@workspace/plans";
 
 interface Price {
   id: string;
@@ -14,16 +14,8 @@ interface Price {
   recurring: { interval: string } | null;
 }
 
-interface Plan {
-  id: string;
+interface CheckoutPlanConfig {
   slug: PlanSlug;
-  name: string;
-  description: string;
-  credits: number;
-  monthlyPriceCents: number;
-  annualPriceCents: number;
-  features: readonly string[];
-  mostPopular: boolean;
   prices: Price[];
 }
 
@@ -51,10 +43,10 @@ function BillingContent() {
   const { user, login } = useAuth();
   const { toast } = useToast();
   const search = useSearch();
-  const [plans, setPlans] = useState<Plan[]>([]);
+  const [checkoutPlans, setCheckoutPlans] = useState<CheckoutPlanConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [plansError, setPlansError] = useState<string | null>(null);
-  const [annual, setAnnual] = useState(true);
+  const [annual, setAnnual] = useState(false);
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -90,7 +82,7 @@ function BillingContent() {
         const data = await r.json();
         if (!r.ok) throw new Error(data.error ?? "Failed to load billing plans");
         if (!Array.isArray(data.plans)) throw new Error("Invalid billing plan response");
-        setPlans(data.plans);
+        setCheckoutPlans(data.plans);
       })
       .catch((error: Error) => {
         setPlansError(error.message);
@@ -99,15 +91,15 @@ function BillingContent() {
       .finally(() => setLoading(false));
   }, []);
 
-  const getPriceForInterval = (plan: Plan, interval: "month" | "year") =>
-    plan.prices.find(p => p.recurring?.interval === interval);
+  const getPriceForInterval = (slug: PlanSlug, interval: "month" | "year") =>
+    checkoutPlans.find(plan => plan.slug === slug)?.prices.find(p => p.recurring?.interval === interval);
 
-  const handleUpgrade = async (plan: Plan) => {
+  const handleUpgrade = async (slug: PlanSlug) => {
     const interval = annual ? "year" : "month";
-    const price = getPriceForInterval(plan, interval);
+    const price = getPriceForInterval(slug, interval);
     if (!price) { toast({ title: "Price not found", variant: "destructive" }); return; }
 
-    setCheckingOut(plan.id);
+    setCheckingOut(slug);
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -243,21 +235,19 @@ function BillingContent() {
             <p className="text-sm text-white/35 mt-2">We couldn’t load billing configuration. Please try again later.</p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-3 gap-4">
-            {plans.map((plan) => {
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {PLAN_CATALOG.map((plan) => {
               const planKey = plan.slug;
               const isCurrent = currentPlan === planKey;
               const isPopular = plan.mostPopular;
               const interval = annual ? "year" : "month";
-              const price = getPriceForInterval(plan, interval);
-              const displayAmount = annual
-                ? Math.round(plan.annualPriceCents / 1200)
-                : plan.monthlyPriceCents / 100;
+              const price = getPriceForInterval(plan.slug, interval);
+              const displayAmount = formatUsd(plan.monthlyPriceCents);
               const annualTotal = annual ? formatUsd(plan.annualPriceCents) : null;
 
               return (
                 <div
-                  key={plan.id}
+                  key={plan.slug}
                   className={`relative rounded-2xl p-6 border transition-all hover:-translate-y-0.5 flex flex-col ${
                     isPopular
                       ? "border-violet-500/60 bg-violet-500/[0.06] shadow-lg shadow-violet-500/10 hover:shadow-xl hover:shadow-violet-500/15"
@@ -307,8 +297,8 @@ function BillingContent() {
                   </ul>
 
                   <button
-                    disabled={isCurrent || !price || checkingOut === plan.id}
-                    onClick={() => !isCurrent && handleUpgrade(plan)}
+                    disabled={isCurrent || !price || checkingOut === plan.slug}
+                    onClick={() => !isCurrent && handleUpgrade(plan.slug)}
                     className={`w-full flex items-center justify-center h-10 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPopular
                         ? "bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20"
@@ -317,7 +307,7 @@ function BillingContent() {
                           : "bg-white/[0.05] hover:bg-white/10 text-white border border-white/[0.08] hover:border-white/15"
                     }`}
                   >
-                    {checkingOut === plan.id ? (
+                    {checkingOut === plan.slug ? (
                       <><Spinner className="h-4 w-4 mr-2" /> Redirecting…</>
                     ) : isCurrent ? (
                       "Current Plan"
