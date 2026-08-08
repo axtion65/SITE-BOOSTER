@@ -619,7 +619,7 @@ components:
           type: ["string", "null"]
         plan:
           type: string
-          enum: [free, creator, agency]
+          enum: [free, starter, pro, agency]
         credits:
           type: integer
         isAdmin:
@@ -892,14 +892,14 @@ components:
               type: integer
             agency:
               type: integer
-          required: [free, creator, agency]
+          required: [free, starter, pro, agency]
         recentSignups:
           type: integer
           description: Signups in the last 7 days
 
     AdminUser:
       type: object
-      required: [id, email, plan, credits, isAdmin, projectCount, createdAt]
+      required: [id, email, plan, credits, isAdmin, accountStatus, projectCount, createdAt]
       properties:
         id:
           type: string
@@ -909,11 +909,22 @@ components:
           type: ["string", "null"]
         plan:
           type: string
-          enum: [free, creator, agency]
+          enum: [free, starter, pro, agency]
         credits:
           type: integer
         isAdmin:
           type: boolean
+        accountStatus:
+          type: string
+          enum: [active, disabled]
+        stripeCustomerId:
+          type: ["string", "null"]
+        stripeSubscriptionId:
+          type: ["string", "null"]
+        subscriptionStatus:
+          type: ["string", "null"]
+        billingInterval:
+          type: ["string", "null"]
         projectCount:
           type: integer
         createdAt:
@@ -970,9 +981,20 @@ components:
       properties:
         plan:
           type: string
-          enum: [free, creator, agency]
+          enum: [free, starter, pro, agency]
         credits:
           type: integer
         isAdmin:
+          type: boolean
+        accountStatus:
+          type: string
+          enum: [active, disabled]
+        resetCreditsForPlan:
+          type: boolean
+        resetCredits:
+          type: boolean
+        creditAdjustment:
+          type: integer
+        confirmSelfDemotion:
           type: boolean
 

@@ -18,6 +18,8 @@ export class Storage {
     stripeSubscriptionId?: string | null;
     plan?: string;
     credits?: number;
+    subscriptionStatus?: string | null;
+    billingInterval?: string | null;
   }) {
     const [user] = await db.update(usersTable)
       .set({ ...info, updatedAt: new Date() })

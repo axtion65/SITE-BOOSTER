@@ -5,10 +5,16 @@
  * Quae.ai API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminUserUpdateAccountStatus } from './adminUserUpdateAccountStatus';
 import type { AdminUserUpdatePlan } from './adminUserUpdatePlan';
 
 export interface AdminUserUpdate {
   plan?: AdminUserUpdatePlan;
   credits?: number;
   isAdmin?: boolean;
+  accountStatus?: AdminUserUpdateAccountStatus;
+  resetCreditsForPlan?: boolean;
+  resetCredits?: boolean;
+  creditAdjustment?: number;
+  confirmSelfDemotion?: boolean;
 }

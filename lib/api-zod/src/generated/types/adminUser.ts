@@ -5,6 +5,7 @@
  * Quae.ai API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminUserAccountStatus } from './adminUserAccountStatus';
 import type { AdminUserPlan } from './adminUserPlan';
 
 export interface AdminUser {
@@ -15,6 +16,15 @@ export interface AdminUser {
   plan: AdminUserPlan;
   credits: number;
   isAdmin: boolean;
+  accountStatus: AdminUserAccountStatus;
+  /** @nullable */
+  stripeCustomerId?: string | null;
+  /** @nullable */
+  stripeSubscriptionId?: string | null;
+  /** @nullable */
+  subscriptionStatus?: string | null;
+  /** @nullable */
+  billingInterval?: string | null;
   projectCount: number;
   createdAt: Date;
 }

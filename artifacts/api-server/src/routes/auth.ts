@@ -18,9 +18,18 @@ function hmacSign(payload: string): string {
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 }
 
-function generateToken(userId: string): string {
+export function generateToken(userId: string): string {
   const ts = Date.now();
   const payload = `${userId}:${ts}`;
+  const sig = hmacSign(payload);
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
+}
+
+/** Short-lived token used only for audited admin impersonation sessions. */
+export function generateImpersonationToken(userId: string): string {
+  const ts = Date.now();
+  const expiresAt = ts + 15 * 60 * 1000;
+  const payload = `${userId}:${ts}:${expiresAt}`;
   const sig = hmacSign(payload);
   return Buffer.from(`${payload}:${sig}`).toString("base64url");
 }
@@ -36,15 +45,16 @@ export async function resolveUserFromToken(authHeader: string | undefined) {
   try {
     const decoded = Buffer.from(token, "base64url").toString("utf-8");
     const parts = decoded.split(":");
-    // Signed token format: userId:timestamp:hmac  (exactly 3 parts)
-    if (parts.length !== 3) return null; // reject unsigned/malformed tokens
+    // Standard: userId:timestamp:hmac. Impersonation: userId:timestamp:expiry:hmac.
+    if (parts.length !== 3 && parts.length !== 4) return null;
     const userId = parts[0];
     const ts = Number(parts[1]);
-    const sig = parts[2];
+    const impersonationExpiry = parts.length === 4 ? Number(parts[2]) : null;
+    const sig = parts.at(-1)!;
     if (!userId || Number.isNaN(ts)) return null;
 
     // Verify HMAC signature (timing-safe)
-    const payload = `${userId}:${ts}`;
+    const payload = impersonationExpiry === null ? `${userId}:${ts}` : `${userId}:${ts}:${impersonationExpiry}`;
     const expected = hmacSign(payload);
     if (sig.length !== expected.length) return null;
     if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) {
@@ -52,9 +62,10 @@ export async function resolveUserFromToken(authHeader: string | undefined) {
     }
     // Enforce expiry
     if (Date.now() - ts > TOKEN_TTL_MS) return null;
+    if (impersonationExpiry !== null && (Number.isNaN(impersonationExpiry) || Date.now() > impersonationExpiry)) return null;
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-    return user ?? null;
+    return user?.accountStatus === "disabled" ? null : (user ?? null);
   } catch {
     return null;
   }
@@ -74,6 +85,7 @@ function userToPublic(user: typeof usersTable.$inferSelect) {
     plan: user.plan,
     credits: user.credits,
     isAdmin: user.isAdmin,
+    accountStatus: user.accountStatus,
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -88,6 +100,10 @@ router.post("/auth/signin", async (req, res) => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
   if (!user || user.passwordHash !== hashPassword(password)) {
     res.status(401).json({ error: "Invalid email or password" });
+    return;
+  }
+  if (user.accountStatus === "disabled") {
+    res.status(403).json({ error: "This account has been disabled" });
     return;
   }
   res.json({ user: userToPublic(user), token: generateToken(user.id) });

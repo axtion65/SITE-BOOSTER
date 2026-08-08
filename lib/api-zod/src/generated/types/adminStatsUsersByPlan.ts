@@ -8,6 +8,6 @@
 
 export type AdminStatsUsersByPlan = {
   free: number;
-  creator: number;
+  creator?: number;
   agency: number;
 };

@@ -72,6 +72,8 @@ async function handleSubscriptionChange(stripe: Stripe, sub: Stripe.Subscription
     stripeSubscriptionId: sub.id,
     plan,
     credits,
+    subscriptionStatus: sub.status,
+    billingInterval: price.recurring?.interval ?? null,
   });
 
   console.log(`[webhook] Updated user ${user.id} → plan=${plan} credits=${credits}`);
@@ -86,6 +88,8 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
     stripeSubscriptionId: null,
     plan: 'free',
     credits: PLAN_BY_SLUG.free.credits,
+    subscriptionStatus: sub.status,
+    billingInterval: null,
   });
 
   console.log(`[webhook] Downgraded user ${user.id} to free`);

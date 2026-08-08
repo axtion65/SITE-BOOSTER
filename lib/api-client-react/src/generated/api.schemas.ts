@@ -43,7 +43,8 @@ export type UserPlan = typeof UserPlan[keyof typeof UserPlan];
 
 export const UserPlan = {
   free: 'free',
-  creator: 'creator',
+  starter: 'starter',
+  pro: 'pro',
   agency: 'agency',
 } as const;
 
@@ -268,7 +269,7 @@ export interface ProjectStats {
 
 export type AdminStatsUsersByPlan = {
   free: number;
-  creator: number;
+  creator?: number;
   agency: number;
 };
 
@@ -286,8 +287,17 @@ export type AdminUserPlan = typeof AdminUserPlan[keyof typeof AdminUserPlan];
 
 export const AdminUserPlan = {
   free: 'free',
-  creator: 'creator',
+  starter: 'starter',
+  pro: 'pro',
   agency: 'agency',
+} as const;
+
+export type AdminUserAccountStatus = typeof AdminUserAccountStatus[keyof typeof AdminUserAccountStatus];
+
+
+export const AdminUserAccountStatus = {
+  active: 'active',
+  disabled: 'disabled',
 } as const;
 
 export interface AdminUser {
@@ -298,6 +308,15 @@ export interface AdminUser {
   plan: AdminUserPlan;
   credits: number;
   isAdmin: boolean;
+  accountStatus: AdminUserAccountStatus;
+  /** @nullable */
+  stripeCustomerId?: string | null;
+  /** @nullable */
+  stripeSubscriptionId?: string | null;
+  /** @nullable */
+  subscriptionStatus?: string | null;
+  /** @nullable */
+  billingInterval?: string | null;
   projectCount: number;
   createdAt: string;
 }
@@ -337,14 +356,28 @@ export type AdminUserUpdatePlan = typeof AdminUserUpdatePlan[keyof typeof AdminU
 
 export const AdminUserUpdatePlan = {
   free: 'free',
-  creator: 'creator',
+  starter: 'starter',
+  pro: 'pro',
   agency: 'agency',
+} as const;
+
+export type AdminUserUpdateAccountStatus = typeof AdminUserUpdateAccountStatus[keyof typeof AdminUserUpdateAccountStatus];
+
+
+export const AdminUserUpdateAccountStatus = {
+  active: 'active',
+  disabled: 'disabled',
 } as const;
 
 export interface AdminUserUpdate {
   plan?: AdminUserUpdatePlan;
   credits?: number;
   isAdmin?: boolean;
+  accountStatus?: AdminUserUpdateAccountStatus;
+  resetCreditsForPlan?: boolean;
+  resetCredits?: boolean;
+  creditAdjustment?: number;
+  confirmSelfDemotion?: boolean;
 }
 
 export type ListTemplatesParams = {

@@ -11,6 +11,7 @@ export type UserPlan = typeof UserPlan[keyof typeof UserPlan];
 
 export const UserPlan = {
   free: 'free',
-  creator: 'creator',
+  starter: 'starter',
+  pro: 'pro',
   agency: 'agency',
 } as const;

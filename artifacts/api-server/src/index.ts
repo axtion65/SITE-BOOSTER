@@ -20,6 +20,9 @@ async function runStartupMigrations() {
       stripe_customer_id    TEXT,
       stripe_subscription_id TEXT,
       is_admin              BOOLEAN NOT NULL DEFAULT FALSE,
+      account_status        TEXT NOT NULL DEFAULT 'active',
+      subscription_status   TEXT,
+      billing_interval      TEXT,
       created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -37,6 +40,9 @@ async function runStartupMigrations() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER NOT NULL DEFAULT 90`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_interval TEXT`,
   ];
   for (const sql of userAlters) {
     await pool.query(sql).catch((err: any) => {

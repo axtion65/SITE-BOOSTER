@@ -7,15 +7,21 @@
  */
 import { Router } from "express";
 import { fal } from "@fal-ai/client";
+import { resolveUserFromToken } from "./auth";
 
 const router = Router();
 
 const MODEL   = "fal-ai/ltx-2.3/text-to-video/fast";
-const PROMPT  = "A purple sneaker rotating slowly on a clean studio background, cinematic product advertisement";
+const DEFAULT_PROMPT = "A purple sneaker rotating slowly on a clean studio background, cinematic product advertisement";
 const POLL_MS = 4000;   // 4 s between status checks
 const TIMEOUT = 300000; // 5 min hard stop
 
 router.post("/debug/fal-video-test", async (req, res) => {
+  const user = await resolveUserFromToken(req.headers.authorization);
+  if (!user?.isAdmin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : DEFAULT_PROMPT;
+  if (!prompt || prompt.length > 2000) { res.status(400).json({ error: "Prompt must be 1–2,000 characters" }); return; }
+  if (req.body?.confirmProviderCost !== true) { res.status(400).json({ error: "Explicit provider-cost confirmation is required" }); return; }
   const falKey = process.env.FAL_KEY;
   if (!falKey) {
     res.status(500).json({ error: "FAL_KEY not set" });
@@ -33,7 +39,7 @@ router.post("/debug/fal-video-test", async (req, res) => {
   try {
     const enqueued = await (fal.queue as any).submit(MODEL, {
       input: {
-        prompt: PROMPT,
+        prompt,
         num_frames: 121,
         negative_prompt: "low quality, blurry, watermark, text overlay, distorted faces",
       },
