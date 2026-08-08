@@ -17,7 +17,6 @@ import StudioBilling from '@/pages/studio/billing';
 import StudioSettings from '@/pages/studio/settings';
 import Templates from '@/pages/templates';
 import Admin from '@/pages/admin';
-import SetupAdmin from '@/pages/setup-admin';
 import FeedbackWidget from '@/components/feedback-widget';
 import { ErrorBoundary } from '@/components/error-boundary';
 
@@ -40,7 +39,6 @@ function Router() {
       
       {/* Admin */}
       <Route path="/admin" component={Admin} />
-      <Route path="/setup-admin" component={SetupAdmin} />
       
       <Route component={NotFound} />
     </Switch>

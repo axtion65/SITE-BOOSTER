@@ -202,27 +202,4 @@ router.patch("/auth/profile", async (req, res) => {
   res.json(userToPublic(updated));
 });
 
-// Promote self to admin — requires valid email + password to prove ownership
-router.post("/auth/setup-admin", async (req, res) => {
-  const { email, password } = req.body as { email?: string; password?: string };
-  if (!email || !password) {
-    res.status(400).json({ error: "Email and password are required" });
-    return;
-  }
-
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user || user.passwordHash !== hashPassword(password)) {
-    res.status(401).json({ error: "Invalid email or password" });
-    return;
-  }
-
-  const [updated] = await db
-    .update(usersTable)
-    .set({ isAdmin: true })
-    .where(eq(usersTable.id, user.id))
-    .returning();
-
-  res.json({ success: true, message: `${updated.email} is now an admin.`, token: generateToken(updated.id), user: userToPublic(updated) });
-});
-
 export default router;

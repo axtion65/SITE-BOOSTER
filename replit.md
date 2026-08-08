@@ -12,6 +12,17 @@ AI-powered video generator SaaS for entrepreneurs — turn a product description
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL`, `AI_INTEGRATIONS_ANTHROPIC_BASE_URL`, `AI_INTEGRATIONS_ANTHROPIC_API_KEY`
 
+## One-time administrator bootstrap (Railway)
+
+To promote an existing account, add `QUAE_ADMIN_BOOTSTRAP_EMAIL` to the API
+service under **Railway project → API service → Variables**, set to the exact
+lowercase account email, and deploy/restart the service. Before accepting
+traffic, startup looks up that unique existing email and changes only its
+`is_admin` value to `true`. It never creates an account and fails startup if the
+email does not exist. Repeated starts are idempotent. After the successful log
+message identifies the user ID and email, remove the variable and redeploy;
+admin status remains stored in PostgreSQL.
+
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9

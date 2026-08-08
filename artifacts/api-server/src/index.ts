@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { startRenderTimeoutWatcher } from "./lib/renderTimeout";
 import { startEmailQueueWorker } from "./lib/emailQueueWorker";
 import { pool } from "@workspace/db";
+import { bootstrapAdminFromEnvironment } from "./lib/adminBootstrap";
 
 // Idempotent schema migration — runs before the server accepts requests.
 // Safe to run on every startup: CREATE/ALTER IF NOT EXISTS never destroys data.
@@ -137,6 +138,10 @@ if (!process.env.STRIPE_API_KEY) {
 
 // Run idempotent migrations before accepting traffic
 await runStartupMigrations();
+
+// Optional, narrowly-scoped deployment bootstrap. This runs before traffic is
+// accepted and can only promote the one existing account named by the env var.
+await bootstrapAdminFromEnvironment();
 
 const server = app.listen(port, (err) => {
   if (err) { logger.error({ err }, "Error listening on port"); process.exit(1); }
