@@ -4,7 +4,7 @@ import { db, usersTable, projectsTable, emailQueueTable } from "@workspace/db";
 import { eq, gte, count, sql, desc, like } from "drizzle-orm";
 import { UpdateAdminUserBody } from "@workspace/api-zod";
 import { resolveUserFromToken } from "./auth";
-import { objectStorageClient } from "../lib/objectStorage";
+import { S3ObjectFile } from "../lib/objectStorage";
 import { setObjectAclPolicy } from "../lib/objectAcl";
 import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type PlanSlug } from "@workspace/plans";
 import { logger } from "../lib/logger";
@@ -322,11 +322,12 @@ router.post("/admin/migrate/base64-images", async (req, res) => {
       const bucketName = parts[1];
       const objectName = parts.slice(2).join("/");
 
-      // Upload bytes directly to GCS
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
+      if (!bucketName || !objectName) throw new Error("Invalid PRIVATE_OBJECT_DIR");
+
+      // Upload bytes directly to the configured S3-compatible bucket.
+      const file = new S3ObjectFile(bucketName, objectName);
       await file.save(buffer, {
-        metadata: { contentType: mimeType as string },
+        contentType: mimeType as string,
         resumable: false,
       });
 
