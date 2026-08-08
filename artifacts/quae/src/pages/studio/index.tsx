@@ -755,6 +755,13 @@ function Wizard() {
                       <SelectContent>
                         <SelectItem value="5s">5 Seconds</SelectItem>
                         <SelectItem value="10s">10 Seconds</SelectItem>
+                        <SelectItem value="15s">15 Seconds</SelectItem>
+                        <SelectItem value="30s">30 Seconds</SelectItem>
+                        <SelectItem value="45s">45 Seconds</SelectItem>
+                        <SelectItem value="60s">60 Seconds</SelectItem>
+                        <SelectItem value="90s">90 Seconds</SelectItem>
+                        <SelectItem value="120s">120 Seconds</SelectItem>
+                        <SelectItem value="180s">180 Seconds</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
