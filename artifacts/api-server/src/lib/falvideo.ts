@@ -147,6 +147,30 @@ const TEMPLATE_VIDEO_DIRECTION: Record<string, string> = {
     "Aesthetic-first. Every frame is Instagram-worthy on its own. Specific color grade direction matters. Mix of lifestyle shots, product close-ups, and one hero moment. Trending Reel format pacing — quick but deliberate.",
 };
 
+/**
+ * The single last-mile guard for every prompt sent to fal.ai. It deliberately
+ * rewrites risky concepts instead of merely appending a negative instruction,
+ * while leaving ordinary cinematic language byte-for-byte unchanged.
+ */
+export function sanitizeVisualPrompt(prompt: string): string {
+  let clean = prompt;
+  clean = clean
+    .replace(/https?:\/\/\S+|\bwww\.\S+|\b\S+\.(?:com|net|org|io)\b/gi, "a discreet off-camera destination")
+    .replace(/(?:\$|€|£)\s?\d+(?:[.,]\d{1,2})?|\b\d+(?:[.,]\d{1,2})?\s?(?:dollars?|euros?|pounds?)\b/gi, "an irresistible offer conveyed by the customer's excited decision")
+    .replace(/(?:five|5)[- ]star (?:reviews?|ratings?)|star ratings?/gi, "a montage of delighted customers reacting enthusiastically")
+    .replace(/(?:computer|website|analytics|sales)?\s*dashboard/gi, "business owner celebrating results with all devices turned away from camera")
+    .replace(/phone (?:ui|interface|screen)|mobile (?:ui|interface|screen)/gi, "customer interacting naturally with a phone kept facing away from camera")
+    .replace(/countdown(?: timer)?(?: showing)?(?: \d+)?/gi, "rapidly dwindling inventory and accelerating fulfillment")
+    .replace(/packaging (?:text|label|lettering)|product label/gi, "clean unmarked packaging with texture and shape emphasized")
+    .replace(/(?:show|display|add|include|with|featuring)?\s*(?:an?\s*)?(?:caption|subtitle|text overlay|typography|written words?|price|url|website address|poster|menu|receipt|document|browser page|review|sign)(?:s)?(?:\s+(?:reading|showing|saying)\s+["“][^"”]*["”])?/gi, "use expressive action and composition")
+    .replace(/\b(?:readable|visible) (?:words?|text|lettering|screens?)\b/gi, "abstract nonverbal detail")
+    .replace(/\b(?:brand )?logos?\b/gi, "distinctive product silhouette")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\.{2,}/g, ".")
+    .trim();
+  return clean;
+}
+
 function buildVideoPrompt(script: ExpandedScript, platform: string, duration: string, templateType?: string): string {
   const isVertical = platform === 'tiktok' || platform === 'instagram';
   const baseFormat = isVertical
@@ -159,7 +183,7 @@ function buildVideoPrompt(script: ExpandedScript, platform: string, duration: st
     : '';
 
   // Build scene breakdown
-  const sceneLines = script.scenes.slice(0, 6).map((s, i) =>
+  const sceneLines = script.scenes.map((s, i) =>
     `Scene ${i + 1} (${s.duration}): ${s.description}. Camera/visuals: ${s.visualDirection}.`
   ).join(' ');
 
@@ -232,7 +256,8 @@ The advertisement must persuade through emotion, trust, benefits, product use, a
 
 ];  
 
-  return parts.filter(Boolean).join(' ');
+  const creativePrompt = sanitizeVisualPrompt(parts.filter(Boolean).join(' '));
+  return `${creativePrompt} ABSOLUTE VISUAL CONSTRAINT: generate imagery only; no glyphs, letters, numbers, watermarks, interface elements, or legible language anywhere in frame.`;
 }
 
 function getModelId(renderingModelId: string, hasImage = false): string {

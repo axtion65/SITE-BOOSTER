@@ -2,6 +2,8 @@ import { Router } from "express";
 import { ExpandPromptBody } from "@workspace/api-zod";
 import OpenAI from "openai";
 import { resolveUserIdFromToken } from "./auth";
+import { durationPlanInstruction, normalizeScriptTiming, parseRequestedDuration, validateScript, type AdScript } from "../lib/scriptEngine";
+import { sanitizeVisualPrompt } from "../lib/falvideo";
 
 const router = Router();
 
@@ -220,22 +222,9 @@ router.post("/studio/expand-prompt", async (req, res) => {
   const { description, productName, targetAudience, platform, duration } = parsed.data;
   const templateType = (req.body as any).templateType as string | undefined;
   const templateName = (req.body as any).templateName as string | undefined;
-  const renderingModelId = (req.body as any).renderingModelId as string | undefined;
-
-  // Hard cap: each model only outputs up to this many seconds regardless of what the
-  // script asks for — so cap the script duration to match and avoid wasted narration.
-  const MODEL_MAX_SECONDS: Record<string, number> = {
-    'ltx-fast': 5, ltx: 5, ovi: 10, wan: 10, kling: 10, 'kling-1.6': 10, veo3: 8,
-  };
-  const modelMax = renderingModelId ? (MODEL_MAX_SECONDS[renderingModelId] ?? null) : null;
-  const requestedSec = (() => {
-    const d = (duration || "15s").toLowerCase().trim();
-    if (d.endsWith("m")) return parseInt(d) * 60;
-    if (d.endsWith("s")) return parseInt(d);
-    return parseInt(d) || 15;
-  })();
-  const effectiveSec = modelMax ? Math.min(requestedSec, modelMax) : requestedSec;
+  const effectiveSec = parseRequestedDuration(duration);
   const effectiveDuration = `${effectiveSec}s`;
+  const planningContract = durationPlanInstruction(effectiveSec, templateType);
 
   const baseSystemPrompt = templateType
     ? (TEMPLATE_SYSTEM_PROMPTS[templateType] ?? GENERIC_SYSTEM_PROMPT)
@@ -244,6 +233,10 @@ router.post("/studio/expand-prompt", async (req, res) => {
   const systemPrompt = `${baseSystemPrompt}
 
 ${VISUAL_STORYTELLING_RULE}
+
+${planningContract}
+
+Write like an elite direct-response creative director. Be product- and audience-specific, use believable demonstrations and reactions, and never invent an unsupported claim. Avoid generic filler such as "unlock your potential", "discover the future", or "revolutionize your life". Voiceover is spoken audio only and must remain separate from visual directions. Target natural narration at no more than 2.7 words per second.
 
 Respond with ONLY valid JSON (no markdown, no explanation):
 {
@@ -294,7 +287,30 @@ The hook must stop the scroll in the first 2-3 seconds. Every scene must be purp
       res.status(500).json({ error: "Failed to parse AI response" });
       return;
     }
-    res.json(JSON.parse(jsonMatch[0]));
+    let generated = JSON.parse(jsonMatch[0]) as AdScript;
+    let failures = validateScript(generated, effectiveSec, templateType);
+    if (failures.length) {
+      const repair = await getOpenAI().chat.completions.create({
+        model: "gpt-4o",
+        max_tokens: 8192,
+        messages: [
+          { role: "system", content: `${systemPrompt}\nRepair only the invalid sections listed by the user. Preserve every valid, product-specific section.` },
+          { role: "user", content: `Validation failures: ${failures.join("; ")}\n\nRepair this JSON and return the complete valid JSON only:\n${JSON.stringify(generated)}` },
+        ],
+      });
+      const repairedText = repair.choices[0]?.message?.content ?? "";
+      const repairedJson = repairedText.match(/\{[\s\S]*\}/);
+      if (repairedJson) generated = JSON.parse(repairedJson[0]) as AdScript;
+    }
+    generated = normalizeScriptTiming(generated, effectiveSec);
+    generated.scenes = generated.scenes.map(scene => ({
+      ...scene,
+      description: sanitizeVisualPrompt(scene.description),
+      visualDirection: sanitizeVisualPrompt(scene.visualDirection),
+    }));
+    failures = validateScript(generated, effectiveSec, templateType);
+    if (failures.length) console.warn("[openai] script retained non-timing validation warnings after repair:", failures);
+    res.json(generated);
   } catch (err: any) {
     console.error("[openai] expand-prompt error:", err?.message ?? err);
     res.status(500).json({ error: "AI generation failed — please try again in a moment" });
@@ -395,7 +411,12 @@ Write a fresh version of this scene. The description should be vivid and purpose
       res.status(500).json({ error: "Failed to parse AI response" });
       return;
     }
-    res.json(JSON.parse(jsonMatch[0]));
+    const scene = JSON.parse(jsonMatch[0]) as { description: string; visualDirection: string };
+    res.json({
+      ...scene,
+      description: sanitizeVisualPrompt(scene.description),
+      visualDirection: sanitizeVisualPrompt(scene.visualDirection),
+    });
   } catch (err: any) {
     console.error("[openai] regenerate-scene error:", err?.message ?? err);
     res.status(500).json({ error: "AI generation failed — please try again in a moment" });

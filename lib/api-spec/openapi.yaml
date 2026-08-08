@@ -644,7 +644,7 @@ components:
           description: "Target platform: tiktok, youtube, instagram, amazon"
         duration:
           type: ["string", "null"]
-          description: "Video duration: 15s, 30s, 60s"
+          description: "Video duration: 5s, 10s, 15s, 30s, 45s, 60s, 90s, 120s, or 180s"
 
     ExpandedScript:
       type: object
@@ -997,4 +997,3 @@ components:
           type: integer
         confirmSelfDemotion:
           type: boolean
-
