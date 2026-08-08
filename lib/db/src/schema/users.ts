@@ -12,6 +12,9 @@ export const usersTable = pgTable("users", {
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   isAdmin: boolean("is_admin").notNull().default(false),
+  accountStatus: text("account_status").notNull().default("active"),
+  subscriptionStatus: text("subscription_status"),
+  billingInterval: text("billing_interval"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

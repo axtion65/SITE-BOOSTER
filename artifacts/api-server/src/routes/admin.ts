@@ -6,7 +6,8 @@ import { UpdateAdminUserBody } from "@workspace/api-zod";
 import { resolveUserFromToken } from "./auth";
 import { objectStorageClient } from "../lib/objectStorage";
 import { setObjectAclPolicy } from "../lib/objectAcl";
-import { PLAN_CATALOG, type PlanSlug } from "@workspace/plans";
+import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type PlanSlug } from "@workspace/plans";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -45,6 +46,16 @@ router.get("/admin/stats", async (req, res) => {
   });
 });
 
+function publicAdminUser(user: typeof usersTable.$inferSelect, projectCount = 0) {
+  return {
+    id: user.id, email: user.email, name: user.name, plan: user.plan, credits: user.credits,
+    isAdmin: user.isAdmin, accountStatus: user.accountStatus,
+    stripeCustomerId: user.stripeCustomerId, stripeSubscriptionId: user.stripeSubscriptionId,
+    subscriptionStatus: user.subscriptionStatus, billingInterval: user.billingInterval,
+    projectCount, createdAt: user.createdAt.toISOString(),
+  };
+}
+
 router.get("/admin/users", async (req, res) => {
   const admin = await getAdminUser(req.headers.authorization);
   if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
@@ -53,17 +64,7 @@ router.get("/admin/users", async (req, res) => {
   const projectCounts = await db.select({ userId: projectsTable.userId, cnt: count() })
     .from(projectsTable).groupBy(projectsTable.userId);
   const countMap = new Map(projectCounts.map((r) => [r.userId, Number(r.cnt)]));
-
-  res.json(users.map((u) => ({
-    id: u.id,
-    email: u.email,
-    name: u.name,
-    plan: u.plan,
-    credits: u.credits,
-    isAdmin: u.isAdmin,
-    projectCount: countMap.get(u.id) ?? 0,
-    createdAt: u.createdAt.toISOString(),
-  })));
+  res.json(users.map((user) => publicAdminUser(user, countMap.get(user.id) ?? 0)));
 });
 
 router.patch("/admin/users/:id", async (req, res) => {
@@ -71,31 +72,138 @@ router.patch("/admin/users/:id", async (req, res) => {
   if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const parsed = UpdateAdminUserBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }); return; }
+  const input = parsed.data;
+  const creditOperations = [input.credits, input.creditAdjustment, input.resetCredits].filter(value => value !== undefined && value !== false);
+  if (creditOperations.length > 1 || (input.credits !== undefined && (!Number.isSafeInteger(input.credits) || input.credits < 0 || input.credits > 10_000_000)) ||
+      (input.creditAdjustment !== undefined && (!Number.isSafeInteger(input.creditAdjustment) || Math.abs(input.creditAdjustment) > 10_000_000))) {
+    res.status(400).json({ error: "Invalid credit operation" }); return;
+  }
+  if (input.plan !== undefined && !isPlanSlug(input.plan)) {
+    res.status(400).json({ error: "Invalid plan" }); return;
+  }
+  if (req.params.id === admin.id && input.isAdmin === false && input.confirmSelfDemotion !== true) {
+    res.status(400).json({ error: "Explicit confirmation is required to remove your own admin access" }); return;
+  }
 
-  const updates: Record<string, unknown> = { updatedAt: new Date() };
-  if (parsed.data.plan !== undefined) updates.plan = parsed.data.plan;
-  if (parsed.data.credits !== undefined) updates.credits = parsed.data.credits;
-  if (parsed.data.isAdmin !== undefined) updates.isAdmin = parsed.data.isAdmin;
+  const result = await db.transaction(async (tx) => {
+    const [before] = await tx.select().from(usersTable).where(eq(usersTable.id, req.params.id)).for("update");
+    if (!before) return null;
+    const updates: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
+    if (input.plan !== undefined) updates.plan = input.plan;
+    if (input.isAdmin !== undefined) updates.isAdmin = input.isAdmin;
+    if (input.accountStatus !== undefined) updates.accountStatus = input.accountStatus;
 
-  const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, req.params.id)).returning();
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const effectivePlan = (input.plan ?? before.plan);
+    if (!isPlanSlug(effectivePlan)) throw new Error("User has an invalid current plan");
+    if (input.credits !== undefined) updates.credits = input.credits;
+    if (input.creditAdjustment !== undefined) {
+      const balance = before.credits + input.creditAdjustment;
+      if (balance < 0) throw new RangeError("Credit balance cannot be negative");
+      updates.credits = balance;
+    }
+    if (input.resetCredits || input.resetCreditsForPlan) updates.credits = PLAN_BY_SLUG[effectivePlan].credits;
 
-  const [{ cnt }] = await db.select({ cnt: count() }).from(projectsTable).where(eq(projectsTable.userId, user.id));
+    const [after] = await tx.update(usersTable).set(updates).where(eq(usersTable.id, before.id)).returning();
+    return { before, after };
+  }).catch((error: unknown) => {
+    if (error instanceof RangeError) return error;
+    throw error;
+  });
+  if (!result) { res.status(404).json({ error: "User not found" }); return; }
+  if (result instanceof RangeError) { res.status(400).json({ error: result.message }); return; }
+
+  logger.info({
+    action: "admin.user.update", adminId: admin.id, targetUserId: result.after.id,
+    changes: input, before: { plan: result.before.plan, credits: result.before.credits, isAdmin: result.before.isAdmin, accountStatus: result.before.accountStatus },
+    after: { plan: result.after.plan, credits: result.after.credits, isAdmin: result.after.isAdmin, accountStatus: result.after.accountStatus },
+  }, "Admin changed user account");
+  const [{ cnt }] = await db.select({ cnt: count() }).from(projectsTable).where(eq(projectsTable.userId, result.after.id));
+  res.json(publicAdminUser(result.after, Number(cnt)));
+});
+
+// ─── Admin V2 operations dashboard ───────────────────────────────────────────
+router.get("/admin/operations", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+  const [todayUsers, todayProjects, failedRenders, queued, activeUsers, recentProjects] = await Promise.all([
+    db.select({ value: count() }).from(usersTable).where(gte(usersTable.createdAt, today)),
+    db.select({ value: count() }).from(projectsTable).where(gte(projectsTable.createdAt, today)),
+    db.select({ value: count() }).from(projectsTable).where(eq(projectsTable.status, "failed")),
+    db.select({ value: count() }).from(projectsTable).where(eq(projectsTable.status, "processing")),
+    db.select().from(usersTable).where(sql`${usersTable.subscriptionStatus} = 'active' OR (${usersTable.subscriptionStatus} IS NULL AND ${usersTable.plan} <> 'free')`),
+    db.select().from(projectsTable).where(gte(projectsTable.createdAt, today)),
+  ]);
+  const { MODEL_CREDIT_COSTS } = await import("../lib/falvideo");
+  const creditsUsedToday = recentProjects.reduce((sum, project) => sum + (MODEL_CREDIT_COSTS[project.renderingModelId] ?? 0), 0);
+  const completed = recentProjects.filter(project => project.status === "completed");
+  const averageRenderTimeSeconds = completed.length ? Math.round(completed.reduce((sum, project) => sum + Math.max(0, project.updatedAt.getTime() - project.createdAt.getTime()), 0) / completed.length / 1000) : 0;
+  const mrrCents = activeUsers.reduce((sum, user) => sum + (isPlanSlug(user.plan) ? PLAN_BY_SLUG[user.plan].monthlyPriceCents : 0), 0);
+  let databaseStatus = "operational";
+  try { await db.execute(sql`select 1`); } catch { databaseStatus = "down"; }
   res.json({
-    id: user.id, email: user.email, name: user.name, plan: user.plan,
-    credits: user.credits, isAdmin: user.isAdmin,
-    projectCount: Number(cnt), createdAt: user.createdAt.toISOString(),
+    usersToday: Number(todayUsers[0]?.value ?? 0), videosToday: Number(todayProjects[0]?.value ?? 0), creditsUsedToday,
+    activeSubscriptions: activeUsers.length, mrrCents, failedRenders: Number(failedRenders[0]?.value ?? 0),
+    failedStripeWebhooks: null, queueLength: Number(queued[0]?.value ?? 0), averageRenderTimeSeconds,
+    health: {
+      openai: process.env.OPENAI_API_KEY ? "configured" : "not_configured",
+      fal: process.env.FAL_KEY ? "configured" : "not_configured",
+      stripe: process.env.STRIPE_API_KEY ? "configured" : "not_configured",
+      storage: (process.env.PRIVATE_OBJECT_DIR || process.env.AWS_BUCKET_NAME) ? "configured" : "not_configured",
+      database: databaseStatus,
+    },
   });
 });
 
-router.delete("/admin/users/:id", async (req, res) => {
+router.get("/admin/render-debug", async (req, res) => {
   const admin = await getAdminUser(req.headers.authorization);
   if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const projects = await db.select().from(projectsTable).orderBy(desc(projectsTable.updatedAt)).limit(50);
+  const safeUrl = (value: string | null) => {
+    if (!value) return null;
+    if (value.startsWith("data:")) return "[inline data omitted]";
+    try { const url = new URL(value, "https://quae.invalid"); return value.startsWith("/") ? url.pathname : `${url.origin}${url.pathname}`; }
+    catch { return "[invalid URL omitted]"; }
+  };
+  res.json(projects.map(project => ({
+    id: project.id, userId: project.userId, title: project.title, status: project.status, model: project.renderingModelId,
+    originalRequest: project.description, aiWriterOutput: project.expandedScript, validationOutput: project.script ? "Prompt generated" : "No generated prompt",
+    rawPrompt: project.script, sanitizedPrompt: project.script?.trim() ?? null, finalVisualPrompt: project.expandedScript ?? project.script,
+    voiceover: project.script, sceneTiming: project.duration, estimatedRuntime: project.duration,
+    falPayload: { model: project.renderingModelId, prompt: project.expandedScript ?? project.script, image_url: safeUrl(project.productImageUrl), voice_id: project.voiceId },
+    logs: { status: project.status, createdAt: project.createdAt, updatedAt: project.updatedAt, videoUrl: safeUrl(project.videoUrl) },
+  })));
+});
 
-  await db.delete(projectsTable).where(eq(projectsTable.userId, req.params.id));
-  await db.delete(usersTable).where(eq(usersTable.id, req.params.id));
-  res.json({ success: true });
+router.post("/admin/users/:id/impersonate", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id));
+  if (!target || target.accountStatus === "disabled") { res.status(400).json({ error: "User is missing or disabled" }); return; }
+  const { generateImpersonationToken } = await import("./auth");
+  logger.warn({ action: "admin.user.impersonate", adminId: admin.id, targetUserId: target.id }, "Admin impersonation started");
+  res.json({ token: generateImpersonationToken(target.id), expiresInSeconds: 900, user: { id: target.id, email: target.email, name: target.name } });
+});
+
+router.post("/admin/users/:id/refresh-credits", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id));
+  if (!target || !isPlanSlug(target.plan)) { res.status(404).json({ error: "User or plan not found" }); return; }
+  const [updated] = await db.update(usersTable).set({ credits: PLAN_BY_SLUG[target.plan].credits, updatedAt: new Date() }).where(eq(usersTable.id, target.id)).returning();
+  logger.info({ action: "admin.user.refresh_credits", adminId: admin.id, targetUserId: target.id, credits: updated.credits }, "Admin refreshed credits");
+  res.json(publicAdminUser(updated));
+});
+
+router.post("/admin/users/:id/sync-subscription", async (req, res) => {
+  const admin = await getAdminUser(req.headers.authorization);
+  if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { stripeService } = await import("../stripeService");
+  const updated = await stripeService.syncUserSubscription(req.params.id);
+  logger.info({ action: "admin.user.sync_subscription", adminId: admin.id, targetUserId: req.params.id }, "Admin synchronized subscription");
+  if (!updated) { res.status(404).json({ error: "No active Stripe subscription found" }); return; }
+  res.json(publicAdminUser(updated));
 });
 
 // ─── Email queue monitoring ───────────────────────────────────────────────────

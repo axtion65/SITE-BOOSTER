@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button"
 
 export default function StudioLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const adminToken = sessionStorage.getItem("quae_admin_token");
+
+  const returnToAdmin = () => {
+    if (!adminToken) return;
+    localStorage.setItem("quae_token", adminToken);
+    sessionStorage.removeItem("quae_admin_token");
+    window.location.assign("/admin");
+  };
 
   return (
     <div className="flex flex-col h-screen w-full bg-background text-foreground overflow-hidden">
@@ -30,6 +38,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
 
         {/* Right side */}
         <div className="ml-auto flex items-center gap-3">
+          {adminToken && <Button size="sm" variant="destructive" onClick={returnToAdmin}>Exit impersonation</Button>}
           {/* Credits */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-sm font-semibold">
             <span className="text-base">🪙</span>

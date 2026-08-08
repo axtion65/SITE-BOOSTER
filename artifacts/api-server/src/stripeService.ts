@@ -102,6 +102,8 @@ export class StripeService {
       stripeSubscriptionId: sub.id,
       plan,
       credits,
+      subscriptionStatus: sub.status,
+      billingInterval: price.recurring?.interval ?? null,
     });
   }
 }

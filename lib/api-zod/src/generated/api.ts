@@ -79,7 +79,7 @@ export const SignInResponse = zod.object({
   "id": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "plan": zod.enum(['free', 'creator', 'agency']),
+  "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
   "isAdmin": zod.boolean(),
   "createdAt": zod.coerce.date()
@@ -106,7 +106,7 @@ export const SignUpResponse = zod.object({
   "id": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "plan": zod.enum(['free', 'creator', 'agency']),
+  "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
   "isAdmin": zod.boolean(),
   "createdAt": zod.coerce.date()
@@ -134,7 +134,7 @@ export const GetMeResponse = zod.object({
   "id": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "plan": zod.enum(['free', 'creator', 'agency']),
+  "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
   "isAdmin": zod.boolean(),
   "createdAt": zod.coerce.date()
@@ -418,7 +418,7 @@ export const GetAdminStatsResponse = zod.object({
   "totalVideosCompleted": zod.number(),
   "usersByPlan": zod.object({
   "free": zod.number(),
-  "creator": zod.number(),
+  "creator": zod.number().optional(),
   "agency": zod.number()
 }),
   "recentSignups": zod.number().describe('Signups in the last 7 days')
@@ -432,9 +432,14 @@ export const ListAdminUsersResponseItem = zod.object({
   "id": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "plan": zod.enum(['free', 'creator', 'agency']),
+  "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
   "isAdmin": zod.boolean(),
+  "accountStatus": zod.enum(['active', 'disabled']),
+  "stripeCustomerId": zod.string().nullish(),
+  "stripeSubscriptionId": zod.string().nullish(),
+  "subscriptionStatus": zod.string().nullish(),
+  "billingInterval": zod.string().nullish(),
   "projectCount": zod.number(),
   "createdAt": zod.coerce.date()
 })
@@ -449,18 +454,28 @@ export const UpdateAdminUserParams = zod.object({
 })
 
 export const UpdateAdminUserBody = zod.object({
-  "plan": zod.enum(['free', 'creator', 'agency']).optional(),
+  "plan": zod.enum(['free', 'starter', 'pro', 'agency']).optional(),
   "credits": zod.number().optional(),
-  "isAdmin": zod.boolean().optional()
+  "isAdmin": zod.boolean().optional(),
+  "accountStatus": zod.enum(['active', 'disabled']).optional(),
+  "resetCreditsForPlan": zod.boolean().optional(),
+  "resetCredits": zod.boolean().optional(),
+  "creditAdjustment": zod.number().optional(),
+  "confirmSelfDemotion": zod.boolean().optional()
 })
 
 export const UpdateAdminUserResponse = zod.object({
   "id": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "plan": zod.enum(['free', 'creator', 'agency']),
+  "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
   "isAdmin": zod.boolean(),
+  "accountStatus": zod.enum(['active', 'disabled']),
+  "stripeCustomerId": zod.string().nullish(),
+  "stripeSubscriptionId": zod.string().nullish(),
+  "subscriptionStatus": zod.string().nullish(),
+  "billingInterval": zod.string().nullish(),
   "projectCount": zod.number(),
   "createdAt": zod.coerce.date()
 })
