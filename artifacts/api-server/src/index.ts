@@ -4,6 +4,7 @@ import { startRenderTimeoutWatcher } from "./lib/renderTimeout";
 import { startEmailQueueWorker } from "./lib/emailQueueWorker";
 import { pool } from "@workspace/db";
 import { bootstrapAdminFromEnvironment } from "./lib/adminBootstrap";
+import { readFile } from "node:fs/promises";
 
 // Idempotent schema migration — runs before the server accepts requests.
 // Safe to run on every startup: CREATE/ALTER IF NOT EXISTS never destroys data.
@@ -118,6 +119,33 @@ async function runStartupMigrations() {
     logger.error({ pg_code: err.code, pg_detail: err.detail, err }, "Migration failed: CREATE email_queue");
     throw err;
   });
+
+  // ── reusable marketing context ───────────────────────────────────────────
+  // Railway does not invoke drizzle-kit. Apply the canonical SQL migration
+  // copied beside the production bundle by build.mjs. An advisory lock avoids
+  // concurrent DDL when multiple Railway instances boot at the same time.
+  const client = await pool.connect();
+  try {
+    const migrationUrl = new URL(
+      "./migrations/0001_marketing_context.sql",
+      import.meta.url,
+    );
+    const marketingMigration = await readFile(migrationUrl, "utf8");
+
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(715202601)");
+    await client.query(marketingMigration);
+    await client.query("COMMIT");
+  } catch (err: any) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    logger.error(
+      { pg_code: err.code, pg_detail: err.detail, err },
+      "Migration failed: marketing context",
+    );
+    throw err;
+  } finally {
+    client.release();
+  }
 
   logger.info("DB migrations OK");
 }
