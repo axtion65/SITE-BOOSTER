@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 export default function StudioProjects() {
   return (
     <RequireAuth>
-      <div className="min-h-full bg-[#050507] overflow-y-auto">
+      <div className="min-h-full bg-[#0B1220] overflow-y-auto">
         <div className="max-w-6xl mx-auto px-6 py-10 space-y-10">
 
           {/* Header */}
@@ -21,7 +21,7 @@ export default function StudioProjects() {
                 My Projects
               </p>
               <h1 className="text-3xl font-black text-white tracking-tight leading-tight">All Videos</h1>
-              <p className="text-white/40 mt-1.5 text-sm">Your complete library of AI-generated video ads.</p>
+              <p className="text-[#AAB6CA] mt-1.5 text-sm">Your complete library of AI-generated video ads.</p>
             </div>
             <Link href="/studio">
               <Button className="h-10 px-5 bg-violet-600 hover:bg-violet-500 rounded-xl font-bold text-sm shadow-lg shadow-violet-600/25 gap-2 transition-all">
@@ -45,7 +45,7 @@ function ProjectStatsBar() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {[1, 2, 3].map(i => (
-          <div key={i} className="h-24 rounded-2xl border border-white/[0.06] bg-[#0c0c0f] animate-pulse" />
+          <div key={i} className="h-24 rounded-2xl border border-white/[0.06] bg-[#1D2940] animate-pulse" />
         ))}
       </div>
     );
@@ -80,7 +80,7 @@ function ProjectStatsBar() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] p-5">
+      <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] p-5">
         <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">Credits Remaining</p>
         <div className="h-1.5 w-full rounded-full bg-white/[0.06] overflow-hidden mb-2">
           <div
@@ -89,7 +89,7 @@ function ProjectStatsBar() {
           />
         </div>
         <div className="flex justify-between text-[11px]">
-          <span className="text-white/30">{stats.creditsUsed.toLocaleString()} used</span>
+          <span className="text-slate-400">{stats.creditsUsed.toLocaleString()} used</span>
           <span className="text-white/60 font-semibold">{stats.creditsRemaining.toLocaleString()} left</span>
         </div>
       </div>
@@ -115,7 +115,7 @@ function ProjectsList() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {[1, 2, 3, 4, 5, 6].map(i => (
-          <div key={i} className="h-56 rounded-2xl border border-white/[0.06] bg-[#0c0c0f] animate-pulse" />
+          <div key={i} className="h-56 rounded-2xl border border-white/[0.06] bg-[#1D2940] animate-pulse" />
         ))}
       </div>
     );
@@ -123,12 +123,12 @@ function ProjectsList() {
 
   if (!projects || projects.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-white/[0.08] bg-[#0c0c0f]/50 py-24 flex flex-col items-center text-center px-6">
+      <div className="rounded-2xl border border-dashed border-white/[0.08] bg-[#1D2940]/50 py-24 flex flex-col items-center text-center px-6">
         <div className="h-20 w-20 rounded-2xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center mb-5">
           <Film className="h-10 w-10 text-violet-400/40" />
         </div>
         <h3 className="text-lg font-black text-white mb-2 tracking-tight">No projects yet</h3>
-        <p className="text-white/30 text-sm mb-8 max-w-xs">
+        <p className="text-slate-400 text-sm mb-8 max-w-xs">
           Create your first AI video ad. Just add your product details and let the AI do the rest.
         </p>
         <Link href="/studio">
@@ -174,10 +174,10 @@ function ProjectCard({
 
   return (
     <Link href={`/studio/projects/${p.id}`}>
-      <div className="group rounded-2xl border border-white/[0.06] bg-[#0c0c0f] hover:border-violet-600/30 hover:shadow-[0_8px_40px_rgba(0,0,0,0.5)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer flex flex-col overflow-hidden h-full">
+      <div className="group rounded-2xl border border-white/[0.06] bg-[#1D2940] hover:border-violet-600/30 hover:shadow-[0_8px_40px_rgba(0,0,0,0.5)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer flex flex-col overflow-hidden h-full">
 
         {/* Thumbnail / Hero */}
-        <div className="relative h-40 bg-[#0a0a0d] overflow-hidden flex-shrink-0">
+        <div className="relative h-40 bg-[#131C2E] overflow-hidden flex-shrink-0">
           {hasThumbnail ? (
             <>
               <img
@@ -206,7 +206,7 @@ function ProjectCard({
             </div>
           )}
           {/* Cinematic gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c0f] via-black/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1D2940] via-black/20 to-transparent" />
 
           {/* Status badge pinned top-right */}
           <div className="absolute top-3 right-3">
@@ -236,7 +236,7 @@ function ProjectCard({
             {p.title}
           </h3>
           {p.description && (
-            <p className="text-[11px] text-white/30 line-clamp-2 leading-relaxed">
+            <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
               {p.description}
             </p>
           )}
@@ -290,7 +290,7 @@ function StatusBadge({ status }: { status: string }) {
       );
     default:
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest uppercase bg-white/[0.08] text-white/40 border border-white/[0.1] backdrop-blur-md">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest uppercase bg-white/[0.08] text-[#AAB6CA] border border-white/[0.1] backdrop-blur-md">
           Draft
         </span>
       );

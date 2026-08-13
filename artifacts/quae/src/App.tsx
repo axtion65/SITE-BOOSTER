@@ -30,7 +30,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/signin" component={SignIn} />
-      <Route path="/templates" component={Templates} />
+      <Route path="/templates" component={() => <StudioLayout><Templates embedded /></StudioLayout>} />
       
       {/* Studio App */}
       <Route path="/studio/dashboard" component={() => <StudioLayout><StudioDashboard /></StudioLayout>} />
