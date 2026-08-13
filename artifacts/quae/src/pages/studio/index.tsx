@@ -995,7 +995,7 @@ function Wizard() {
 
               {!productImageUrl && (
                 <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-xs text-white/50 flex items-start gap-2">
-                  <Info className="h-4 w-4 text-white/30 mt-0.5 flex-shrink-0" />
+                  <Info className="h-4 w-4 text-slate-400 mt-0.5 flex-shrink-0" />
                   <span>
                     No product image attached. <button type="button" onClick={() => setStep(1)} className="text-primary hover:underline">Go back to add one</button> — Wan &amp; Kling can use your product image as a reference for more accurate video output.
                   </span>
@@ -1050,7 +1050,7 @@ function Wizard() {
                             <span>Supports image conditioning</span>
                           </div>
                         ) : (
-                          <div className="mb-2 text-xs text-white/30 flex items-center gap-1">
+                          <div className="mb-2 text-xs text-slate-400 flex items-center gap-1">
                             <span>Text-only — image not used</span>
                           </div>
                         )}
@@ -1274,7 +1274,7 @@ function Wizard() {
                           <Film className="h-10 w-10 text-white/20" />
                           <div>
                             <p className="text-sm font-medium text-white/50">Example clip not yet available</p>
-                            <p className="text-xs text-white/30 mt-1">Your render will appear here when complete</p>
+                            <p className="text-xs text-slate-400 mt-1">Your render will appear here when complete</p>
                           </div>
                         </div>
                       )}

@@ -79,7 +79,7 @@ function StatusPill({ status }: { status: string }) {
       );
     default:
       return (
-        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-white/[0.08] text-white/40 border border-white/[0.1]">
+        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-white/[0.08] text-[#AAB6CA] border border-white/[0.1]">
           Draft
         </span>
       );
@@ -115,7 +115,7 @@ export default function StudioProjectDetail() {
   if (isLoading) {
     return (
       <RequireAuth>
-        <div className="min-h-full bg-[#050507] flex items-center justify-center">
+        <div className="min-h-full bg-[#0B1220] flex items-center justify-center">
           <Spinner className="h-8 w-8 text-violet-400" />
         </div>
       </RequireAuth>
@@ -125,8 +125,8 @@ export default function StudioProjectDetail() {
   if (!project) {
     return (
       <RequireAuth>
-        <div className="min-h-full bg-[#050507] flex items-center justify-center">
-          <p className="text-white/30">Project not found</p>
+        <div className="min-h-full bg-[#0B1220] flex items-center justify-center">
+          <p className="text-slate-400">Project not found</p>
         </div>
       </RequireAuth>
     );
@@ -174,11 +174,11 @@ export default function StudioProjectDetail() {
 
   return (
     <RequireAuth>
-      <div className="min-h-full bg-[#050507] overflow-y-auto">
+      <div className="min-h-full bg-[#0B1220] overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-10 space-y-8">
 
           {/* Back nav */}
-          <Link href="/studio/projects" className="inline-flex items-center gap-1.5 text-[11px] font-black tracking-[0.2em] uppercase text-white/30 hover:text-violet-400 transition-colors">
+          <Link href="/studio/projects" className="inline-flex items-center gap-1.5 text-[11px] font-black tracking-[0.2em] uppercase text-slate-400 hover:text-violet-400 transition-colors">
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Projects
           </Link>
 
@@ -224,7 +224,7 @@ export default function StudioProjectDetail() {
             <div className="md:col-span-2 space-y-5">
 
               {/* ─── VIDEO HERO BLOCK ─── */}
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] overflow-hidden">
+              <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] overflow-hidden">
                 <div className="aspect-video w-full flex items-center justify-center relative bg-black">
 
                   {/* PROCESSING / NARRATING */}
@@ -250,14 +250,14 @@ export default function StudioProjectDetail() {
                       {project?.status === "narrating" ? (
                         <>
                           <p className="text-white font-black text-xl mb-1">Adding voiceover…</p>
-                          <p className="text-white/40 text-sm mb-5 max-w-sm">
+                          <p className="text-[#AAB6CA] text-sm mb-5 max-w-sm">
                             Mixing narration audio into your video. This takes about 30 seconds — hang tight.
                           </p>
                         </>
                       ) : (
                         <>
                           <p className="text-white font-black text-xl mb-1">Rendering your video…</p>
-                          <p className="text-white/40 text-sm mb-5 max-w-sm">
+                          <p className="text-[#AAB6CA] text-sm mb-5 max-w-sm">
                             AI video generation takes several minutes. You can leave this page — it'll be here when you come back.
                           </p>
                         </>
@@ -265,7 +265,7 @@ export default function StudioProjectDetail() {
 
                       {project?.status !== "narrating" && (
                         <>
-                          <div className="mb-5 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs text-white/40 max-w-xs">
+                          <div className="mb-5 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs text-[#AAB6CA] max-w-xs">
                             <span className="text-white/70 font-semibold">Output: {clipLength}</span>
                             {" "}— AI video models generate short clips regardless of script length.
                             {modelKey !== 'kling' && modelKey !== 'kling-1.6' && (
@@ -282,8 +282,8 @@ export default function StudioProjectDetail() {
                             </div>
                           </div>
                           <div className="flex items-center justify-between w-full max-w-xs text-[11px] mb-1">
-                            <span className="text-white/30">Elapsed: {fmt(elapsed)}</span>
-                            <span className={overEstimate ? "text-amber-400 font-semibold" : "text-white/30"}>
+                            <span className="text-slate-400">Elapsed: {fmt(elapsed)}</span>
+                            <span className={overEstimate ? "text-amber-400 font-semibold" : "text-slate-400"}>
                               {overEstimate ? "Taking longer than usual…" : `Est. ~${fmt(estimateSec)}`}
                             </span>
                           </div>
@@ -331,7 +331,7 @@ export default function StudioProjectDetail() {
                         <RotateCcw className="h-8 w-8 text-amber-400" />
                       </div>
                       <p className="text-white font-black text-lg mb-2">Video link expired</p>
-                      <p className="text-sm text-white/40 mb-6 max-w-xs leading-relaxed">
+                      <p className="text-sm text-[#AAB6CA] mb-6 max-w-xs leading-relaxed">
                         AI video links expire after 48 hours. Hit Re-render — your script is saved and it only takes a couple of minutes.
                       </p>
                       <Button
@@ -353,7 +353,7 @@ export default function StudioProjectDetail() {
                         <VideoOff className="h-8 w-8 text-red-400" />
                       </div>
                       <p className="text-white font-black text-lg mb-1">Render failed</p>
-                      <p className="text-sm text-white/40 mb-5">The AI model encountered an error. Your credits have been refunded.</p>
+                      <p className="text-sm text-[#AAB6CA] mb-5">The AI model encountered an error. Your credits have been refunded.</p>
                       <Button
                         onClick={handleRerender}
                         disabled={rerendering}
@@ -370,7 +370,7 @@ export default function StudioProjectDetail() {
                       <div className="h-16 w-16 rounded-2xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center mb-5">
                         <Film className="h-8 w-8 text-violet-400/40" />
                       </div>
-                      <p className="text-white/30 text-sm">No video yet</p>
+                      <p className="text-slate-400 text-sm">No video yet</p>
                     </div>
                   )}
                 </div>
@@ -384,7 +384,7 @@ export default function StudioProjectDetail() {
                       </div>
                       <div>
                         <p className="text-white font-bold text-sm leading-none mb-0.5">Video ready</p>
-                        <p className="text-[11px] text-white/30">Download and publish to your platform</p>
+                        <p className="text-[11px] text-slate-400">Download and publish to your platform</p>
                       </div>
                     </div>
                     <a href={project.videoUrl} target="_blank" rel="noreferrer">
@@ -398,7 +398,7 @@ export default function StudioProjectDetail() {
 
               {/* Script breakdown */}
               {expandedScript && (
-                <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] overflow-hidden">
+                <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] overflow-hidden">
                   <div className="flex items-center gap-2.5 px-5 py-4 border-b border-white/[0.06]">
                     <div className="h-7 w-7 rounded-lg bg-violet-600/10 border border-violet-600/20 flex items-center justify-center">
                       <AlignLeft className="h-3.5 w-3.5 text-violet-400" />
@@ -414,11 +414,11 @@ export default function StudioProjectDetail() {
 
                     {/* Scenes */}
                     <div>
-                      <p className="text-[11px] font-black tracking-[0.2em] uppercase text-white/30 mb-3">Scenes</p>
+                      <p className="text-[11px] font-black tracking-[0.2em] uppercase text-slate-400 mb-3">Scenes</p>
                       <div className="space-y-2.5">
                         {expandedScript.scenes.map((scene, i) => (
                           <div key={i} className="flex gap-4 p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.05]">
-                            <div className="w-12 text-[11px] font-black text-white/30 pt-0.5 flex-shrink-0 font-mono">{scene.duration}</div>
+                            <div className="w-12 text-[11px] font-black text-slate-400 pt-0.5 flex-shrink-0 font-mono">{scene.duration}</div>
                             <div>
                               <p className="text-sm text-white mb-1 leading-snug">{scene.description}</p>
                               <p className="text-xs text-violet-400/80">{scene.visualDirection}</p>
@@ -431,7 +431,7 @@ export default function StudioProjectDetail() {
                     {/* Voiceover */}
                     {expandedScript.voiceoverText && (
                       <div>
-                        <p className="text-[11px] font-black tracking-[0.2em] uppercase text-white/30 mb-2">Voiceover</p>
+                        <p className="text-[11px] font-black tracking-[0.2em] uppercase text-slate-400 mb-2">Voiceover</p>
                         <p className="text-sm text-white/50 leading-relaxed">{expandedScript.voiceoverText}</p>
                       </div>
                     )}
@@ -444,7 +444,7 @@ export default function StudioProjectDetail() {
             <div className="space-y-5">
 
               {/* Project details card */}
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] overflow-hidden">
+              <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] overflow-hidden">
                 <div className="flex items-center gap-2.5 px-5 py-4 border-b border-white/[0.06]">
                   <div className="h-7 w-7 rounded-lg bg-violet-600/10 border border-violet-600/20 flex items-center justify-center">
                     <Code className="h-3.5 w-3.5 text-violet-400" />
@@ -479,7 +479,7 @@ export default function StudioProjectDetail() {
 
               {/* Product image card */}
               {project.productImageUrl && (
-                <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] overflow-hidden">
+                <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] overflow-hidden">
                   <div className="flex items-center gap-2.5 px-5 py-4 border-b border-white/[0.06]">
                     <div className="h-7 w-7 rounded-lg bg-violet-600/10 border border-violet-600/20 flex items-center justify-center">
                       <ImageIcon className="h-3.5 w-3.5 text-violet-400" />

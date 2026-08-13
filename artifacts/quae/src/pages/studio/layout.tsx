@@ -17,9 +17,9 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background text-foreground overflow-hidden">
+    <div className="quae-app flex h-screen w-full flex-col overflow-hidden bg-[#0B1220] text-foreground">
       {/* Top Nav */}
-      <header className="h-14 border-b border-border bg-card/80 backdrop-blur-md flex items-center px-6 gap-6 shrink-0 z-20">
+      <header className="z-20 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-white/[.07] bg-[#101827]/95 px-4 py-2 shadow-lg shadow-slate-950/20 backdrop-blur-xl lg:min-h-16 lg:flex-nowrap lg:px-6">
         {/* Logo */}
         <WouterLink href="/studio" className="flex items-center gap-2 font-bold text-base tracking-tight text-white hover:opacity-80 transition-opacity mr-2">
           <img src="/images/logo-icon.png" alt="Quae" className="h-7 w-7 rounded-md object-cover" />
@@ -27,7 +27,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         </WouterLink>
 
         {/* Nav Links */}
-        <nav className="flex items-center gap-1">
+        <nav aria-label="Primary navigation" className="order-3 -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-1 overflow-x-auto px-1 pb-0.5 lg:order-none lg:mx-0 lg:w-auto lg:flex-1 lg:px-0">
           <NavLink href="/studio/dashboard" label="Dashboard" />
           <NavLink href="/studio" label="Studio" exact />
           <NavLink href="/templates" label="Templates" />
@@ -40,11 +40,11 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         </nav>
 
         {/* Right side */}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2">
           {adminToken && <Button size="sm" variant="destructive" onClick={returnToAdmin}>Exit impersonation</Button>}
           {/* Credits */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-sm font-semibold">
-            <span className="text-base">🪙</span>
+          <div className="flex items-center gap-1.5 rounded-full border border-violet-300/15 bg-[#1D2940] px-3 py-1.5 text-sm font-semibold text-slate-200 shadow-inner">
+            <span aria-hidden="true" className="text-violet-300">✦</span>
             {(user?.credits ?? 0).toLocaleString()} credits
           </div>
 
@@ -61,20 +61,20 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
           {/* Sign Out */}
           <button
             onClick={() => logout()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-white transition-colors border border-transparent hover:border-border"
+            className="hidden items-center gap-1.5 rounded-md border border-transparent px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-white xl:flex"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign Out
           </button>
 
           {/* Avatar */}
-          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold">
+          <div className="hidden h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-sm font-bold text-white sm:flex">
             {(user?.name || user?.email || "U")[0].toUpperCase()}
           </div>
 
           {/* Upgrade */}
           <WouterLink href="/studio/billing">
-            <Button size="sm" className="font-semibold px-4 gap-1.5">
+            <Button size="sm" className="hidden gap-1.5 px-4 font-semibold sm:inline-flex">
               <CreditCard className="h-3.5 w-3.5" /> Upgrade
             </Button>
           </WouterLink>
@@ -97,10 +97,10 @@ function NavLink({ href, label, exact }: { href: string; label: string; exact?: 
     <WouterLink
       href={href}
       className={cn(
-        "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+        "relative shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
         isActive
-          ? "text-white border-b-2 border-primary rounded-none pb-[5px]"
-          : "text-muted-foreground hover:text-white"
+          ? "bg-violet-500/10 text-white shadow-inner shadow-violet-400/5 after:absolute after:inset-x-3 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-violet-400"
+          : "text-[#AAB6CA] hover:bg-white/[.04] hover:text-white"
       )}
     >
       {label}

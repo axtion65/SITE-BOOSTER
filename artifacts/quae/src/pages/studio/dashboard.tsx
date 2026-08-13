@@ -32,7 +32,7 @@ function DashboardContent() {
   const firstName = user?.name?.trim() ? user.name.trim().split(" ")[0] : null;
 
   return (
-    <div className="min-h-full bg-[#050507] overflow-y-auto">
+    <div className="min-h-full bg-[#0B1220] overflow-y-auto">
       <div className="max-w-5xl mx-auto px-6 py-10 space-y-10">
 
         {/* Header */}
@@ -44,7 +44,7 @@ function DashboardContent() {
             <h1 className="text-3xl font-black text-white tracking-tight leading-tight">
               {firstName ? `Welcome back, ${firstName}` : "Welcome back"}
             </h1>
-            <p className="text-white/40 mt-1.5 text-sm">Here's what's happening with your projects.</p>
+            <p className="text-[#AAB6CA] mt-1.5 text-sm">Here's what's happening with your projects.</p>
           </div>
           <Link href="/studio">
             <Button className="h-10 px-5 bg-violet-600 hover:bg-violet-500 rounded-xl font-bold text-sm shadow-lg shadow-violet-600/25 gap-2 transition-all">
@@ -82,7 +82,7 @@ function DashboardContent() {
         </div>
 
         {/* Credits Card */}
-        <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] p-6 space-y-4">
+        <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70">Credits</p>
@@ -102,8 +102,8 @@ function DashboardContent() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-white/40 text-xs">{creditsUsed.toLocaleString()} used</span>
-              <span className="text-white font-bold text-sm">{creditsRemaining.toLocaleString()} <span className="text-white/30 font-normal">/ {maxCredits.toLocaleString()}</span></span>
+              <span className="text-[#AAB6CA] text-xs">{creditsUsed.toLocaleString()} used</span>
+              <span className="text-white font-bold text-sm">{creditsRemaining.toLocaleString()} <span className="text-slate-400 font-normal">/ {maxCredits.toLocaleString()}</span></span>
             </div>
             <div className="h-1.5 w-full rounded-full bg-white/[0.06] overflow-hidden">
               <div
@@ -114,16 +114,16 @@ function DashboardContent() {
           </div>
 
           {user?.plan === "free" && (
-            <p className="text-[11px] text-white/30">Upgrade to get up to 6,000 credits/month and unlock premium templates.</p>
+            <p className="text-[11px] text-slate-400">Upgrade to get up to 6,000 credits/month and unlock premium templates.</p>
           )}
         </div>
 
         {/* Recent Projects */}
-        <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] overflow-hidden">
+        <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
             <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70">Recent Projects</p>
             <Link href="/studio/projects">
-              <button className="text-[11px] font-semibold text-white/40 hover:text-white/70 transition-colors flex items-center gap-1">
+              <button className="text-[11px] font-semibold text-[#AAB6CA] hover:text-white/70 transition-colors flex items-center gap-1">
                 View all <ArrowRight className="h-3 w-3" />
               </button>
             </Link>
@@ -137,7 +137,7 @@ function DashboardContent() {
                 <Film className="h-8 w-8 text-violet-400/50" />
               </div>
               <p className="text-white font-semibold mb-1">No projects yet</p>
-              <p className="text-white/30 text-sm mb-6">Create your first AI video ad to get started.</p>
+              <p className="text-slate-400 text-sm mb-6">Create your first AI video ad to get started.</p>
               <Link href="/studio">
                 <Button className="h-9 px-5 bg-violet-600 hover:bg-violet-500 rounded-xl font-bold text-sm shadow-lg shadow-violet-600/20">
                   Create your first video
@@ -160,7 +160,7 @@ function DashboardContent() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-white truncate group-hover:text-violet-300 transition-colors">{p.title}</p>
-                        <p className="text-xs text-white/30 mt-0.5">
+                        <p className="text-xs text-slate-400 mt-0.5">
                           {new Date(p.createdAt).toLocaleDateString()} · {p.platform ?? "—"} · {p.duration ?? "—"}
                         </p>
                         {p.status === "failed" && (
@@ -181,35 +181,35 @@ function DashboardContent() {
           <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-4">Quick Actions</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Link href="/studio">
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] hover:border-violet-600/30 hover:bg-violet-600/[0.04] transition-all duration-300 cursor-pointer group p-5 flex items-center gap-4">
+              <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] hover:border-violet-600/30 hover:bg-violet-600/[0.04] transition-all duration-300 cursor-pointer group p-5 flex items-center gap-4">
                 <div className="h-10 w-10 rounded-xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-600/20 transition-colors">
                   <Zap className="h-5 w-5 text-violet-400" />
                 </div>
                 <div>
                   <p className="font-bold text-white text-sm group-hover:text-violet-300 transition-colors">New Video</p>
-                  <p className="text-[11px] text-white/30 mt-0.5">AI script + render</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">AI script + render</p>
                 </div>
               </div>
             </Link>
             <Link href="/templates">
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] hover:border-purple-600/30 hover:bg-purple-600/[0.04] transition-all duration-300 cursor-pointer group p-5 flex items-center gap-4">
+              <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] hover:border-purple-600/30 hover:bg-purple-600/[0.04] transition-all duration-300 cursor-pointer group p-5 flex items-center gap-4">
                 <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-500/20 transition-colors">
                   <Film className="h-5 w-5 text-purple-400" />
                 </div>
                 <div>
                   <p className="font-bold text-white text-sm group-hover:text-purple-300 transition-colors">Browse Templates</p>
-                  <p className="text-[11px] text-white/30 mt-0.5">12 proven formats</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">12 proven formats</p>
                 </div>
               </div>
             </Link>
             <Link href="/studio/projects">
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0f] hover:border-emerald-600/30 hover:bg-emerald-600/[0.04] transition-all duration-300 cursor-pointer group p-5 flex items-center gap-4">
+              <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] hover:border-emerald-600/30 hover:bg-emerald-600/[0.04] transition-all duration-300 cursor-pointer group p-5 flex items-center gap-4">
                 <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/20 transition-colors">
                   <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                 </div>
                 <div>
                   <p className="font-bold text-white text-sm group-hover:text-emerald-300 transition-colors">My Videos</p>
-                  <p className="text-[11px] text-white/30 mt-0.5">View all projects</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">View all projects</p>
                 </div>
               </div>
             </Link>
@@ -238,13 +238,13 @@ function StatCard({
     amber: "border-amber-500/20 bg-amber-500/[0.06]",
     purple: "border-purple-500/20 bg-purple-500/[0.06]",
   };
-  const cls = glow ? glowMap[glow] : "border-white/[0.06] bg-[#0c0c0f]";
+  const cls = glow ? glowMap[glow] : "border-white/[0.06] bg-[#1D2940]";
 
   return (
     <div className={`rounded-2xl border ${cls} p-5`}>
       <div className="mb-3">{icon}</div>
       <p className="text-2xl font-black text-white tracking-tight">{value}</p>
-      <p className="text-[11px] text-white/30 mt-1 font-medium tracking-wide">{label}</p>
+      <p className="text-[11px] text-slate-400 mt-1 font-medium tracking-wide">{label}</p>
     </div>
   );
 }
@@ -277,7 +277,7 @@ function StatusBadge({ status }: { status: string }) {
       );
     default:
       return (
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-white/[0.06] text-white/40 border border-white/[0.08]">
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-white/[0.06] text-[#AAB6CA] border border-white/[0.08]">
           Draft
         </span>
       );

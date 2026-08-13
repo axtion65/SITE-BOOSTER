@@ -134,7 +134,7 @@ function BillingContent() {
   const creditPct = Math.round((credits / currentPlanDefinition.credits) * 100);
 
   return (
-    <div className="min-h-full bg-[#050507] text-white">
+    <div className="min-h-full bg-[#0B1220] text-white">
       <div className="max-w-5xl mx-auto px-6 py-10 space-y-10">
 
         {/* Header */}
@@ -142,7 +142,7 @@ function BillingContent() {
           <div>
             <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-2">Billing</p>
             <h1 className="text-3xl font-black text-white tracking-tight">Plan &amp; Credits</h1>
-            <p className="text-white/35 mt-1 text-sm">Manage your subscription and monitor usage.</p>
+            <p className="text-[#AAB6CA] mt-1 text-sm">Manage your subscription and monitor usage.</p>
           </div>
           {currentPlan !== "free" && (
             <button
@@ -167,7 +167,7 @@ function BillingContent() {
               </div>
               <div>
                 <div className="text-white font-black capitalize text-lg">{currentPlan} Plan</div>
-                <div className="text-[11px] text-white/35">
+                <div className="text-[11px] text-[#AAB6CA]">
                   {currentPlan === "free" ? "90 credits included at sign-up" : "Credits reset monthly"}
                 </div>
               </div>
@@ -180,7 +180,7 @@ function BillingContent() {
           {/* Credit bar */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-white/40">Credits remaining</span>
+              <span className="text-[#AAB6CA]">Credits remaining</span>
               <span className="text-white font-bold">{credits.toLocaleString()} / {currentPlanDefinition.credits.toLocaleString()}</span>
             </div>
             <div className="h-2 w-full rounded-full bg-white/[0.06] overflow-hidden">
@@ -205,13 +205,13 @@ function BillingContent() {
           <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.08]">
             <button
               onClick={() => setAnnual(false)}
-              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${!annual ? "bg-white/10 text-white" : "text-white/30 hover:text-white/50"}`}
+              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${!annual ? "bg-white/10 text-white" : "text-slate-400 hover:text-white/50"}`}
             >
               Monthly
             </button>
             <button
               onClick={() => setAnnual(true)}
-              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${annual ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-white/30 hover:text-white/50"}`}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${annual ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-slate-400 hover:text-white/50"}`}
             >
               Annual <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full font-bold">Save 20%</span>
             </button>
@@ -232,7 +232,7 @@ function BillingContent() {
         ) : plansError ? (
           <div className="text-center py-12 px-6 rounded-2xl border border-red-500/20 bg-red-500/[0.06]">
             <p className="font-bold text-red-300">Billing is temporarily unavailable.</p>
-            <p className="text-sm text-white/35 mt-2">We couldn’t load billing configuration. Please try again later.</p>
+            <p className="text-sm text-[#AAB6CA] mt-2">We couldn’t load billing configuration. Please try again later.</p>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -269,12 +269,12 @@ function BillingContent() {
 
                   <div className="mb-5">
                     <h3 className="font-black text-white text-lg mb-0.5">{plan.name}</h3>
-                    <p className="text-[11px] text-white/30 min-h-[2rem] leading-relaxed">{plan.description}</p>
+                    <p className="text-[11px] text-slate-400 min-h-[2rem] leading-relaxed">{plan.description}</p>
                   </div>
 
                   <div className="mb-1">
                     <span className="text-4xl font-black text-white">${displayAmount}</span>
-                    <span className="text-white/30 text-sm">/mo</span>
+                    <span className="text-slate-400 text-sm">/mo</span>
                   </div>
                   {annualTotal ? (
                     <div className="text-xs text-green-400 mb-5 font-semibold">${annualTotal}/yr — save 20%</div>
@@ -289,7 +289,7 @@ function BillingContent() {
 
                   <ul className="space-y-2.5 mb-6 flex-1">
                     {plan.features.map((f, fi) => (
-                      <li key={fi} className="flex items-start gap-2 text-xs text-white/40">
+                      <li key={fi} className="flex items-start gap-2 text-xs text-[#AAB6CA]">
                         <Check className="h-3.5 w-3.5 text-violet-400 mt-0.5 shrink-0" />
                         {f}
                       </li>
@@ -303,7 +303,7 @@ function BillingContent() {
                       isPopular
                         ? "bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20"
                         : isCurrent
-                          ? "bg-white/[0.05] text-white/40 border border-white/[0.08] cursor-not-allowed"
+                          ? "bg-white/[0.05] text-[#AAB6CA] border border-white/[0.08] cursor-not-allowed"
                           : "bg-white/[0.05] hover:bg-white/10 text-white border border-white/[0.08] hover:border-white/15"
                     }`}
                   >
@@ -327,7 +327,7 @@ function BillingContent() {
 
         {/* Credit cost reference */}
         <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-          <h4 className="text-[10px] font-black text-white/30 mb-5 text-center uppercase tracking-[0.2em]">Credit cost per video</h4>
+          <h4 className="text-[10px] font-black text-slate-400 mb-5 text-center uppercase tracking-[0.2em]">Credit cost per video</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {MODEL_COSTS.map((m, i) => (
               <div key={i} className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.05] hover:border-violet-500/20 transition-colors">
