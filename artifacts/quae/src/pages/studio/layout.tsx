@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Link as WouterLink, useLocation } from "wouter"
 import { cn } from "@/lib/utils"
-import { ShieldCheck, LogOut, CreditCard, Sparkles } from "lucide-react"
+import { ShieldCheck, LogOut, CreditCard } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 
@@ -22,8 +22,8 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
       <header className="z-20 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-white/[.08] bg-[#111D31]/95 px-4 py-3 shadow-[0_16px_50px_rgba(2,8,23,.28)] backdrop-blur-xl lg:min-h-[76px] lg:flex-nowrap lg:px-7">
         {/* Logo */}
         <WouterLink href="/studio/dashboard" className="mr-2 flex items-center gap-3 text-white transition-opacity hover:opacity-90">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-[#5B7CFA] shadow-lg shadow-violet-950/30"><Sparkles className="h-5 w-5" /></span>
-          <span><span className="block text-lg font-extrabold leading-none tracking-tight">Quae</span><span className="mt-1 block text-[9px] font-bold uppercase tracking-[.18em] text-[#8494AC]">AI Marketing Dept.</span></span>
+          <img src="/images/logo-icon.png" alt="" className="h-10 w-10 object-contain" />
+          <span><span className="block text-lg font-extrabold leading-none tracking-tight">Quae<span className="text-violet-400">.ai</span></span><span className="mt-1 block text-[9px] font-bold uppercase tracking-[.18em] text-[#8494AC]">AI Marketing Dept.</span></span>
         </WouterLink>
 
         {/* Nav Links */}
