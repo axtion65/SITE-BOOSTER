@@ -6,9 +6,9 @@ export function PageShell({ children, className }: HTMLAttributes<HTMLDivElement
 }
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: ReactNode; description: ReactNode; action?: ReactNode }) {
-  return <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+  return <header className="relative flex flex-col gap-6 overflow-hidden rounded-3xl border border-white/[.06] bg-gradient-to-br from-[#20304A] via-[#18263D] to-[#18263D] p-7 shadow-2xl shadow-slate-950/25 sm:flex-row sm:items-center sm:justify-between sm:p-10 before:absolute before:-right-20 before:-top-24 before:h-64 before:w-64 before:rounded-full before:bg-violet-500/10 before:blur-3xl">
     <div><p className="quae-eyebrow">{eyebrow}</p><h1 className="quae-title">{title}</h1><p className="quae-description">{description}</p></div>
-    {action && <div className="shrink-0">{action}</div>}
+    {action && <div className="relative shrink-0">{action}</div>}
   </header>;
 }
 

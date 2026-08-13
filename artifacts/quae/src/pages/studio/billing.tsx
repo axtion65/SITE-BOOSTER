@@ -134,14 +134,14 @@ function BillingContent() {
   const creditPct = Math.round((credits / currentPlanDefinition.credits) * 100);
 
   return (
-    <div className="min-h-full bg-[#0B1220] text-white">
-      <div className="max-w-5xl mx-auto px-6 py-10 space-y-10">
+    <div className="quae-page min-h-full text-white">
+      <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 sm:py-14 space-y-10">
 
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
             <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-2">Billing</p>
-            <h1 className="text-3xl font-black text-white tracking-tight">Plan &amp; Credits</h1>
+            <h1 className="text-4xl sm:text-5xl font-black text-white tracking-[-.035em]">Plan &amp; Credits</h1>
             <p className="text-[#AAB6CA] mt-1 text-sm">Manage your subscription and monitor usage.</p>
           </div>
           {currentPlan !== "free" && (
@@ -157,7 +157,7 @@ function BillingContent() {
         </div>
 
         {/* Current Plan Card */}
-        <div className="p-6 rounded-2xl border border-white/[0.08] bg-white/[0.02]">
+        <div className="p-7 sm:p-8 rounded-3xl border border-white/[0.07] bg-gradient-to-br from-[#263754] to-[#18263D] shadow-2xl shadow-slate-950/25">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">

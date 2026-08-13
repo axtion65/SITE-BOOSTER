@@ -524,10 +524,10 @@ function Wizard() {
   const selectedModelSupportsImage = imageModels.includes(modelId);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background relative overflow-hidden">
+    <div className="flex-1 flex flex-col h-full bg-[#0D1728] relative overflow-hidden before:pointer-events-none before:absolute before:-left-40 before:top-10 before:h-96 before:w-96 before:rounded-full before:bg-blue-500/10 before:blur-3xl">
       {/* Step progress header */}
-      <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-card/50 z-10">
-        <div className="flex items-center gap-4 text-sm text-muted-foreground font-medium">
+      <div className="min-h-20 border-b border-white/[.07] flex items-center justify-between gap-4 overflow-x-auto px-5 sm:px-8 bg-[#18263D]/95 shadow-xl z-10">
+        <div className="flex shrink-0 items-center gap-4 text-sm text-[#8494AC] font-semibold">
           {["Describe", "AI Script", "AI Model", "Render"].map((label, i) => (
             <div key={i} className="flex items-center gap-4">
               {i > 0 && <ChevronRight className="h-4 w-4" />}
@@ -544,16 +544,16 @@ function Wizard() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 md:p-12 scroll-smooth">
+      <div className="relative flex-1 overflow-y-auto p-5 md:p-12 scroll-smooth">
         <div className="max-w-3xl mx-auto">
 
           {/* STEP 1 — Describe */}
           {step === 1 && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 rounded-[28px] border border-white/[.06] bg-gradient-to-br from-[#20304A] to-[#18263D] p-6 shadow-[0_30px_80px_rgba(2,8,23,.3)] sm:p-10">
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Describe your product</h2>
-                  <p className="text-muted-foreground">Tell us what you're selling. Our AI writes the cinematic script.</p>
+                  <p className="quae-eyebrow">Premium Creative Studio</p><h2 className="text-3xl font-extrabold tracking-tight text-white mb-2 sm:text-4xl">Describe your product</h2>
+                  <p className="text-[#B9C5D8] leading-7">Give your AI creative team the brief. Quae will turn it into a production-ready cinematic script.</p>
                 </div>
                 {/* Show "start fresh" only when there's a meaningful saved draft */}
                 {draftRestored && (
@@ -769,7 +769,7 @@ function Wizard() {
 
                 <Button
                   size="lg"
-                  className="w-full h-14 text-lg font-bold shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] transition-all"
+                  className="w-full h-16 rounded-2xl bg-gradient-to-r from-violet-600 to-[#5B7CFA] text-lg font-bold shadow-[0_18px_45px_rgba(76,29,149,.35)] hover:from-violet-500 hover:to-indigo-400 hover:shadow-[0_22px_55px_rgba(76,29,149,.45)] transition-all"
                   onClick={handleExpand}
                   disabled={expandMutation.isPending}
                 >

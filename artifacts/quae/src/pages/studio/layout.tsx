@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Link as WouterLink, useLocation } from "wouter"
 import { cn } from "@/lib/utils"
-import { ShieldCheck, LogOut, CreditCard } from "lucide-react"
+import { ShieldCheck, LogOut, CreditCard, Sparkles } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 
@@ -17,13 +17,13 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   };
 
   return (
-    <div className="quae-app flex h-screen w-full flex-col overflow-hidden bg-[#0B1220] text-foreground">
+    <div className="quae-app flex h-screen w-full flex-col overflow-hidden bg-[#0D1728] text-foreground">
       {/* Top Nav */}
-      <header className="z-20 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-white/[.07] bg-[#101827]/95 px-4 py-2 shadow-lg shadow-slate-950/20 backdrop-blur-xl lg:min-h-16 lg:flex-nowrap lg:px-6">
+      <header className="z-20 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-white/[.08] bg-[#111D31]/95 px-4 py-3 shadow-[0_16px_50px_rgba(2,8,23,.28)] backdrop-blur-xl lg:min-h-[76px] lg:flex-nowrap lg:px-7">
         {/* Logo */}
-        <WouterLink href="/studio" className="flex items-center gap-2 font-bold text-base tracking-tight text-white hover:opacity-80 transition-opacity mr-2">
-          <img src="/images/logo-icon.png" alt="Quae" className="h-7 w-7 rounded-md object-cover" />
-          Quae
+        <WouterLink href="/studio/dashboard" className="mr-2 flex items-center gap-3 text-white transition-opacity hover:opacity-90">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-[#5B7CFA] shadow-lg shadow-violet-950/30"><Sparkles className="h-5 w-5" /></span>
+          <span><span className="block text-lg font-extrabold leading-none tracking-tight">Quae</span><span className="mt-1 block text-[9px] font-bold uppercase tracking-[.18em] text-[#8494AC]">AI Marketing Dept.</span></span>
         </WouterLink>
 
         {/* Nav Links */}
@@ -43,7 +43,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         <div className="ml-auto flex items-center gap-2">
           {adminToken && <Button size="sm" variant="destructive" onClick={returnToAdmin}>Exit impersonation</Button>}
           {/* Credits */}
-          <div className="flex items-center gap-1.5 rounded-full border border-violet-300/15 bg-[#1D2940] px-3 py-1.5 text-sm font-semibold text-slate-200 shadow-inner">
+          <div className="flex items-center gap-2 rounded-xl border border-violet-300/15 bg-[#20304A] px-3 py-2 text-sm font-bold text-slate-100 shadow-lg shadow-slate-950/15">
             <span aria-hidden="true" className="text-violet-300">✦</span>
             {(user?.credits ?? 0).toLocaleString()} credits
           </div>
@@ -68,13 +68,13 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
           </button>
 
           {/* Avatar */}
-          <div className="hidden h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-sm font-bold text-white sm:flex">
+          <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-gradient-to-br from-[#263754] to-[#20304A] text-sm font-bold text-white shadow-lg sm:flex">
             {(user?.name || user?.email || "U")[0].toUpperCase()}
           </div>
 
           {/* Upgrade */}
           <WouterLink href="/studio/billing">
-            <Button size="sm" className="hidden gap-1.5 px-4 font-semibold sm:inline-flex">
+            <Button size="sm" className="hidden h-10 gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-[#5B7CFA] px-5 font-bold shadow-lg shadow-violet-950/30 sm:inline-flex">
               <CreditCard className="h-3.5 w-3.5" /> Upgrade
             </Button>
           </WouterLink>
@@ -97,10 +97,10 @@ function NavLink({ href, label, exact }: { href: string; label: string; exact?: 
     <WouterLink
       href={href}
       className={cn(
-        "relative shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        "relative shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all",
         isActive
-          ? "bg-violet-500/10 text-white shadow-inner shadow-violet-400/5 after:absolute after:inset-x-3 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-violet-400"
-          : "text-[#AAB6CA] hover:bg-white/[.04] hover:text-white"
+          ? "bg-[#263754] text-white shadow-lg shadow-slate-950/20 after:absolute after:inset-x-4 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-violet-400"
+          : "text-[#B9C5D8] hover:bg-white/[.05] hover:text-white"
       )}
     >
       {label}

@@ -32,29 +32,29 @@ function DashboardContent() {
   const firstName = user?.name?.trim() ? user.name.trim().split(" ")[0] : null;
 
   return (
-    <div className="min-h-full bg-[#0B1220] overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-6 py-10 space-y-10">
+    <div className="quae-page min-h-full overflow-y-auto">
+      <div className="mx-auto max-w-7xl space-y-10 px-5 py-10 sm:px-8 sm:py-14">
 
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="relative flex flex-col gap-7 overflow-hidden rounded-[28px] border border-white/[.07] bg-gradient-to-br from-[#263754] via-[#20304A] to-[#18263D] p-7 shadow-[0_30px_90px_rgba(2,8,23,.32)] sm:flex-row sm:items-center sm:justify-between sm:p-10 before:absolute before:-right-16 before:-top-24 before:h-72 before:w-72 before:rounded-full before:bg-violet-500/15 before:blur-3xl">
           <div>
             <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">
-              Studio Dashboard
+              Your AI Marketing Department
             </p>
-            <h1 className="text-3xl font-black text-white tracking-tight leading-tight">
+            <h1 className="text-4xl font-black text-white tracking-[-.035em] leading-tight sm:text-5xl">
               {firstName ? `Welcome back, ${firstName}` : "Welcome back"}
             </h1>
-            <p className="text-[#AAB6CA] mt-1.5 text-sm">Here's what's happening with your projects.</p>
+            <p className="mt-3 max-w-xl text-base leading-7 text-[#B9C5D8]">Your marketing workspace is ready. Create a campaign asset, continue recent work, or review your production activity.</p>
           </div>
           <Link href="/studio">
-            <Button className="h-10 px-5 bg-violet-600 hover:bg-violet-500 rounded-xl font-bold text-sm shadow-lg shadow-violet-600/25 gap-2 transition-all">
+            <Button className="relative h-12 px-6 bg-gradient-to-r from-violet-600 to-[#5B7CFA] hover:from-violet-500 hover:to-indigo-400 rounded-xl font-bold text-sm shadow-xl shadow-violet-950/35 gap-2 transition-all">
               <PlusCircle className="h-4 w-4" /> New Video
             </Button>
           </Link>
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div><div className="mb-4 flex items-end justify-between"><div><p className="quae-eyebrow">Workspace overview</p><h2 className="text-xl font-extrabold text-white">Marketing production at a glance</h2></div><Badge className="border-emerald-400/20 bg-emerald-400/10 text-emerald-300">Live workspace</Badge></div><div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
             icon={<Film className="h-5 w-5 text-violet-400" />}
             label="Total Projects"
@@ -79,10 +79,10 @@ function DashboardContent() {
             value={planLabel}
             glow="purple"
           />
-        </div>
+        </div></div>
 
         {/* Credits Card */}
-        <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] p-6 space-y-4">
+        <div className="rounded-3xl border border-white/[0.06] bg-gradient-to-br from-[#20304A] to-[#18263D] p-7 space-y-5 shadow-2xl shadow-slate-950/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70">Credits</p>
@@ -119,7 +119,7 @@ function DashboardContent() {
         </div>
 
         {/* Recent Projects */}
-        <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] overflow-hidden">
+        <div className="overflow-hidden rounded-3xl border border-white/[0.06] bg-gradient-to-br from-[#20304A] to-[#18263D] shadow-2xl shadow-slate-950/20">
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
             <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70">Recent Projects</p>
             <Link href="/studio/projects">
@@ -181,7 +181,7 @@ function DashboardContent() {
           <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-4">Quick Actions</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Link href="/studio">
-              <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] hover:border-violet-600/30 hover:bg-violet-600/[0.04] transition-all duration-300 cursor-pointer group p-5 flex items-center gap-4">
+              <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-violet-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
                 <div className="h-10 w-10 rounded-xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-600/20 transition-colors">
                   <Zap className="h-5 w-5 text-violet-400" />
                 </div>
@@ -192,7 +192,7 @@ function DashboardContent() {
               </div>
             </Link>
             <Link href="/templates">
-              <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] hover:border-purple-600/30 hover:bg-purple-600/[0.04] transition-all duration-300 cursor-pointer group p-5 flex items-center gap-4">
+              <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-purple-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
                 <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-500/20 transition-colors">
                   <Film className="h-5 w-5 text-purple-400" />
                 </div>
@@ -203,7 +203,7 @@ function DashboardContent() {
               </div>
             </Link>
             <Link href="/studio/projects">
-              <div className="rounded-2xl border border-white/[0.06] bg-[#1D2940] hover:border-emerald-600/30 hover:bg-emerald-600/[0.04] transition-all duration-300 cursor-pointer group p-5 flex items-center gap-4">
+              <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-emerald-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
                 <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/20 transition-colors">
                   <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                 </div>
@@ -233,15 +233,15 @@ function StatCard({
   glow?: "violet" | "emerald" | "amber" | "purple";
 }) {
   const glowMap = {
-    violet: "border-violet-600/20 bg-violet-600/[0.06]",
-    emerald: "border-emerald-500/20 bg-emerald-500/[0.06]",
-    amber: "border-amber-500/20 bg-amber-500/[0.06]",
-    purple: "border-purple-500/20 bg-purple-500/[0.06]",
+    violet: "border-violet-400/20 bg-gradient-to-br from-[#263754] to-[#20304A]",
+    emerald: "border-emerald-400/20 bg-gradient-to-br from-[#263754] to-[#20304A]",
+    amber: "border-amber-400/20 bg-gradient-to-br from-[#263754] to-[#20304A]",
+    purple: "border-purple-400/20 bg-gradient-to-br from-[#263754] to-[#20304A]",
   };
   const cls = glow ? glowMap[glow] : "border-white/[0.06] bg-[#1D2940]";
 
   return (
-    <div className={`rounded-2xl border ${cls} p-5`}>
+    <div className={`rounded-2xl border ${cls} p-6 shadow-xl shadow-slate-950/15`}>
       <div className="mb-3">{icon}</div>
       <p className="text-2xl font-black text-white tracking-tight">{value}</p>
       <p className="text-[11px] text-slate-400 mt-1 font-medium tracking-wide">{label}</p>
