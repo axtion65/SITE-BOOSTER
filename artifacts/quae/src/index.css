@@ -80,6 +80,30 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+
+  /* Keep every native dropdown readable on Quae's dark UI. */
+  select {
+    color-scheme: dark;
+    background-color: #21162f;
+    color: #ffffff;
+    border-color: rgba(139, 92, 246, 0.4);
+  }
+
+  select:hover {
+    border-color: rgba(167, 139, 250, 0.7);
+  }
+
+  select:focus {
+    border-color: #a78bfa;
+    outline: 2px solid rgba(139, 92, 246, 0.2);
+    outline-offset: 1px;
+  }
+
+  select option,
+  select optgroup {
+    background-color: #21162f;
+    color: #ffffff;
+  }
 }
 
 /* Custom scrollbar for dark mode */
