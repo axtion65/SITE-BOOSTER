@@ -1,0 +1,17 @@
+export function apiHeaders(json = true): HeadersInit {
+  const token = localStorage.getItem("quae_token");
+  return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(json ? { "Content-Type": "application/json" } : {}) };
+}
+export async function marketingApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`/api${path}`, { ...init, headers: { ...apiHeaders(init?.body !== undefined), ...init?.headers } });
+  if (!response.ok) { const data = await response.json().catch(() => null); throw new Error(data?.error || "Something went wrong"); }
+  return response.status === 204 ? undefined as T : response.json();
+}
+export async function uploadMarketingImage(file: File): Promise<string> {
+  const intent = await marketingApi<{ uploadURL: string; objectPath: string; finalizeToken: string }>("/storage/uploads/request-url", { method: "POST", body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }) });
+  const uploaded = await fetch(intent.uploadURL, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+  if (!uploaded.ok) throw new Error("Image upload failed");
+  await marketingApi("/storage/uploads/finalize", { method: "POST", body: JSON.stringify({ objectPath: intent.objectPath, finalizeToken: intent.finalizeToken }) });
+  return intent.objectPath;
+}
+export function privateImageUrl(path?: string | null) { return path ? `/api/storage/objects/${path.replace(/^\/objects\//, "")}` : ""; }
