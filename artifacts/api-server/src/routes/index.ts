@@ -10,6 +10,7 @@ import feedbackRouter from "./feedback";
 import storageRouter from "./storage";
 import webhooksRouter from "./webhooks";
 import debugFalRouter from "./debugFal";
+import marketingRouter from "./marketing";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(feedbackRouter);
 router.use(storageRouter);
 router.use(webhooksRouter);
 router.use(debugFalRouter);
+router.use(marketingRouter);
 
 export default router;

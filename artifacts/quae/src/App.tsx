@@ -15,6 +15,9 @@ import StudioProjectDetail from '@/pages/studio/project-detail';
 import StudioDashboard from '@/pages/studio/dashboard';
 import StudioBilling from '@/pages/studio/billing';
 import StudioSettings from '@/pages/studio/settings';
+import BusinessPage from '@/pages/studio/business';
+import BrandKitPage from '@/pages/studio/brand-kit';
+import ProductsPage from '@/pages/studio/products';
 import Templates from '@/pages/templates';
 import Admin from '@/pages/admin';
 import FeedbackWidget from '@/components/feedback-widget';
@@ -36,6 +39,9 @@ function Router() {
       <Route path="/studio/projects/:id" component={() => <StudioLayout><StudioProjectDetail /></StudioLayout>} />
       <Route path="/studio/billing" component={() => <StudioLayout><StudioBilling /></StudioLayout>} />
       <Route path="/studio/settings" component={() => <StudioLayout><StudioSettings /></StudioLayout>} />
+      <Route path="/studio/business" component={() => <StudioLayout><BusinessPage /></StudioLayout>} />
+      <Route path="/studio/brand-kit" component={() => <StudioLayout><BrandKitPage /></StudioLayout>} />
+      <Route path="/studio/products" component={() => <StudioLayout><ProductsPage /></StudioLayout>} />
       
       {/* Admin */}
       <Route path="/admin" component={Admin} />
