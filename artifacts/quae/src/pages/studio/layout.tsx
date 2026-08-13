@@ -30,8 +30,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         <nav aria-label="Primary navigation" className="order-3 -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-1 overflow-x-auto px-1 pb-0.5 lg:order-none lg:mx-0 lg:w-auto lg:flex-1 lg:px-0">
           <NavLink href="/studio/dashboard" label="Dashboard" />
           <NavLink href="/studio/campaigns" label="Campaigns" />
-          <NavLink href="/studio" label="Studio" exact />
-          <NavLink href="/templates" label="Templates" />
+          <NavLink href="/studio" label="Creative" exact />
           <NavLink href="/studio/projects" label="My Videos" />
           <NavLink href="/studio/business" label="Business" />
           <NavLink href="/studio/brand-kit" label="Brand Kit" />

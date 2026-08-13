@@ -1,0 +1,2 @@
+export const AGENT_PRICING_VERSION="2026-08-13.v1";const rates:Record<string,{input:number;output:number;cached:number}>={"gpt-5.6-sol":{input:0,output:0,cached:0},"gpt-5.6-terra":{input:0,output:0,cached:0}};
+export function estimatedCost(model:string,u:{inputTokens:number;outputTokens:number;cachedTokens:number}){const r=rates[model];if(!r)return 0;return ((u.inputTokens-u.cachedTokens)*r.input+u.cachedTokens*r.cached+u.outputTokens*r.output)/1_000_000;}
