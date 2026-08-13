@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   output_tokens INTEGER,
   cached_tokens INTEGER,
   estimated_cost_usd NUMERIC(12,6),
+  pricing_version TEXT,
   latency_ms INTEGER,
   retry_count INTEGER NOT NULL DEFAULT 0,
   error_code TEXT,
