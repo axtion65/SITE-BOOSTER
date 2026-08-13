@@ -1,0 +1,5 @@
+import assert from "node:assert/strict";import test from "node:test";
+import { validateEvidenceReferences, researchOutputSchema, scriptOutputSchema } from "../agents/schemas";
+import { AgentModelRouter } from "../agents/modelRouter";
+test("evidence validation deterministically rejects invented fact IDs",()=>{const ledger=researchOutputSchema.parse({evidence:[{factId:"fact_001",category:"feature",value:"Cotton",source:"product.features[0]"}],audienceInsights:[],unknowns:[]}).evidence;const script=scriptOutputSchema.parse({title:"A",hook:"H",script:"S",callToAction:"C",claims:[{claim:"Unsupported",evidenceIds:["fact_999"]}],creativeRationale:"R"});assert.deepEqual(validateEvidenceReferences(ledger,[script]),[{script:"A",claim:"Unsupported",invalidEvidenceId:"fact_999"}]);});
+test("agent models are centralized and server configurable",()=>{const previous=process.env.QUAE_AGENT_MODEL_JUDGE;process.env.QUAE_AGENT_MODEL_JUDGE="eval-model";assert.equal(new AgentModelRouter().get("judge").model,"eval-model");if(previous)process.env.QUAE_AGENT_MODEL_JUDGE=previous;else delete process.env.QUAE_AGENT_MODEL_JUDGE;});

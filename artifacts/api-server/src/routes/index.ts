@@ -11,6 +11,7 @@ import storageRouter from "./storage";
 import webhooksRouter from "./webhooks";
 import debugFalRouter from "./debugFal";
 import marketingRouter from "./marketing";
+import campaignsRouter from "./campaigns";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(storageRouter);
 router.use(webhooksRouter);
 router.use(debugFalRouter);
 router.use(marketingRouter);
+router.use(campaignsRouter);
 
 export default router;

@@ -65,14 +65,14 @@ function SettingsContent() {
     : null;
 
   return (
-    <div className="min-h-full bg-[#050507] text-white">
+    <div className="min-h-full bg-[#0B1220] text-white">
       <div className="max-w-2xl mx-auto px-6 py-10 space-y-10">
 
         {/* Header */}
         <div>
           <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-2">Account</p>
           <h1 className="text-3xl font-black text-white tracking-tight">Settings</h1>
-          <p className="text-white/35 mt-1 text-sm">Manage your account details and preferences.</p>
+          <p className="text-[#AAB6CA] mt-1 text-sm">Manage your account details and preferences.</p>
         </div>
 
         {/* Profile */}
@@ -86,7 +86,7 @@ function SettingsContent() {
               </div>
               <div>
                 <div className="text-white font-bold">{name || email}</div>
-                <div className="text-xs text-white/30">{joinedAt ? `Joined ${joinedAt}` : "Quae member"}</div>
+                <div className="text-xs text-slate-400">{joinedAt ? `Joined ${joinedAt}` : "Quae member"}</div>
               </div>
             </div>
 
@@ -94,20 +94,20 @@ function SettingsContent() {
 
             {/* Name field */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-white/40 uppercase tracking-wider">Display name</label>
+              <label className="text-[11px] font-bold text-[#AAB6CA] uppercase tracking-wider">Display name</label>
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Your name"
-                className="w-full px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white placeholder-white/20 text-sm focus:outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white placeholder-slate-400 text-sm focus:outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all"
               />
             </div>
 
             {/* Email field (read-only) */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-white/40 uppercase tracking-wider">Email address</label>
-              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-white/40 text-sm">
+              <label className="text-[11px] font-bold text-[#AAB6CA] uppercase tracking-wider">Email address</label>
+              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[#AAB6CA] text-sm">
                 <Mail className="h-4 w-4 shrink-0" />
                 {email}
               </div>
@@ -136,7 +136,7 @@ function SettingsContent() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-white font-black capitalize text-lg">{currentPlan} Plan</div>
-                <div className="text-[11px] text-white/35 mt-0.5">
+                <div className="text-[11px] text-[#AAB6CA] mt-0.5">
                   {credits.toLocaleString()} credits remaining
                 </div>
               </div>
@@ -179,7 +179,7 @@ function SettingsContent() {
             <div className="p-5 flex items-center justify-between">
               <div>
                 <div className="text-white text-sm font-semibold">Sign out</div>
-                <div className="text-[11px] text-white/30">End your current session.</div>
+                <div className="text-[11px] text-slate-400">End your current session.</div>
               </div>
               <button
                 onClick={() => logout()}
@@ -192,7 +192,7 @@ function SettingsContent() {
             <div className="p-5 flex items-center justify-between">
               <div>
                 <div className="text-red-400 text-sm font-semibold">Delete account</div>
-                <div className="text-[11px] text-white/30">Permanently remove your account and all data. This cannot be undone.</div>
+                <div className="text-[11px] text-slate-400">Permanently remove your account and all data. This cannot be undone.</div>
               </div>
               <button
                 onClick={() => toast({ title: "Contact support to delete your account.", variant: "destructive" })}
@@ -240,7 +240,7 @@ function ToggleRow({
     <div className="px-5 py-4 flex items-center justify-between gap-4">
       <div>
         <div className="text-white text-sm font-semibold">{label}</div>
-        <div className="text-[11px] text-white/30">{description}</div>
+        <div className="text-[11px] text-slate-400">{description}</div>
       </div>
       <button
         onClick={() => setEnabled(v => !v)}

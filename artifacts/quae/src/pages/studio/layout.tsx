@@ -17,18 +17,19 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background text-foreground overflow-hidden">
+    <div className="quae-app flex h-screen w-full flex-col overflow-hidden bg-[#0D1728] text-foreground">
       {/* Top Nav */}
-      <header className="h-14 border-b border-border bg-card/80 backdrop-blur-md flex items-center px-6 gap-6 shrink-0 z-20">
+      <header className="z-20 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-white/[.08] bg-[#111D31]/95 px-4 py-3 shadow-[0_16px_50px_rgba(2,8,23,.28)] backdrop-blur-xl lg:min-h-[76px] lg:flex-nowrap lg:px-7">
         {/* Logo */}
-        <WouterLink href="/studio" className="flex items-center gap-2 font-bold text-base tracking-tight text-white hover:opacity-80 transition-opacity mr-2">
-          <img src="/images/logo-icon.png" alt="Quae" className="h-7 w-7 rounded-md object-cover" />
-          Quae
+        <WouterLink href="/studio/dashboard" className="mr-2 flex items-center gap-3 text-white transition-opacity hover:opacity-90">
+          <img src="/images/logo-icon.png" alt="" className="h-10 w-10 object-contain" />
+          <span><span className="block text-lg font-extrabold leading-none tracking-tight">Quae<span className="text-violet-400">.ai</span></span><span className="mt-1 block text-[9px] font-bold uppercase tracking-[.18em] text-[#8494AC]">AI Marketing Dept.</span></span>
         </WouterLink>
 
         {/* Nav Links */}
-        <nav className="flex items-center gap-1">
+        <nav aria-label="Primary navigation" className="order-3 -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-1 overflow-x-auto px-1 pb-0.5 lg:order-none lg:mx-0 lg:w-auto lg:flex-1 lg:px-0">
           <NavLink href="/studio/dashboard" label="Dashboard" />
+          <NavLink href="/studio/campaigns" label="Campaigns" />
           <NavLink href="/studio" label="Studio" exact />
           <NavLink href="/templates" label="Templates" />
           <NavLink href="/studio/projects" label="My Videos" />
@@ -40,11 +41,11 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         </nav>
 
         {/* Right side */}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2">
           {adminToken && <Button size="sm" variant="destructive" onClick={returnToAdmin}>Exit impersonation</Button>}
           {/* Credits */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-sm font-semibold">
-            <span className="text-base">🪙</span>
+          <div className="flex items-center gap-2 rounded-xl border border-violet-300/15 bg-[#20304A] px-3 py-2 text-sm font-bold text-slate-100 shadow-lg shadow-slate-950/15">
+            <span aria-hidden="true" className="text-violet-300">✦</span>
             {(user?.credits ?? 0).toLocaleString()} credits
           </div>
 
@@ -61,20 +62,20 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
           {/* Sign Out */}
           <button
             onClick={() => logout()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-white transition-colors border border-transparent hover:border-border"
+            className="hidden items-center gap-1.5 rounded-md border border-transparent px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-white xl:flex"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign Out
           </button>
 
           {/* Avatar */}
-          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold">
+          <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-gradient-to-br from-[#263754] to-[#20304A] text-sm font-bold text-white shadow-lg sm:flex">
             {(user?.name || user?.email || "U")[0].toUpperCase()}
           </div>
 
           {/* Upgrade */}
           <WouterLink href="/studio/billing">
-            <Button size="sm" className="font-semibold px-4 gap-1.5">
+            <Button size="sm" className="hidden h-10 gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-[#5B7CFA] px-5 font-bold shadow-lg shadow-violet-950/30 sm:inline-flex">
               <CreditCard className="h-3.5 w-3.5" /> Upgrade
             </Button>
           </WouterLink>
@@ -97,10 +98,10 @@ function NavLink({ href, label, exact }: { href: string; label: string; exact?: 
     <WouterLink
       href={href}
       className={cn(
-        "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+        "relative shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all",
         isActive
-          ? "text-white border-b-2 border-primary rounded-none pb-[5px]"
-          : "text-muted-foreground hover:text-white"
+          ? "bg-[#263754] text-white shadow-lg shadow-slate-950/20 after:absolute after:inset-x-4 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-violet-400"
+          : "text-[#B9C5D8] hover:bg-white/[.05] hover:text-white"
       )}
     >
       {label}

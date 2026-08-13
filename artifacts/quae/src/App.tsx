@@ -18,6 +18,8 @@ import StudioSettings from '@/pages/studio/settings';
 import BusinessPage from '@/pages/studio/business';
 import BrandKitPage from '@/pages/studio/brand-kit';
 import ProductsPage from '@/pages/studio/products';
+import CampaignsPage from '@/pages/studio/campaigns';
+import CampaignDetail from '@/pages/studio/campaign-detail';
 import Templates from '@/pages/templates';
 import Admin from '@/pages/admin';
 import FeedbackWidget from '@/components/feedback-widget';
@@ -30,9 +32,11 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/signin" component={SignIn} />
-      <Route path="/templates" component={Templates} />
+      <Route path="/templates" component={() => <StudioLayout><Templates embedded /></StudioLayout>} />
       
       {/* Studio App */}
+      <Route path="/studio/campaigns/:id" component={() => <StudioLayout><CampaignDetail /></StudioLayout>} />
+      <Route path="/studio/campaigns" component={() => <StudioLayout><CampaignsPage /></StudioLayout>} />
       <Route path="/studio/dashboard" component={() => <StudioLayout><StudioDashboard /></StudioLayout>} />
       <Route path="/studio" component={() => <StudioLayout><StudioIndex /></StudioLayout>} />
       <Route path="/studio/projects" component={() => <StudioLayout><StudioProjects /></StudioLayout>} />

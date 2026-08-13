@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
-import { copyFile, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, rm } from "node:fs/promises";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -15,9 +15,10 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await mkdir(path.join(distDir, "migrations"), { recursive: true });
-  await copyFile(
-    path.resolve(artifactDir, "../../lib/db/migrations/0001_marketing_context.sql"),
-    path.join(distDir, "migrations/0001_marketing_context.sql"),
+  await cp(
+    path.resolve(artifactDir, "../../lib/db/migrations"),
+    path.join(distDir, "migrations"),
+    { recursive: true },
   );
 
   await esbuild({

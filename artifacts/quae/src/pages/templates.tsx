@@ -67,7 +67,7 @@ function TemplateCard({ t, onUse, userPlan }: { t: Template; onUse: () => void; 
       onClick={isPremiumLocked ? undefined : onUse}
     >
       {/* Portrait photo — full bleed */}
-      <div className="relative aspect-[9/16] overflow-hidden bg-[#0c0c0f]">
+      <div className="relative aspect-[9/16] overflow-hidden bg-[#1D2940]">
         {photo ? (
           <img
             src={photo}
@@ -136,19 +136,19 @@ function TemplateCard({ t, onUse, userPlan }: { t: Template; onUse: () => void; 
             </div>
             <div className="text-center">
               <p className="text-amber-400 font-bold text-sm">PRO Required</p>
-              <p className="text-white/40 text-[10px] mt-0.5">Upgrade to unlock</p>
+              <p className="text-[#AAB6CA] text-[10px] mt-0.5">Upgrade to unlock</p>
             </div>
           </div>
         )}
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-3 bg-[#0c0c0f] border-t border-white/[0.06] flex items-center justify-between gap-3">
+      <div className="px-4 py-3 bg-[#1D2940] border-t border-white/[0.06] flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <Badge variant="outline" className="text-[9px] text-white/30 border-white/10 uppercase tracking-wider flex-shrink-0">
+          <Badge variant="outline" className="text-[9px] text-slate-400 border-white/10 uppercase tracking-wider flex-shrink-0">
             {t.platform}
           </Badge>
-          <span className="text-[10px] text-white/30 truncate hidden sm:block">{t.description.slice(0, 40)}…</span>
+          <span className="text-[10px] text-slate-400 truncate hidden sm:block">{t.description.slice(0, 40)}…</span>
         </div>
         <Button
           size="sm"
@@ -163,7 +163,7 @@ function TemplateCard({ t, onUse, userPlan }: { t: Template; onUse: () => void; 
   );
 }
 
-export default function Templates() {
+export default function Templates({ embedded = false }: { embedded?: boolean }) {
   const [category, setCategory] = useState("All");
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -187,9 +187,9 @@ export default function Templates() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050507] flex flex-col">
+    <div className={`${embedded ? "min-h-full" : "min-h-screen"} bg-[#0B1220] flex flex-col`}>
       {/* Header */}
-      <header className="border-b border-white/[0.06] bg-[#050507]/90 backdrop-blur-xl sticky top-0 z-10">
+      {!embedded && <header className="border-b border-white/[0.06] bg-[#0B1220]/90 backdrop-blur-xl sticky top-0 z-10">
         <div className="max-w-[1600px] mx-auto px-8 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <img src="/images/logo-icon.png" alt="Quae.ai" className="h-7 w-7 object-contain" />
@@ -201,17 +201,17 @@ export default function Templates() {
             </Button>
           </Link>
         </div>
-      </header>
+      </header>}
 
-      <main className="flex-1 max-w-[1600px] mx-auto w-full px-8 py-16">
+      <main className="flex-1 max-w-[1600px] mx-auto w-full px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
         {/* Hero */}
         <div className="mb-14">
           <p className="text-[11px] font-black tracking-[0.25em] uppercase text-violet-400/70 mb-4">Proven Formats</p>
-          <h1 className="text-6xl font-black tracking-tight text-white leading-[1.02] mb-5 max-w-xl">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.02] mb-5 max-w-xl">
             Start with a format<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-purple-300">that converts.</span>
           </h1>
-          <p className="text-white/40 text-lg max-w-lg leading-relaxed">
+          <p className="text-[#AAB6CA] text-lg max-w-lg leading-relaxed">
             12 battle-tested video structures used by 7-figure brands. Pick your format — the AI writes the script, the video model does the rest.
           </p>
         </div>
@@ -225,7 +225,7 @@ export default function Templates() {
               className={`px-4 py-2 rounded-full text-xs font-semibold border transition-all duration-200 ${
                 category === cat
                   ? "bg-violet-600 text-white border-violet-600 shadow-[0_0_16px_rgba(124,58,237,0.4)]"
-                  : "text-white/40 border-white/8 hover:border-white/20 hover:text-white/70 bg-transparent"
+                  : "text-[#AAB6CA] border-white/8 hover:border-white/20 hover:text-white/70 bg-transparent"
               }`}
             >
               {cat}

@@ -216,6 +216,11 @@ router.get("/studio/models", (_req, res) => {
 
 // Script generation via OpenAI
 router.post("/studio/expand-prompt", async (req, res) => {
+  // Script expansion invokes a paid provider and must never be reachable
+  // anonymously. Resolve auth before validating content to avoid leaking route
+  // behavior to unauthenticated callers.
+  const userId = await resolveUserIdFromToken(req.headers.authorization);
+  if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
   const parsed = ExpandPromptBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
 

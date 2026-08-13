@@ -1,0 +1,2 @@
+import assert from "node:assert/strict";import test from "node:test";import {readFile} from "node:fs/promises";
+test("paid expand-prompt resolves authentication before provider invocation",async()=>{const source=await readFile(new URL("../routes/studio.ts",import.meta.url),"utf8");const route=source.slice(source.indexOf('router.post("/studio/expand-prompt"'),source.indexOf('// Per-scene regeneration'));assert.ok(route.indexOf("resolveUserIdFromToken")<route.indexOf("getOpenAI()"));assert.match(route,/status\(401\).*Not authenticated/);});
