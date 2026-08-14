@@ -183,25 +183,25 @@ function DashboardContent() {
             <Link href="/studio/campaigns">
               <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-violet-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
                 <div className="h-10 w-10 rounded-xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-600/20 transition-colors"><Megaphone className="h-5 w-5 text-violet-400" /></div>
-                <div><p className="font-bold text-white text-sm group-hover:text-violet-300 transition-colors">New Campaign</p><p className="text-[11px] text-slate-400 mt-0.5">Put your AI marketing team to work</p></div>
+                <div><p className="font-bold text-white text-sm group-hover:text-violet-300 transition-colors">NEW CAMPAIGN</p><p className="text-[11px] text-slate-400 mt-0.5">Put your AI marketing team to work</p></div>
               </div>
             </Link>
             <Link href="/studio">
               <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-purple-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
                 <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-500/20 transition-colors"><Film className="h-5 w-5 text-purple-400" /></div>
-                <div><p className="font-bold text-white text-sm group-hover:text-purple-300 transition-colors">Create Creative</p><p className="text-[11px] text-slate-400 mt-0.5">Video, images &amp; campaign assets</p></div>
+                <div><p className="font-bold text-white text-sm group-hover:text-purple-300 transition-colors">CREATE CREATIVE</p><p className="text-[11px] text-slate-400 mt-0.5">Video, images &amp; campaign assets</p></div>
               </div>
             </Link>
             <Link href="/studio/products">
               <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-emerald-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
                 <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/20 transition-colors"><Package className="h-5 w-5 text-emerald-400" /></div>
-                <div><p className="font-bold text-white text-sm group-hover:text-emerald-300 transition-colors">Products &amp; Offers</p><p className="text-[11px] text-slate-400 mt-0.5">Manage what Quae markets</p></div>
+                <div><p className="font-bold text-white text-sm group-hover:text-emerald-300 transition-colors">PRODUCTS &amp; OFFERS</p><p className="text-[11px] text-slate-400 mt-0.5">Manage what Quae markets</p></div>
               </div>
             </Link>
             <Link href="/studio/brand-kit">
               <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-sky-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
                 <div className="h-10 w-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-sky-500/20 transition-colors"><Palette className="h-5 w-5 text-sky-400" /></div>
-                <div><p className="font-bold text-white text-sm group-hover:text-sky-300 transition-colors">Brand Kit</p><p className="text-[11px] text-slate-400 mt-0.5">Keep every campaign on-brand</p></div>
+                <div><p className="font-bold text-white text-sm group-hover:text-sky-300 transition-colors">BRAND KIT</p><p className="text-[11px] text-slate-400 mt-0.5">Keep every campaign on-brand</p></div>
               </div>
             </Link>
           </div>
