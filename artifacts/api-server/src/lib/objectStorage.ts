@@ -266,6 +266,18 @@ function internalObjectPath(objectName: string): string {
 }
 
 export const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+
+export interface ImageStorageIdentity { userId:string; businessId:string; mockupId:string; versionId:string }
+export function mockupImageObjectName(i:ImageStorageIdentity,extension="png"){return `mockups/${safePathSegment(i.userId)}/${safePathSegment(i.businessId)}/${safePathSegment(i.mockupId)}/${safePathSegment(i.versionId)}.${extension}`;}
+export function validateImagePayload(buffer:Buffer,contentType?:string|null){
+  if(!buffer.length)throw new Error("Provider returned an empty image");
+  if(buffer.length>MAX_IMAGE_BYTES)throw new Error("Provider image exceeds the storage limit");
+  const mime=contentType?.split(";",1)[0].trim().toLowerCase();
+  if(!mime||!["image/png","image/jpeg","image/webp"].includes(mime))throw new Error("Provider returned an unsupported image type");
+  const prefix=buffer.subarray(0,256).toString("utf8").trimStart().toLowerCase();if(prefix.startsWith("<")||prefix.startsWith("{")||prefix.startsWith("["))throw new Error("Provider returned an error document instead of image");
+  const png=buffer.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));const jpg=buffer[0]===0xff&&buffer[1]===0xd8;const webp=buffer.subarray(0,4).toString("ascii")==="RIFF"&&buffer.subarray(8,12).toString("ascii")==="WEBP";if(!png&&!jpg&&!webp)throw new Error("Provider response is not a valid image file");
+}
 
 function safePathSegment(value: string): string {
   const segment = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 128);
@@ -604,6 +616,17 @@ async trySetObjectEntityAclPolicy(
     );
 
     return internalObjectPath(objectName);
+  }
+
+  /** Idempotently ingests a temporary provider image into private Quae storage. */
+  async uploadMockupImageFromUrl(imageUrl:string,identity:ImageStorageIdentity,declaredContentType?:string):Promise<{objectPath:string;contentType:string;bytes:number}>{
+    const response=await fetch(imageUrl,{signal:AbortSignal.timeout(180_000)});if(!response.ok)throw new Error(`Provider image download failed with HTTP ${response.status}`);
+    const advertised=Number(response.headers.get("content-length"));if(Number.isFinite(advertised)&&advertised>MAX_IMAGE_BYTES)throw new Error("Provider image exceeds the storage limit");
+    const reader=response.body?.getReader();const chunks:Buffer[]=[];let size=0;while(reader){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>MAX_IMAGE_BYTES){await reader.cancel();throw new Error("Provider image exceeds the storage limit");}chunks.push(Buffer.from(value));}
+    const buffer=Buffer.concat(chunks);const contentType=(response.headers.get("content-type")||declaredContentType||"").split(";",1)[0];validateImagePayload(buffer,contentType);
+    const extension=contentType==="image/jpeg"?"jpg":contentType==="image/webp"?"webp":"png";const objectName=mockupImageObjectName(identity,extension);const objectFile=new S3ObjectFile(storageConfig.bucket,objectName);const [exists]=await objectFile.exists();
+    if(!exists){await objectFile.save(buffer,{contentType,cacheControl:"private, max-age=31536000"});await setObjectAclPolicy(objectFile as any,{owner:identity.userId,visibility:"private"});}
+    return {objectPath:internalObjectPath(objectName),contentType,bytes:buffer.length};
   }
 
   /**
