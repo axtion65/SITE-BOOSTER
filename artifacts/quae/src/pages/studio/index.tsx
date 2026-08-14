@@ -559,8 +559,7 @@ function Wizard() {
   }
 
   // Whether the selected model supports image conditioning
-  const imageModels = ["ltx-fast", "wan", "kling", "kling-1.6"];
-  const selectedModelSupportsImage = imageModels.includes(modelId);
+  const selectedModelSupportsImage = Boolean((selectedModel as any)?.capabilities?.includes("Image conditioning"));
 
   const nativeDurationSeconds = (selectedModel as any)?.nativeDurationSeconds ?? MODEL_MAX_SECONDS[modelId] ?? 10;
   const previewRenderBrief = expandedScript
@@ -1081,7 +1080,7 @@ function Wizard() {
                     const isSelected = modelId === model.id;
                     const canUse = canUseModel(model.tier);
                     const clipLen = clipLabel(model.id, duration);
-                    const supportsImage = imageModels.includes(model.id);
+                    const supportsImage = Boolean((model as any).capabilities?.includes("Image conditioning"));
                     return (
                       <button
                         key={model.id}
@@ -1257,7 +1256,14 @@ function Wizard() {
                     <p className="mt-2 text-xs text-white/70">Quae created a {previewRenderBrief.renderDurationSeconds}-second production brief from your approved campaign for this model. Your full approved campaign remains unchanged.</p>
                   </Card>
                   <Card className="p-5 md:col-span-2">
-                    <p className="text-xs font-black uppercase tracking-wider text-violet-300">Brief sent for this render</p>
+                    <p className="text-xs font-black uppercase tracking-wider text-violet-300">Visual Production Brief</p>
+                    <p className="mt-3 text-sm text-white">{previewRenderBrief.visualProductionBrief}</p>
+                    {productImageUrl && selectedModelSupportsImage && (
+                      <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-3">
+                        <p className="text-xs font-black uppercase tracking-wider text-emerald-300">Product Reference</p>
+                        <p className="mt-1 text-sm text-white">Your saved product image will guide this render.</p>
+                      </div>
+                    )}
                     {previewRenderBrief.visualBeats.map((beat, index) => <p key={index} className="mt-3 text-sm text-white"><strong>Visual {index + 1}:</strong> {beat}</p>)}
                     <p className="mt-3 text-sm text-white"><strong>Approved message:</strong> {previewRenderBrief.marketingMessage}</p>
                     <p className="mt-3 text-sm text-white/80"><strong>Short voiceover:</strong> {previewRenderBrief.voiceoverText || "No narration"}</p>

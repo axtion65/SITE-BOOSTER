@@ -1,6 +1,6 @@
 import type { ExpandedScript } from "./falvideo";
 
-export const VIDEO_RENDER_BRIEF_VERSION = "model-aware-v1";
+export const VIDEO_RENDER_BRIEF_VERSION = "model-aware-v2";
 
 /** Authoritative native clip limits used for prompt compilation and provider params. */
 export const MODEL_NATIVE_DURATION_SECONDS: Readonly<Record<string, number>> = Object.freeze({
@@ -14,6 +14,15 @@ export const MODEL_NATIVE_DURATION_SECONDS: Readonly<Record<string, number>> = O
   "quae-v1": 10,
 });
 
+/** Kept beside the native-duration metadata so every render path uses one capability source. */
+export const IMAGE_CONDITIONED_VIDEO_MODELS: ReadonlySet<string> = new Set([
+  "ltx-fast", "wan", "kling", "kling-1.6",
+]);
+
+export function modelSupportsImageConditioning(modelId: string): boolean {
+  return IMAGE_CONDITIONED_VIDEO_MODELS.has(modelId);
+}
+
 export interface VideoRenderBrief {
   version: typeof VIDEO_RENDER_BRIEF_VERSION;
   modelId: string;
@@ -25,6 +34,25 @@ export interface VideoRenderBrief {
   marketingMessage: string;
   voiceoverText: string;
   visualTextPolicy: string;
+  visualProductionBrief: string;
+}
+
+const TEXT_SAFETY = "No signs, posters, billboards, menus, screens displaying text, UI, captions, subtitles, invented labels, generated logos, random symbols, fake lettering, readable typography, watermarks, or background writing.";
+
+function isApparelCampaign(script: ExpandedScript): boolean {
+  const context = [script.hook, script.script, script.callToAction, script.voiceoverText,
+    ...script.scenes.flatMap(scene => [scene.description, scene.visualDirection])].join(" ");
+  return /\b(?:t-?shirts?|shirts?|apparel|garments?|hoodies?|sweatshirts?|clothing|wearable|fabric)\b/i.test(context);
+}
+
+function productionBrief(script: ExpandedScript, short: boolean): string {
+  const shot = short
+    ? "One continuous product-focused shot: show the product immediately, with one simple slow camera move or reveal and at most one natural person interaction. No montage, cuts, crowds, multiple locations, complex story, or end card."
+    : "Keep the product clearly visible and recognizable as the focal subject throughout.";
+  const apparel = isApparelCampaign(script)
+    ? " Apparel fidelity: favor a clear front view, a fully visible garment surface, natural fabric and realistic construction. Preserve a supported custom print area from the supplied reference; never invent artwork, exact lettering, or a logo. The garment must not morph into another garment."
+    : " Preserve the product's shape, materials, colors, and recognizable identity; do not morph it into another product.";
+  return `Clean, uncluttered studio or neutral lifestyle setting. The product is the hero and focal subject. ${shot}${apparel} ${TEXT_SAFETY}`;
 }
 
 export function parseVideoDuration(value: string): number {
@@ -70,6 +98,7 @@ export function compileVideoRenderBrief(
       marketingMessage: approvedScript.callToAction || approvedScript.hook,
       voiceoverText: approvedScript.voiceoverText,
       visualTextPolicy: "Imagery only. Do not generate captions, prices, signs, UI, readable typography, logos, or brand lettering.",
+      visualProductionBrief: productionBrief(approvedScript, renderDurationSeconds <= 5),
     };
   }
 
@@ -87,5 +116,6 @@ export function compileVideoRenderBrief(
     visualBeats, marketingMessage,
     voiceoverText: durationSafeApprovedExcerpt(voiceSource, maxWords),
     visualTextPolicy: "Imagery only. Do not generate captions, prices, signs, UI, readable typography, logos, or brand lettering. Exact approved copy is reserved for deterministic overlays.",
+    visualProductionBrief: productionBrief(approvedScript, renderDurationSeconds <= 5),
   };
 }

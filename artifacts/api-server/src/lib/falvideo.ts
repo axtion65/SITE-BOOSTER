@@ -4,7 +4,7 @@
 // Kling 2.5: $0.07/sec (premium)
 
 import { fal } from "@fal-ai/client";
-import { compileVideoRenderBrief, MODEL_NATIVE_DURATION_SECONDS, type VideoRenderBrief } from "./videoRenderBrief";
+import { compileVideoRenderBrief, modelSupportsImageConditioning, MODEL_NATIVE_DURATION_SECONDS, type VideoRenderBrief } from "./videoRenderBrief";
 
 export interface ExpandedScript {
   script: string;
@@ -243,7 +243,7 @@ IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, waterma
       : `Format: ${baseFormat}. Duration: ${duration}.`,
 
     // Music
-    productionScript.voiceoverText ? `Audio narration (approved excerpt only): ${productionScript.voiceoverText}` : '',
+    // Approved marketing, price, brand, CTA and narration remain outside generated pixels.
     productionScript.suggestedMusic ? `Music/mood: ${productionScript.suggestedMusic}.` : '',
 
 `
@@ -255,8 +255,37 @@ The advertisement must persuade through emotion, trust, benefits, product use, a
 
 ];  
 
+  if (brief?.shortened) {
+    // Short models need a single executable shot, not the full-ad storytelling DNA
+    // used by longer renders. Approved spoken/marketing copy is intentionally absent.
+    parts.splice(0, parts.length,
+      `VISUAL PRODUCTION BRIEF: ${brief.visualProductionBrief}`,
+      sceneLines ? `Source visual context (adapt into the one shot; never reproduce written copy): ${sceneLines}` : "",
+      `Style: premium believable product-ad draft, ${baseFormat}. Duration: ${brief.renderDurationSeconds}s.`,
+      productionScript.suggestedMusic ? `Music/mood: ${productionScript.suggestedMusic}.` : "",
+    );
+  } else if (brief?.visualProductionBrief) {
+    parts.unshift(`VISUAL PRODUCTION BRIEF: ${brief.visualProductionBrief}`);
+  }
   const creativePrompt = sanitizeVisualPrompt(parts.filter(Boolean).join(' '));
-  return `${creativePrompt} ABSOLUTE VISUAL CONSTRAINT: generate imagery only; no glyphs, letters, numbers, watermarks, interface elements, or legible language anywhere in frame.`;
+  return `${creativePrompt} ABSOLUTE VISUAL CONSTRAINT: generate imagery only. No signs, posters, billboards, menus, text-facing screens, UI, captions, subtitles, invented labels, generated logos, random symbols, fake lettering, readable typography, watermark-like text, background writing, glyphs, letters, numbers, interface elements, or legible language anywhere in frame. Never create a title card or end card. Preserve text or artwork only when it is already physically present in the supplied authoritative product reference image; do not invent or rewrite it.`;
+}
+
+export interface FalRenderRequest {
+  modelPath: string;
+  input: Record<string, unknown>;
+  brief: VideoRenderBrief;
+}
+
+/** Pure provider-payload builder used by submission and regression tests. */
+export function buildFalRenderRequest(script: ExpandedScript, platform: string, duration: string, renderingModelId: string, templateType?: string, providerImageUrl?: string): FalRenderRequest {
+  const supportsImage = modelSupportsImageConditioning(renderingModelId);
+  const usableImage = supportsImage ? providerImageUrl : undefined;
+  const brief = compileVideoRenderBrief(script, duration, renderingModelId);
+  const prompt = buildVideoPrompt(script, platform, `${brief.renderDurationSeconds}s`, templateType, brief);
+  const input: Record<string, unknown> = { prompt, ...buildModelParams(getModelKey(renderingModelId), parseDurationSeconds(duration)) };
+  if (usableImage) input.image_url = usableImage;
+  return { modelPath: getModelId(renderingModelId, Boolean(usableImage)), input, brief };
 }
 
 function getModelId(renderingModelId: string, hasImage = false): string {
@@ -374,23 +403,14 @@ export async function submitFalVideoRender(
   // and it can't be ingested, throw so the project gets marked failed (and credits refunded)
   // rather than silently rendering a text-only video when the user expected image conditioning.
   let falImageUrl: string | undefined;
-  if (imageUrl) {
+  if (imageUrl && modelSupportsImageConditioning(renderingModelId)) {
     falImageUrl = await uploadImageToFal(imageUrl, falKey);
   }
 
   const hasImage = !!falImageUrl;
-  const modelPath = getModelId(renderingModelId, hasImage);
-  const modelKey  = getModelKey(renderingModelId);
-  const durationSec = parseDurationSeconds(duration);
-  const brief = compileVideoRenderBrief(script, duration, renderingModelId);
-  const prompt = buildVideoPrompt(script, platform, `${brief.renderDurationSeconds}s`, templateType, brief);
-  const modelParams = buildModelParams(modelKey, durationSec);
+  const { modelPath, input, brief } = buildFalRenderRequest(script, platform, duration, renderingModelId, templateType, falImageUrl);
 
-  console.log(`[fal-video] renderingModelId="${renderingModelId}" → fal="${modelPath}" | hasImage=${hasImage} | template=${templateType ?? 'generic'} | duration=${duration} | params:`, modelParams);
-
-  // image_url is the param name for both wan and kling image-to-video endpoints
-  const input: Record<string, unknown> = { prompt, ...modelParams };
-  if (falImageUrl) input.image_url = falImageUrl;
+  console.log(`[fal-video] renderingModelId="${renderingModelId}" → fal="${modelPath}" | hasImage=${hasImage} | template=${templateType ?? 'generic'} | duration=${duration}`);
 
   // Use the official @fal-ai/client — no manual URL construction, no custom auth headers.
   fal.config({ credentials: falKey });
