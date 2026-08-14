@@ -7,4 +7,5 @@ test("campaign and standalone scripts preview model-aware briefs", () => {
   assert.equal(compilePreviewRenderBrief(script,30,10).visualBeats.length,2);
   assert.equal(compilePreviewRenderBrief(script,5,10).shortened,false);
   assert.match(compilePreviewRenderBrief(script,30,5).marketingMessage,/\$10/);
+  assert.match(compilePreviewRenderBrief(script,30,5).visualProductionBrief,/product.*focal subject/i);
 });
