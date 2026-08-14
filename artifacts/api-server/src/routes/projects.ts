@@ -7,6 +7,7 @@ import {
   submitFalVideoRender, pollFalVideoRender, isFalToken,
   MODEL_CREDIT_COSTS, buildFalWebhookUrl, type ExpandedScript
 } from "../lib/falvideo";
+import { compileVideoRenderBrief } from "../lib/videoRenderBrief";
 import { TEMPLATES } from "./templates";
 import { logger } from "../lib/logger";
 
@@ -297,12 +298,21 @@ router.post("/projects", async (req, res) => {
     }
   }
 
+  let renderArtifact: string | null = parsed.data.script ?? null;
+  if (parsed.data.expandedScript) {
+    try {
+      const approved = JSON.parse(parsed.data.expandedScript) as ExpandedScript;
+      const brief = compileVideoRenderBrief(approved, parsed.data.duration ?? "30s", parsed.data.renderingModelId ?? "quae-v1");
+      renderArtifact = JSON.stringify({ version: brief.version, modelNativeDurationSeconds: brief.modelNativeDurationSeconds, renderBrief: brief });
+    } catch { /* input remains stored; render submission reports malformed JSON below */ }
+  }
+
   const [project] = await db.insert(projectsTable).values({
     userId,
     title: parsed.data.title,
     description: parsed.data.description ?? null,
     renderingModelId: parsed.data.renderingModelId,
-    script: parsed.data.script ?? null,
+    script: renderArtifact,
     expandedScript: parsed.data.expandedScript ?? null,
     platform: parsed.data.platform ?? null,
     duration: parsed.data.duration ?? null,
@@ -371,7 +381,11 @@ router.get("/projects/:id", async (req, res) => {
           // Extract voiceoverText for TTS narration
           let voiceoverText: string | undefined;
           try {
-            if (project.expandedScript) {
+            if (project.script) {
+              const artifact = JSON.parse(project.script) as { renderBrief?: { voiceoverText?: string } };
+              voiceoverText = artifact.renderBrief?.voiceoverText?.trim() || undefined;
+            }
+            if (!voiceoverText && project.expandedScript) {
               const scriptObj = JSON.parse(project.expandedScript) as { voiceoverText?: string };
               voiceoverText = scriptObj.voiceoverText?.trim() || undefined;
             }
@@ -442,15 +456,18 @@ router.post("/projects/:id/rerender", async (req, res) => {
     }
   }
 
+  const approvedScript: ExpandedScript = JSON.parse(project.expandedScript);
+  const rerenderBrief = compileVideoRenderBrief(approvedScript, project.duration ?? "30s", project.renderingModelId ?? "quae-v1");
+  const rerenderArtifact = JSON.stringify({ version: rerenderBrief.version, modelNativeDurationSeconds: rerenderBrief.modelNativeDurationSeconds, renderBrief: rerenderBrief });
+
   const [reset] = await db.update(projectsTable)
-    .set({ status: "processing", videoUrl: null, thumbnailUrl: null, updatedAt: new Date() })
+    .set({ status: "processing", videoUrl: null, thumbnailUrl: null, script: rerenderArtifact, updatedAt: new Date() })
     .where(eq(projectsTable.id, project.id)).returning();
 
   try {
-    const scriptObj: ExpandedScript = JSON.parse(project.expandedScript);
     const templateType = TEMPLATES.find(t => t.id === project.templateId)?.templateType;
     const webhookUrl = buildFalWebhookUrl();
-    const token = await submitFalVideoRender(scriptObj, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType, project.productImageUrl, webhookUrl || undefined);
+    const token = await submitFalVideoRender(approvedScript, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType, project.productImageUrl, webhookUrl || undefined);
     await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   } catch (err) {
     console.error("[fal-video] rerender submit error — refunding credits", err);

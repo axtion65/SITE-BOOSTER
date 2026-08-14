@@ -19,6 +19,7 @@ function getOpenAI(): OpenAI {
 const RENDERING_MODELS = [
   {
     id: "ltx-fast",
+    nativeDurationSeconds: 5,
     name: "Fast Draft — LTX Fast",
     description: "Renders in ~30 seconds using LTX 2.3 Fast. Perfect for rapid iteration and previewing your concept — 15 credits per video.",
     capabilities: ["~30s render", "Image conditioning", "All platforms", "Commercial use"],
@@ -28,6 +29,7 @@ const RENDERING_MODELS = [
   },
   {
     id: "ovi",
+    nativeDurationSeconds: 10,
     name: "Ovi",
     description: "AI video with native audio. Best value — 30 credits per video.",
     capabilities: ["Video + audio", "Fast render", "All platforms", "Commercial use"],
@@ -37,6 +39,7 @@ const RENDERING_MODELS = [
   },
   {
     id: "wan",
+    nativeDurationSeconds: 10,
     name: "Wan 2.5",
     description: "High-quality cinematic video with image conditioning. 200 credits per video.",
     capabilities: ["Cinematic quality", "Image conditioning", "Pro motion", "All platforms"],
@@ -46,6 +49,7 @@ const RENDERING_MODELS = [
   },
   {
     id: "kling",
+    nativeDurationSeconds: 10,
     name: "Higher Quality — Kling",
     description: "Premium AI video with ultra-realistic rendering using Kling 2.5. 300 credits per video.",
     capabilities: ["Ultra-realistic", "Image conditioning", "Premium output", "Brand-safe"],
@@ -55,6 +59,7 @@ const RENDERING_MODELS = [
   },
   {
     id: "veo3",
+    nativeDurationSeconds: 8,
     name: "Veo 3",
     description: "Google's flagship model — unmatched realism. 1500 credits per video.",
     capabilities: ["Photorealistic", "4K quality", "Best-in-class", "Agency grade"],

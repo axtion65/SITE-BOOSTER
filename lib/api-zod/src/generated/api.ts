@@ -209,6 +209,7 @@ export const ListRenderingModelsResponseItem = zod.object({
   "name": zod.string(),
   "description": zod.string(),
   "capabilities": zod.array(zod.string()),
+  "nativeDurationSeconds": zod.number(),
   "tier": zod.enum(['free', 'creator', 'agency']),
   "badge": zod.string().nullish()
 })
