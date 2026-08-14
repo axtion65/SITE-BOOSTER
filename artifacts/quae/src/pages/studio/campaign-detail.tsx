@@ -335,7 +335,7 @@ export default function CampaignDetail() {
               Campaign Approved
             </h2>
             <Link
-              href="/studio"
+              href={`/studio?campaignId=${encodeURIComponent(data.id)}`}
               className="mt-5 inline-flex items-center gap-2 font-bold text-violet-200"
             >
               Continue to Creative <ArrowRight className="h-4 w-4" />
