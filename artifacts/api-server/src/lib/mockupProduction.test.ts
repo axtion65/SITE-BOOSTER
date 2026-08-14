@@ -1,0 +1,6 @@
+import test from "node:test"; import assert from "node:assert/strict";
+import { buildVideoHandoff, chooseImageOperation, CUSTOMER_SAFE_GENERATION_ERROR, visualQa } from "./mockupProduction";
+test("reference imagery selects fidelity-first editing",()=>assert.equal(chooseImageOperation({style:"lifestyle",creativeDirection:"",productReferencePaths:["/objects/a"]}),"editProductIntoScene"));
+test("visual QA is truthful and deterministic",()=>{const qa=visualQa({objectPath:"/objects/a",contentType:"image/png",width:1024,height:1024,owned:true,productReferenceCount:1,completed:true});assert.equal(qa.decision,"ready_for_review");assert.match(qa.note,/requires your review/);});
+test("failed payload needs revision with customer-safe language",()=>{assert.equal(visualQa({owned:true,productReferenceCount:1,completed:false}).decision,"needs_revision");assert.doesNotMatch(CUSTOMER_SAFE_GENERATION_ERROR,/provider|fal|endpoint/i);});
+test("video is blocked until approved and then uses authoritative image",()=>{assert.throws(()=>buildVideoHandoff({approved:false,objectPath:"/objects/a",campaign:null,product:null,brandModel:null}));assert.equal(buildVideoHandoff({approved:true,objectPath:"/objects/a",campaign:{},product:{},brandModel:null}).authoritativeImagePath,"/objects/a");});

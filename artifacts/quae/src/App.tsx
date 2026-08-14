@@ -20,6 +20,7 @@ import BrandKitPage from '@/pages/studio/brand-kit';
 import ProductsPage from '@/pages/studio/products';
 import CampaignsPage from '@/pages/studio/campaigns';
 import CampaignDetail from '@/pages/studio/campaign-detail';
+import MockupsPage from '@/pages/studio/mockups';
 import Templates from '@/pages/templates';
 import Admin from '@/pages/admin';
 import FeedbackWidget from '@/components/feedback-widget';
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/studio/business" component={() => <StudioLayout><BusinessPage /></StudioLayout>} />
       <Route path="/studio/brand-kit" component={() => <StudioLayout><BrandKitPage /></StudioLayout>} />
       <Route path="/studio/products" component={() => <StudioLayout><ProductsPage /></StudioLayout>} />
+      <Route path="/studio/mockups" component={() => <StudioLayout><MockupsPage /></StudioLayout>} />
       
       {/* Admin */}
       <Route path="/admin" component={Admin} />

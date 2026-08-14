@@ -7,6 +7,7 @@ test("all canonical migrations include marketing context and campaigns", async (
   assert.deepEqual(names, [
     "0001_marketing_context.sql",
     "0002_campaign_department.sql",
+    "0003_mockup_studio.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),

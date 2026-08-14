@@ -335,6 +335,12 @@ export default function CampaignDetail() {
               Campaign Approved
             </h2>
             <Link
+              href={`/studio/mockups?campaignId=${encodeURIComponent(data.id)}${data.product_id ? `&productId=${encodeURIComponent(data.product_id)}` : ""}`}
+              className="mt-5 mr-6 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
+            >
+              Create Product Visual <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
               href={`/studio?campaignId=${encodeURIComponent(data.id)}`}
               className="mt-5 inline-flex items-center gap-2 font-bold text-violet-200"
             >
