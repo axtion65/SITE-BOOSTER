@@ -32,7 +32,7 @@ export async function queueCampaignRun(
       if (
         !latest ||
         latest.id !== args.sourceRunId ||
-        latest.status !== "ready_for_review"
+        !["ready_for_review", "needs_revision"].includes(latest.status)
       ) {
         await client.query("ROLLBACK");
         return { kind: "superseded" as const };
