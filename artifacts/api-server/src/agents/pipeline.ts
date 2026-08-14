@@ -3,6 +3,7 @@ import { buildEvidenceLedger, validateEvidenceLedger } from "./evidence";
 import { scoreCandidates } from "./scoring";
 import { AGENT_PRICING_VERSION, estimatedCost } from "./pricing";
 import { CampaignError } from "./errors";
+import { qualityCycleReady, runBoundedQualityCycle } from "./qualityCycle";
 import { pool } from "@workspace/db";
 import type { z } from "@workspace/api-zod";
 import { AgentModelRouter, type AgentRole } from "./modelRouter";
@@ -43,6 +44,7 @@ const versions = {
   qa: "qa.v1",
 } as const;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export class CampaignPipeline {
   constructor(
     private provider: AgentProvider = new OpenAIResponsesProvider(),
@@ -312,66 +314,64 @@ export class CampaignPipeline {
         ledger,
       }),
     );
-    let factcheck: any,
-      qa: any,
-      finalInvalid: any[] = [];
-    for (let cycle = 0; cycle < 2; cycle++) {
-      finalInvalid = validateEvidenceReferences(ledger, [finalScript]);
-      await stage("fact_checking");
-      factcheck = await this.agent(
-        runId,
-        70 + cycle * 20,
-        "factcheck",
-        cycle ? "factcheck-repair.v1" : versions.factcheck,
-        factCheckOutputSchema,
-        "Semantically validate every claim.",
-        factCheckInputSchema.parse({
-          ledger,
-          finalScript,
-          deterministicInvalid: finalInvalid,
-        }),
-      );
-      await stage("quality_checking");
-      qa = await this.agent(
-        runId,
-        80 + cycle * 20,
-        "qa",
-        cycle ? "qa-repair.v1" : versions.qa,
-        qaOutputSchema,
-        "Apply the quality floor. Never fake PASS.",
-        qaInputSchema.parse({
-          context,
-          strategy,
-          judge,
-          finalScript,
-          factcheck,
-        }),
-      );
-      if (qa.pass && factcheck.pass && !finalInvalid.length) break;
-      if (cycle === 0) {
+    const quality = await runBoundedQualityCycle({
+      finalScript,
+      ledger,
+      strategy,
+      judge,
+      checkFacts: async (script, deterministicInvalid, cycle) => {
+        await stage("fact_checking");
+        return this.agent(
+          runId,
+          70 + cycle * 20,
+          "factcheck",
+          cycle ? "factcheck-repair.v1" : versions.factcheck,
+          factCheckOutputSchema,
+          "Semantically validate every claim and every modifier against the authoritative evidence ledger.",
+          factCheckInputSchema.parse({
+            ledger,
+            finalScript: script,
+            deterministicInvalid,
+          }),
+        );
+      },
+      checkQa: async (script, checkedFacts, cycle) => {
+        await stage("quality_checking");
+        return this.agent(
+          runId,
+          80 + cycle * 20,
+          "qa",
+          cycle ? "qa-repair.v1" : versions.qa,
+          qaOutputSchema,
+          "Apply the quality floor. Never fake PASS.",
+          qaInputSchema.parse({
+            context,
+            strategy,
+            judge,
+            finalScript: script,
+            factcheck: checkedFacts,
+          }),
+        );
+      },
+      repair: async (repairInput) => {
         await stage("repairing");
-        finalScript = await this.agent(
+        return this.agent(
           runId,
           90,
           "rewriter",
           "rewrite-qa-repair.v1",
           scriptOutputSchema,
-          "Repair only the QA issues; do not add facts.",
-          rewriteInputSchema.parse({
-            winner: finalScript,
-            judge,
-            strategy,
-            ledger,
-            qaIssues: qa.issues,
-          }),
+          `Remove or rewrite every unsupported claim identified by Fact Check, QA, or deterministic evidence validation while preserving supported persuasive content. Never invent facts. Never turn an exact value into “starting at”, “from”, “up to”, a range, discount, guarantee, scarcity, availability, or performance claim unless that modifier is explicitly supported by the evidence ledger. Prefer deletion or conservative wording whenever support is uncertain.`,
+          repairInput,
         );
-      }
-    }
-    const ready =
-      qa.pass &&
-      factcheck.pass &&
-      !finalInvalid.length &&
-      qa.score >= Number(process.env.QUAE_CAMPAIGN_MIN_SCORE || 75);
+      },
+    });
+    ({ finalScript } = quality);
+    const { factcheck, qa } = quality;
+    const ready = qualityCycleReady(
+      quality,
+      Number(process.env.QUAE_CAMPAIGN_MIN_SCORE || 75),
+    );
     const result = {
       ledger,
       research,
