@@ -81,3 +81,40 @@ test("latest review-ready run can be approved", async () => {
   assert.equal(result.kind, "approved");
   assert.equal(db.campaign.approved_run_id, "latest");
 });
+
+for (const status of ["ready_for_review", "needs_revision"]) {
+  test(`latest ${status} run can be a revision source`, async () => {
+    const db = stateDb([{ id: "latest", run_number: 2, status }]);
+    const result = await validateLatestRevisionSource(db, {
+      campaignId: "campaign",
+      userId: "owner",
+      runId: "latest",
+    });
+    assert.equal(result.kind, "current");
+  });
+}
+
+for (const status of ["queued", "running", "approved", "failed"]) {
+  test(`${status} run cannot be a revision source`, async () => {
+    const db = stateDb([{ id: "latest", run_number: 2, status }]);
+    const result = await validateLatestRevisionSource(db, {
+      campaignId: "campaign",
+      userId: "owner",
+      runId: "latest",
+    });
+    assert.equal(result.kind, "superseded");
+  });
+}
+
+test("needs-revision run cannot be approved", async () => {
+  const db = stateDb([
+    { id: "latest", run_number: 2, status: "needs_revision" },
+  ]);
+  const result = await approveLatestCampaignRun(db, {
+    campaignId: "campaign",
+    userId: "owner",
+    runId: "latest",
+  });
+  assert.equal(result.kind, "superseded");
+  assert.equal(db.campaign.approved_run_id, undefined);
+});

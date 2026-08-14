@@ -137,6 +137,18 @@ export const rewriteInputSchema = z
     strategy: strategyOutputSchema,
     ledger: z.array(evidenceRecordSchema),
     qaIssues: z.array(reason).optional(),
+    factcheckFailures: z.array(reason).optional(),
+    deterministicFailures: z
+      .array(
+        z
+          .object({
+            script: z.string(),
+            claim: z.string(),
+            invalidEvidenceId: z.string(),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict();
 export const factCheckInputSchema = z

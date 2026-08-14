@@ -88,7 +88,7 @@ export function validateLatestRevisionSource(
       if (
         !latest ||
         latest.id !== args.runId ||
-        latest.status !== "ready_for_review"
+        !["ready_for_review", "needs_revision"].includes(latest.status)
       )
         return { kind: "superseded" as const };
       return { kind: "current" as const, campaign };

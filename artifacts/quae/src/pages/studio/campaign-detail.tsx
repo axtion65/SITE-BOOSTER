@@ -5,6 +5,7 @@ import { MarketingPage, PremiumCard, fieldClass } from "./marketing-shared";
 import { ActionButton, StatusPill } from "@/components/quae-design-system";
 import { statusLabel } from "./campaigns";
 import { useToast } from "@/hooks/use-toast";
+import { formatScore } from "@/lib/format-score";
 const headers = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${localStorage.getItem("quae_token") || ""}`,
@@ -197,12 +198,14 @@ export default function CampaignDetail() {
                         {c.strengths?.[0]}
                       </p>
                     </div>
-                    <span className="text-xl font-black">{c.total}/100</span>
+                    <span className="text-xl font-black">
+                      {formatScore(c.total)}/100
+                    </span>
                   </div>
                 ))}
                 <p className="mt-4 font-bold text-violet-200">
-                  Winner: {result.judge?.winner} · {result.judge?.winningScore}
-                  /100
+                  Winner: {result.judge?.winner} ·{" "}
+                  {formatScore(result.judge?.winningScore)}/100
                 </p>
               </PremiumCard>
             </div>
@@ -283,6 +286,46 @@ export default function CampaignDetail() {
                   REQUEST CHANGES
                 </button>
               </div>
+            </div>
+          </PremiumCard>
+        )}
+        {run?.status === "needs_revision" && (
+          <PremiumCard elevated>
+            <div className="max-w-3xl">
+              <p className="quae-eyebrow">Quality protection</p>
+              <h2 className="text-2xl font-black text-amber-200">
+                Quae caught an issue before publishing
+              </h2>
+              <p className="mt-3 leading-7 text-[#B9C5D8]">
+                Our quality team stopped this version because part of the
+                content could not be verified or did not meet Quae’s quality
+                standard. You won’t be asked to approve content that failed
+                review.
+              </p>
+              <textarea
+                className={`${fieldClass} mt-5`}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Tell the team what you want changed…"
+              />
+              <button
+                disabled={!notes.trim() || busy !== null || active}
+                onClick={() =>
+                  post("request-changes", {
+                    runId: run.id,
+                    notes,
+                    idempotencyKey: crypto.randomUUID(),
+                  })
+                }
+                className="mt-2 w-full rounded-xl bg-violet-500 p-3 font-bold text-white disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`mr-2 inline h-4 w-4 ${busy === "request-changes" ? "animate-spin" : ""}`}
+                />
+                {busy === "request-changes"
+                  ? "QUEUEING CHANGES…"
+                  : "REQUEST CHANGES"}
+              </button>
             </div>
           </PremiumCard>
         )}
