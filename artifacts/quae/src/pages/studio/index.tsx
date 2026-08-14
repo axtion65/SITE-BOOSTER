@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { approvedCampaignToStudio, shouldRestoreStudioDraft, type ApprovedCampaignHandoff } from "@/lib/campaign-handoff";
+import { compilePreviewRenderBrief } from "@/lib/render-brief";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -541,7 +542,7 @@ function Wizard() {
 
   // Actual output clip length = min(requested duration, model hard limit)
   function actualClipSec(mId: string, dur: string): number {
-    return Math.min(parseDurationSec(dur), MODEL_MAX_SECONDS[mId] ?? 10);
+    return Math.min(parseDurationSec(dur), (models?.find(model => model.id === mId) as any)?.nativeDurationSeconds ?? MODEL_MAX_SECONDS[mId] ?? 10);
   }
 
   function clipLabel(mId: string, dur: string): string {
@@ -560,6 +561,11 @@ function Wizard() {
   // Whether the selected model supports image conditioning
   const imageModels = ["ltx-fast", "wan", "kling", "kling-1.6"];
   const selectedModelSupportsImage = imageModels.includes(modelId);
+
+  const nativeDurationSeconds = (selectedModel as any)?.nativeDurationSeconds ?? MODEL_MAX_SECONDS[modelId] ?? 10;
+  const previewRenderBrief = expandedScript
+    ? compilePreviewRenderBrief(expandedScript, parseDurationSec(duration), nativeDurationSeconds)
+    : null;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0D1728] relative overflow-hidden before:pointer-events-none before:absolute before:-left-40 before:top-10 before:h-96 before:w-96 before:rounded-full before:bg-blue-500/10 before:blur-3xl">
@@ -1228,21 +1234,43 @@ function Wizard() {
                   {parseDurationSec(duration) > (MODEL_MAX_SECONDS[modelId] ?? 10) ? (
                     <p className="text-sm text-amber-400/80">
                       You selected <strong className="text-amber-300">{duration}</strong> but <strong className="text-amber-300">{selectedModel?.name ?? modelId}</strong> outputs at most{" "}
-                      <strong className="text-amber-300">{MODEL_MAX_SECONDS[modelId] ?? 10} sec</strong>. The AI will interpret and condense your full creative direction into that clip — it may not reproduce every scene in sequence.
+                      <strong className="text-amber-300">{nativeDurationSeconds} sec</strong>. Quae will send a purpose-built short production brief—not the full storyboard—to this model.
                     </p>
                   ) : (
                     <p className="text-sm text-amber-400/80">
-                      AI video models output short clips regardless of script length. The AI interprets and condenses your storyboard into the clip — it may not reproduce every scene in sequence.
+                      This model can execute the approved creative at its requested duration, so Quae will preserve the full production direction.
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Storyboard */}
+              {previewRenderBrief?.shortened && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card className="border-emerald-400/20 bg-emerald-400/5 p-5">
+                    <p className="text-xs font-black uppercase tracking-wider text-emerald-300">Approved Campaign</p>
+                    <p className="mt-2 font-semibold text-white">{parseDurationSec(duration)}-second approved campaign</p>
+                    <p className="mt-2 text-xs text-white/60">Your approved campaign and full script remain unchanged.</p>
+                  </Card>
+                  <Card className="border-violet-400/30 bg-violet-400/10 p-5">
+                    <p className="text-xs font-black uppercase tracking-wider text-violet-300">{modelId === "ltx-fast" ? "Fast Draft" : "Model Render Brief"}</p>
+                    <p className="mt-2 font-semibold text-white">~{previewRenderBrief.renderDurationSeconds}-second concept preview</p>
+                    <p className="mt-2 text-xs text-white/70">Quae created a {previewRenderBrief.renderDurationSeconds}-second production brief from your approved campaign for this model. Your full approved campaign remains unchanged.</p>
+                  </Card>
+                  <Card className="p-5 md:col-span-2">
+                    <p className="text-xs font-black uppercase tracking-wider text-violet-300">Brief sent for this render</p>
+                    {previewRenderBrief.visualBeats.map((beat, index) => <p key={index} className="mt-3 text-sm text-white"><strong>Visual {index + 1}:</strong> {beat}</p>)}
+                    <p className="mt-3 text-sm text-white"><strong>Approved message:</strong> {previewRenderBrief.marketingMessage}</p>
+                    <p className="mt-3 text-sm text-white/80"><strong>Short voiceover:</strong> {previewRenderBrief.voiceoverText || "No narration"}</p>
+                    <p className="mt-3 text-xs text-white/50">Exact captions, price text, CTA, and branding are excluded from AI-generated pixels to prevent unreadable text.</p>
+                  </Card>
+                </div>
+              )}
+
+              {/* Approved storyboard */}
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <Film className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Storyboard</h3>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{previewRenderBrief?.shortened ? "Approved Campaign Storyboard (unchanged)" : "Storyboard"}</h3>
                 </div>
                 <div className="space-y-3">
                   {expandedScript.scenes.map((scene, idx) => (

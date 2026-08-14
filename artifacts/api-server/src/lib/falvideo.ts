@@ -4,6 +4,7 @@
 // Kling 2.5: $0.07/sec (premium)
 
 import { fal } from "@fal-ai/client";
+import { compileVideoRenderBrief, MODEL_NATIVE_DURATION_SECONDS, type VideoRenderBrief } from "./videoRenderBrief";
 
 export interface ExpandedScript {
   script: string;
@@ -59,17 +60,10 @@ export const MODEL_RENDER_ESTIMATE: Record<string, number> = {
 
 // What each model actually outputs (max clip duration the API will honour)
 // These are hard model limits — duration in prompt text is ignored by the AI video models
-const MODEL_MAX_SECONDS: Record<string, number> = {
-  'ltx':      5,   // LTX: 121 frames @ 24fps ≈ 5s
-  'ltx-fast': 5,   // LTX 2.3 Fast: same frame budget, faster inference
-  'ovi':      10,
-  'wan':      10,  // ~81-129 frames @ ~13fps
-  'kling':    10,  // "5" or "10" string param
-  'veo3':     8,   // Google Veo3 default output
-};
+export const MODEL_MAX_SECONDS = MODEL_NATIVE_DURATION_SECONDS;
 
 // Parse "15s" → 15, "1m" → 60
-function parseDurationSeconds(d: string): number {
+export function parseDurationSeconds(d: string): number {
   const s = d.toLowerCase().trim();
   if (s.endsWith('m')) return parseInt(s) * 60;
   if (s.endsWith('s')) return parseInt(s);
@@ -171,7 +165,7 @@ export function sanitizeVisualPrompt(prompt: string): string {
   return clean;
 }
 
-function buildVideoPrompt(script: ExpandedScript, platform: string, duration: string, templateType?: string): string {
+export function buildVideoPrompt(script: ExpandedScript, platform: string, duration: string, templateType?: string, brief?: VideoRenderBrief): string {
   const isVertical = platform === 'tiktok' || platform === 'instagram';
   const baseFormat = isVertical
     ? 'vertical 9:16 format, mobile-first, designed for social media feeds'
@@ -182,8 +176,12 @@ function buildVideoPrompt(script: ExpandedScript, platform: string, duration: st
     ? (TEMPLATE_VIDEO_DIRECTION[templateType] ?? '')
     : '';
 
-  // Build scene breakdown
-  const sceneLines = script.scenes.map((s, i) =>
+  const productionScript = brief?.shortened
+    ? { ...script, scenes: brief.visualBeats.map((beat, index) => ({ sceneNumber: index + 1, description: beat, duration: `${brief.renderDurationSeconds / brief.visualBeats.length}s`, visualDirection: '' })), voiceoverText: brief.voiceoverText, callToAction: brief.marketingMessage }
+    : script;
+
+  // Build only the beats the selected model can execute.
+  const sceneLines = productionScript.scenes.map((s, i) =>
     `Scene ${i + 1} (${s.duration}): ${s.description}. Camera/visuals: ${s.visualDirection}.`
   ).join(' ');
 
@@ -245,7 +243,8 @@ IMPORTANT: Do NOT generate any visible text, captions, subtitles, logos, waterma
       : `Format: ${baseFormat}. Duration: ${duration}.`,
 
     // Music
-    script.suggestedMusic ? `Music/mood: ${script.suggestedMusic}.` : '',
+    productionScript.voiceoverText ? `Audio narration (approved excerpt only): ${productionScript.voiceoverText}` : '',
+    productionScript.suggestedMusic ? `Music/mood: ${productionScript.suggestedMusic}.` : '',
 
 `
 IMPORTANT:
@@ -383,7 +382,8 @@ export async function submitFalVideoRender(
   const modelPath = getModelId(renderingModelId, hasImage);
   const modelKey  = getModelKey(renderingModelId);
   const durationSec = parseDurationSeconds(duration);
-  const prompt = buildVideoPrompt(script, platform, duration, templateType);
+  const brief = compileVideoRenderBrief(script, duration, renderingModelId);
+  const prompt = buildVideoPrompt(script, platform, `${brief.renderDurationSeconds}s`, templateType, brief);
   const modelParams = buildModelParams(modelKey, durationSec);
 
   console.log(`[fal-video] renderingModelId="${renderingModelId}" → fal="${modelPath}" | hasImage=${hasImage} | template=${templateType ?? 'generic'} | duration=${duration} | params:`, modelParams);
