@@ -168,6 +168,46 @@ export default function CampaignDetail() {
             </ActionButton>
           )}
         </PremiumCard>
+        {run?.status === "needs_revision" && (
+          <PremiumCard elevated>
+            <div className="max-w-3xl">
+              <p className="quae-eyebrow">Quality protection</p>
+              <h2 className="text-2xl font-black text-amber-200">
+                Quae caught an issue before publishing
+              </h2>
+              <p className="mt-3 leading-7 text-[#B9C5D8]">
+                Our quality team stopped this version because part of the
+                content could not be verified or did not meet Quae’s quality
+                standard. You won’t be asked to approve content that failed
+                review.
+              </p>
+              <textarea
+                className={`${fieldClass} mt-5`}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Tell the team what you want changed…"
+              />
+              <button
+                disabled={!notes.trim() || busy !== null || active}
+                onClick={() =>
+                  post("request-changes", {
+                    runId: run.id,
+                    notes,
+                    idempotencyKey: crypto.randomUUID(),
+                  })
+                }
+                className="mt-2 w-full rounded-xl bg-violet-500 p-3 font-bold text-white disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`mr-2 inline h-4 w-4 ${busy === "request-changes" ? "animate-spin" : ""}`}
+                />
+                {busy === "request-changes"
+                  ? "QUEUEING CHANGES…"
+                  : "REQUEST CHANGES"}
+              </button>
+            </div>
+          </PremiumCard>
+        )}
         {result && (
           <>
             <div className="grid gap-6 lg:grid-cols-2">
@@ -286,46 +326,6 @@ export default function CampaignDetail() {
                   REQUEST CHANGES
                 </button>
               </div>
-            </div>
-          </PremiumCard>
-        )}
-        {run?.status === "needs_revision" && (
-          <PremiumCard elevated>
-            <div className="max-w-3xl">
-              <p className="quae-eyebrow">Quality protection</p>
-              <h2 className="text-2xl font-black text-amber-200">
-                Quae caught an issue before publishing
-              </h2>
-              <p className="mt-3 leading-7 text-[#B9C5D8]">
-                Our quality team stopped this version because part of the
-                content could not be verified or did not meet Quae’s quality
-                standard. You won’t be asked to approve content that failed
-                review.
-              </p>
-              <textarea
-                className={`${fieldClass} mt-5`}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Tell the team what you want changed…"
-              />
-              <button
-                disabled={!notes.trim() || busy !== null || active}
-                onClick={() =>
-                  post("request-changes", {
-                    runId: run.id,
-                    notes,
-                    idempotencyKey: crypto.randomUUID(),
-                  })
-                }
-                className="mt-2 w-full rounded-xl bg-violet-500 p-3 font-bold text-white disabled:opacity-50"
-              >
-                <RefreshCw
-                  className={`mr-2 inline h-4 w-4 ${busy === "request-changes" ? "animate-spin" : ""}`}
-                />
-                {busy === "request-changes"
-                  ? "QUEUEING CHANGES…"
-                  : "REQUEST CHANGES"}
-              </button>
             </div>
           </PremiumCard>
         )}
