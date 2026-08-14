@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExpandedScript } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
+import { apiHeaders } from "@/lib/marketing-api";
 
 // Realistic estimates based on actual fal.ai queue times
 const MODEL_ESTIMATES: Record<string, number> = {
@@ -95,11 +96,36 @@ export default function StudioProjectDetail() {
   const [, setLocation] = useLocation();
   const [videoError, setVideoError] = useState(false);
   const [rerendering, setRerendering] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const { toast } = useToast();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isProcessing = project?.status === "processing" || project?.status === "narrating";
   const elapsed = useElapsed(isProcessing, project?.createdAt);
   const signedProductImageUrl = usePrivateImageUrl(project?.productImageUrl);
+
+  async function downloadVideo() {
+    setDownloading(true);
+    try {
+      const response = await fetch(`/api/projects/${id}/video/download`, { headers: apiHeaders(false) });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Video download is temporarily unavailable.");
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || "quae-video.mp4";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({ title: "Download unavailable", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   useEffect(() => {
     if (isProcessing) {
@@ -330,9 +356,9 @@ export default function StudioProjectDetail() {
                       <div className="h-16 w-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
                         <RotateCcw className="h-8 w-8 text-amber-400" />
                       </div>
-                      <p className="text-white font-black text-lg mb-2">Video link expired</p>
+                      <p className="text-white font-black text-lg mb-2">Video unavailable</p>
                       <p className="text-sm text-[#AAB6CA] mb-6 max-w-xs leading-relaxed">
-                        AI video links expire after 48 hours. Hit Re-render — your script is saved and it only takes a couple of minutes.
+                        This legacy video is no longer available. New renders are secured in Quae storage and do not expire with provider links.
                       </p>
                       <Button
                         onClick={handleRerender}
@@ -353,7 +379,7 @@ export default function StudioProjectDetail() {
                         <VideoOff className="h-8 w-8 text-red-400" />
                       </div>
                       <p className="text-white font-black text-lg mb-1">Render failed</p>
-                      <p className="text-sm text-[#AAB6CA] mb-5">The AI model encountered an error. Your credits have been refunded.</p>
+                      <p className="text-sm text-[#AAB6CA] mb-5">Your video could not be made ready. If generation finished, Quae may still have been securing the final file. Please try again shortly; your credits have been refunded.</p>
                       <Button
                         onClick={handleRerender}
                         disabled={rerendering}
@@ -387,11 +413,9 @@ export default function StudioProjectDetail() {
                         <p className="text-[11px] text-slate-400">Download and publish to your platform</p>
                       </div>
                     </div>
-                    <a href={project.videoUrl} target="_blank" rel="noreferrer">
-                      <Button className="h-9 px-4 rounded-xl bg-violet-600 hover:bg-violet-500 font-bold text-sm gap-2 shadow-lg shadow-violet-600/25">
-                        <Download className="h-4 w-4" /> Download MP4
-                      </Button>
-                    </a>
+                    <Button onClick={downloadVideo} disabled={downloading} className="h-9 px-4 rounded-xl bg-violet-600 hover:bg-violet-500 font-bold text-sm gap-2 shadow-lg shadow-violet-600/25">
+                      <Download className="h-4 w-4" /> {downloading ? "Preparing…" : "Download MP4"}
+                    </Button>
                   </div>
                 )}
               </div>

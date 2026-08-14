@@ -265,6 +265,64 @@ function internalObjectPath(objectName: string): string {
   return `/api/storage/objects/${objectName}`;
 }
 
+export const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+
+function safePathSegment(value: string): string {
+  const segment = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 128);
+  if (!segment) throw new Error("Invalid video storage identity");
+  return segment;
+}
+
+export interface VideoStorageIdentity {
+  userId: string;
+  projectId: string;
+  renderId: string;
+}
+
+export function videoObjectName(identity: VideoStorageIdentity): string {
+  return `videos/${safePathSegment(identity.userId)}/${safePathSegment(identity.projectId)}/${safePathSegment(identity.renderId)}.mp4`;
+}
+
+/** Reject provider error documents and non-MP4 payloads before they reach storage. */
+export function validateVideoPayload(buffer: Buffer, contentType?: string | null, maxBytes = MAX_VIDEO_BYTES): void {
+  if (buffer.length === 0) throw new Error("Provider returned an empty video");
+  if (buffer.length > maxBytes) throw new Error("Provider video exceeds the storage limit");
+
+  const mime = contentType?.split(";", 1)[0].trim().toLowerCase();
+  if (mime && (mime.startsWith("text/") || mime.includes("xml") || mime.includes("html") || mime.includes("json"))) {
+    throw new Error("Provider returned an error document instead of video");
+  }
+  if (mime && mime !== "application/octet-stream" && mime !== "binary/octet-stream" && !mime.startsWith("video/")) {
+    throw new Error("Provider returned an unsupported content type");
+  }
+
+  const prefix = buffer.subarray(0, 256).toString("utf8").trimStart().toLowerCase();
+  if (prefix.startsWith("<") || prefix.startsWith("{") || prefix.startsWith("[")) {
+    throw new Error("Provider returned an error document instead of video");
+  }
+  if (buffer.length < 12 || buffer.subarray(4, 8).toString("ascii") !== "ftyp") {
+    throw new Error("Provider response is not a valid MP4 file");
+  }
+}
+
+async function readBoundedBody(response: Response): Promise<Buffer> {
+  if (!response.body) return Buffer.alloc(0);
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_VIDEO_BYTES) {
+      await reader.cancel();
+      throw new Error("Provider video exceeds the storage limit");
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, size);
+}
+
 export class ObjectStorageService {
   constructor() {}
 
@@ -474,23 +532,28 @@ async trySetObjectEntityAclPolicy(
    */
   async uploadVideoFromUrl(
     videoUrl: string,
+    identity: VideoStorageIdentity,
   ): Promise<string> {
-    const objectId = randomUUID();
-    const objectName = `videos/${objectId}.mp4`;
+    const objectName = videoObjectName(identity);
+    const objectFile = new S3ObjectFile(storageConfig.bucket, objectName);
+    const [alreadyStored] = await objectFile.exists();
+    if (alreadyStored) return internalObjectPath(objectName);
 
     const response = await fetch(videoUrl, {
       signal: AbortSignal.timeout(180_000),
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Video download failed: HTTP ${response.status} from ${videoUrl}`,
-      );
+      throw new Error(`Provider video download failed with HTTP ${response.status}`);
     }
 
-    const buffer = Buffer.from(
-      await response.arrayBuffer(),
-    );
+    const advertisedSize = Number(response.headers.get("content-length"));
+    if (Number.isFinite(advertisedSize) && advertisedSize > MAX_VIDEO_BYTES) {
+      throw new Error("Provider video exceeds the storage limit");
+    }
+
+    const buffer = await readBoundedBody(response);
+    validateVideoPayload(buffer, response.headers.get("content-type"));
 
     await objectStorageClient.send(
       new PutObjectCommand({
@@ -501,6 +564,8 @@ async trySetObjectEntityAclPolicy(
         CacheControl: "private, max-age=31536000",
       }),
     );
+
+    await setObjectAclPolicy(objectFile as any, { owner: identity.userId, visibility: "private" });
 
     console.log(
       `[objectStorage] Archived video → s3://${storageConfig.bucket}/${objectName} (${buffer.length} bytes)`,
@@ -514,9 +579,13 @@ async trySetObjectEntityAclPolicy(
    */
   async uploadVideoBuffer(
     buffer: Buffer,
+    identity: VideoStorageIdentity,
   ): Promise<string> {
-    const objectId = randomUUID();
-    const objectName = `videos/${objectId}.mp4`;
+    validateVideoPayload(buffer, "video/mp4");
+    const objectName = videoObjectName(identity);
+    const objectFile = new S3ObjectFile(storageConfig.bucket, objectName);
+    const [alreadyStored] = await objectFile.exists();
+    if (alreadyStored) return internalObjectPath(objectName);
 
     await objectStorageClient.send(
       new PutObjectCommand({
@@ -527,6 +596,8 @@ async trySetObjectEntityAclPolicy(
         CacheControl: "private, max-age=31536000",
       }),
     );
+
+    await setObjectAclPolicy(objectFile as any, { owner: identity.userId, visibility: "private" });
 
     console.log(
       `[objectStorage] Uploaded video buffer → s3://${storageConfig.bucket}/${objectName} (${buffer.length} bytes)`,

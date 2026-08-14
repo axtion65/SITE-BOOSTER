@@ -129,6 +129,7 @@ router.post("/webhooks/fal", async (req, res) => {
         try {
           const { ObjectStorageService } = await import("../lib/objectStorage");
           const storage = new ObjectStorageService();
+          const storageIdentity = { userId: project.userId, projectId, renderId: requestId };
 
           // Transition to "narrating" so the client can show "Adding voiceover…" instead
           // of a broken silent video. Guard: status='processing' AND videoUrl=falUrl.
@@ -163,22 +164,22 @@ router.post("/webhooks/fal", async (req, res) => {
                 const { addNarrationToVideo } = await import("../lib/videoNarrate");
                 const narratedBuffer = await addNarrationToVideo(falUrl, audioBuffer);
                 if (narratedBuffer) {
-                  permanentPath = await storage.uploadVideoBuffer(narratedBuffer);
+                  permanentPath = await storage.uploadVideoBuffer(narratedBuffer, storageIdentity);
                   console.log(`[webhook/fal] Narrated video archived for project ${projectId}`);
                 } else {
                   console.warn("[webhook/fal] FFmpeg mix failed — archiving silent video");
-                  permanentPath = await storage.uploadVideoFromUrl(falUrl);
+                  permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
                 }
               } else {
                 console.warn("[webhook/fal] TTS returned null — archiving silent video");
-                permanentPath = await storage.uploadVideoFromUrl(falUrl);
+                permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
               }
             } catch (err) {
               console.error("[webhook/fal] Narration error — archiving silent video:", err);
-              permanentPath = await storage.uploadVideoFromUrl(falUrl);
+              permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
             }
           } else {
-            permanentPath = await storage.uploadVideoFromUrl(falUrl);
+            permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
           }
 
           // Transition to completed — guarded by status='narrating' (we own this state
