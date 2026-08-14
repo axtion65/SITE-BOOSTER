@@ -9,13 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock, ChevronDown, LayoutTemplate, ArrowLeft, ImagePlus, X, Info, Pencil, RotateCcw } from "lucide-react";
+import { Sparkles, Wand2, Film, Download, CheckCircle2, ChevronRight, Activity, Zap, Crown, Lock, ChevronDown, LayoutTemplate, ArrowLeft, ImagePlus, X, Info, Pencil, RotateCcw, BadgeCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { ExpandedScript } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { approvedCampaignToStudio, shouldRestoreStudioDraft, type ApprovedCampaignHandoff } from "@/lib/campaign-handoff";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -134,15 +135,10 @@ export default function StudioIndex() {
 
 function Wizard() {
   const search = useSearch();
-
-  // Detect template URL params — when present, start fresh (don't restore draft)
-  const hasTemplateParams = (() => {
-    const params = new URLSearchParams(search);
-    return !!(params.get("templateName") || params.get("templateId") || params.get("platform"));
-  })();
+  const campaignId = new URLSearchParams(search).get("campaignId")?.trim() || null;
 
   // Load saved draft once (before state initialisation)
-  const savedDraft = hasTemplateParams ? null : loadDraft();
+  const savedDraft = shouldRestoreStudioDraft(search) ? loadDraft() : null;
 
   const [step, setStep] = useState(savedDraft?.step ?? 1);
   const [modelId, setModelId] = useState<string>(savedDraft?.modelId ?? "ltx-fast");
@@ -178,6 +174,9 @@ function Wizard() {
 
   // Track whether there was a restored draft (so we can show a "clear draft" affordance)
   const [draftRestored, setDraftRestored] = useState(!!savedDraft && savedDraft.step > 1);
+  const [campaignHandoff, setCampaignHandoff] = useState<ApprovedCampaignHandoff | null>(null);
+  const [campaignLoading, setCampaignLoading] = useState(!!campaignId);
+  const [campaignMessage, setCampaignMessage] = useState<string | null>(null);
 
   const updateHook = (value: string) => {
     setScriptEdited(true);
@@ -306,6 +305,44 @@ function Wizard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
 
+  // The URL supplies only an ID. The authenticated, ownership-scoped API and the
+  // server's approved campaign/run state decide whether anything may be hydrated.
+  useEffect(() => {
+    if (!campaignId) return;
+    let cancelled = false;
+    const loadCampaign = async () => {
+      setCampaignLoading(true);
+      try {
+        const token = localStorage.getItem("quae_token") || "";
+        const response = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error("missing");
+        const handoff = approvedCampaignToStudio(await response.json());
+        if (!handoff) {
+          if (!cancelled) setCampaignMessage("This campaign is not approved for Creative Studio. You can start a new creative below.");
+          return;
+        }
+        if (cancelled) return;
+        setCampaignHandoff(handoff);
+        setProductName(handoff.productName);
+        setDescription(handoff.description);
+        setTargetAudience(handoff.targetAudience);
+        setPlatform(handoff.platform);
+        setDuration(handoff.duration);
+        setExpandedScript(handoff.expandedScript);
+        setStep(2);
+        setDraftRestored(false);
+      } catch {
+        if (!cancelled) setCampaignMessage("We couldn’t load that approved campaign. You can start a new creative below or return to Campaigns.");
+      } finally {
+        if (!cancelled) setCampaignLoading(false);
+      }
+    };
+    void loadCampaign();
+    return () => { cancelled = true; };
+  }, [campaignId]);
+
   // Pre-fill from template URL params (only when navigating from template picker)
   const templateApplied = useRef(false);
   useEffect(() => {
@@ -337,6 +374,7 @@ function Wizard() {
   // Persist draft to sessionStorage whenever relevant state changes
   // productImageUrl is a short GCS path (safe to persist); imagePreviewUrl is local only
   useEffect(() => {
+    if (campaignLoading) return;
     saveDraft({
       step,
       modelId,
@@ -358,7 +396,7 @@ function Wizard() {
   }, [
     step, modelId, voiceId, productName, description, targetAudience, platform, duration,
     productImageUrl, productImageFileName, expandedScript,
-    templateId, templateType, templateName, templateExampleHook, templateStructure,
+    templateId, templateType, templateName, templateExampleHook, templateStructure, campaignLoading,
   ]);
 
   const handleClearDraft = () => {
@@ -546,6 +584,31 @@ function Wizard() {
 
       <div className="relative flex-1 overflow-y-auto p-5 md:p-12 scroll-smooth">
         <div className="max-w-3xl mx-auto">
+
+          {campaignLoading && (
+            <Card className="mb-6 border-emerald-400/20 bg-emerald-400/5 p-5 text-sm text-emerald-100">
+              <Spinner className="mr-2 inline h-4 w-4" /> Loading your approved campaign…
+            </Card>
+          )}
+
+          {campaignHandoff && (
+            <Card className="mb-6 border-emerald-400/30 bg-gradient-to-r from-emerald-400/10 to-primary/10 p-5 shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-start gap-3"><BadgeCheck className="mt-0.5 h-6 w-6 text-emerald-300" /><div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Approved Campaign</p>
+                  <h2 className="mt-1 text-lg font-bold text-white">{campaignHandoff.campaignName}</h2>
+                  <p className="mt-1 text-sm text-[#B9C5D8]">Your approved campaign has been loaded into Creative Studio.</p>
+                </div></div>
+                <a href={`/studio/campaigns/${encodeURIComponent(campaignHandoff.campaignId)}`} className="text-sm font-bold text-violet-200 hover:text-white">Back to campaign</a>
+              </div>
+            </Card>
+          )}
+
+          {campaignMessage && (
+            <Card className="mb-6 border-amber-400/30 bg-amber-400/10 p-5 text-sm text-amber-100">
+              {campaignMessage} <a href="/studio/campaigns" className="ml-1 font-bold underline">View campaigns</a>
+            </Card>
+          )}
 
           {/* STEP 1 — Describe */}
           {step === 1 && (
@@ -785,8 +848,8 @@ function Wizard() {
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Cinematic Script Generated</h2>
-                  <p className="text-muted-foreground">Fine-tune any scene or the hook — your edits carry forward to the render.</p>
+                  <h2 className="text-3xl font-bold tracking-tight text-white mb-2">{campaignHandoff ? "Approved Script Ready for Production" : "Cinematic Script Generated"}</h2>
+                  <p className="text-muted-foreground">{campaignHandoff ? "The approved campaign copy is the source of truth. Any changes here are creative edits and do not change the campaign approval or history." : "Fine-tune any scene or the hook — your edits carry forward to the render."}</p>
                 </div>
                 <Button
                   variant="outline"
@@ -865,15 +928,15 @@ function Wizard() {
                                   setShowHintFor(idx);
                                 }
                               }}
-                              disabled={isRegenerating || regeneratingIdx !== null}
-                              title="Regenerate this scene with AI"
+                              disabled={!!campaignHandoff || isRegenerating || regeneratingIdx !== null}
+                              title={campaignHandoff ? "AI rewriting is disabled to protect approved campaign copy" : "Regenerate this scene with AI"}
                               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded-lg hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               {isRegenerating
                                 ? <Spinner className="h-3 w-3" />
                                 : <Wand2 className="h-3 w-3" />
                               }
-                              <span>{isRegenerating ? "Regenerating…" : "Regenerate"}</span>
+                              <span>{campaignHandoff ? "Copy protected" : isRegenerating ? "Regenerating…" : "Regenerate"}</span>
                             </button>
                           </div>
                         </div>
