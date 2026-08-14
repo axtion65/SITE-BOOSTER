@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Film, Zap, CheckCircle2, Clock, PlusCircle, TrendingUp, Coins, ArrowRight } from "lucide-react";
+import { Film, Zap, CheckCircle2, Clock, PlusCircle, TrendingUp, Coins, ArrowRight, Megaphone, Package, Palette } from "lucide-react";
 import { PLAN_BY_SLUG, isPlanSlug } from "@workspace/plans";
 
 export default function StudioDashboard() {
@@ -118,10 +118,10 @@ function DashboardContent() {
           )}
         </div>
 
-        {/* Recent Projects */}
+        {/* Recent Work */}
         <div className="overflow-hidden rounded-3xl border border-white/[0.06] bg-gradient-to-br from-[#20304A] to-[#18263D] shadow-2xl shadow-slate-950/20">
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
-            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70">Recent Projects</p>
+            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70">Recent Work</p>
             <Link href="/studio/projects">
               <button className="text-[11px] font-semibold text-[#AAB6CA] hover:text-white/70 transition-colors flex items-center gap-1">
                 View all <ArrowRight className="h-3 w-3" />
@@ -179,38 +179,29 @@ function DashboardContent() {
         {/* Quick Actions */}
         <div>
           <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-4">Quick Actions</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Link href="/studio">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <Link href="/studio/campaigns">
               <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-violet-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
-                <div className="h-10 w-10 rounded-xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-600/20 transition-colors">
-                  <Zap className="h-5 w-5 text-violet-400" />
-                </div>
-                <div>
-                  <p className="font-bold text-white text-sm group-hover:text-violet-300 transition-colors">New Video</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">AI script + render</p>
-                </div>
+                <div className="h-10 w-10 rounded-xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-600/20 transition-colors"><Megaphone className="h-5 w-5 text-violet-400" /></div>
+                <div><p className="font-bold text-white text-sm group-hover:text-violet-300 transition-colors">NEW CAMPAIGN</p><p className="text-[11px] text-slate-400 mt-0.5">Put your AI marketing team to work</p></div>
               </div>
             </Link>
-            <Link href="/templates">
+            <Link href="/studio">
               <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-purple-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
-                <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-500/20 transition-colors">
-                  <Film className="h-5 w-5 text-purple-400" />
-                </div>
-                <div>
-                  <p className="font-bold text-white text-sm group-hover:text-purple-300 transition-colors">Browse Templates</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">12 proven formats</p>
-                </div>
+                <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-500/20 transition-colors"><Film className="h-5 w-5 text-purple-400" /></div>
+                <div><p className="font-bold text-white text-sm group-hover:text-purple-300 transition-colors">CREATE CREATIVE</p><p className="text-[11px] text-slate-400 mt-0.5">Video, images &amp; campaign assets</p></div>
               </div>
             </Link>
-            <Link href="/studio/projects">
+            <Link href="/studio/products">
               <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-emerald-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/20 transition-colors">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                </div>
-                <div>
-                  <p className="font-bold text-white text-sm group-hover:text-emerald-300 transition-colors">My Videos</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">View all projects</p>
-                </div>
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/20 transition-colors"><Package className="h-5 w-5 text-emerald-400" /></div>
+                <div><p className="font-bold text-white text-sm group-hover:text-emerald-300 transition-colors">PRODUCTS &amp; OFFERS</p><p className="text-[11px] text-slate-400 mt-0.5">Manage what Quae markets</p></div>
+              </div>
+            </Link>
+            <Link href="/studio/brand-kit">
+              <div className="rounded-2xl border border-white/[0.06] bg-[#20304A] hover:-translate-y-1 hover:border-sky-400/30 hover:bg-[#263754] transition-all duration-300 cursor-pointer group p-6 flex items-center gap-4 shadow-xl shadow-slate-950/15">
+                <div className="h-10 w-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-sky-500/20 transition-colors"><Palette className="h-5 w-5 text-sky-400" /></div>
+                <div><p className="font-bold text-white text-sm group-hover:text-sky-300 transition-colors">BRAND KIT</p><p className="text-[11px] text-slate-400 mt-0.5">Keep every campaign on-brand</p></div>
               </div>
             </Link>
           </div>

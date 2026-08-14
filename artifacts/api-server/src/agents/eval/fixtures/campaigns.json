@@ -1,0 +1,14 @@
+[
+ {"id":"apparel-tshirt","business":"Apparel","job":"T-shirt launch","brand":"value-focused"},
+ {"id":"restaurant-opening","business":"Restaurant","job":"Grand opening","brand":"inviting"},
+ {"id":"local-service-seasonal","business":"Local service company","job":"Seasonal promotion","brand":"trustworthy"},
+ {"id":"beauty-flash-sale","business":"Beauty product","job":"Flash sale","brand":"bold"},
+ {"id":"saas-launch","business":"SaaS","job":"Product launch","brand":"modern"},
+ {"id":"consultant-leadgen","business":"Consultant","job":"Lead generation","brand":"professional"},
+ {"id":"ecommerce-product","business":"Ecommerce product","job":"Product campaign","brand":"direct"},
+ {"id":"luxury-seasonal","business":"Premium/luxury brand","job":"Seasonal promotion","brand":"luxury"},
+ {"id":"value-grand-opening","business":"Value-focused brand","job":"Grand opening","brand":"value-focused"},
+ {"id":"restaurant-flash-sale","business":"Restaurant","job":"Flash sale","brand":"energetic"},
+ {"id":"apparel-seasonal","business":"Apparel","job":"Seasonal promotion","brand":"premium"},
+ {"id":"service-opening","business":"Local service company","job":"Grand opening","brand":"friendly"}
+]

@@ -1,0 +1,104 @@
+import { hostname } from "node:os";
+import { pool } from "@workspace/db";
+import { workerFailureUpdate } from "../agents/errors";
+import { CampaignPipeline } from "../agents/pipeline";
+import { logger } from "./logger";
+
+const workerId = `${hostname()}:${process.pid}:${crypto.randomUUID()}`;
+let timer: NodeJS.Timeout | undefined;
+let busy = false;
+
+export async function claimCampaignRun() {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const found = await client.query(`
+      SELECT id, context_snapshot
+      FROM campaign_runs
+      WHERE status = 'queued' OR (status = 'running' AND lease_expires_at < NOW())
+      ORDER BY queued_at
+      FOR UPDATE SKIP LOCKED
+      LIMIT 1
+    `);
+    if (!found.rows[0]) {
+      await client.query("COMMIT");
+      return null;
+    }
+    await client.query(
+      `UPDATE campaign_runs SET status='running', started_at=COALESCE(started_at,NOW()),
+       lease_owner=$2, lease_expires_at=NOW()+INTERVAL '90 seconds', heartbeat_at=NOW(), updated_at=NOW()
+       WHERE id=$1`,
+      [found.rows[0].id, workerId],
+    );
+    await client.query("COMMIT");
+    return found.rows[0] as { id: string; context_snapshot: unknown };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function workOnce(pipeline?: CampaignPipeline) {
+  if (busy) return;
+  busy = true;
+  try {
+    const run = await claimCampaignRun();
+    if (!run) return;
+    const heartbeat = setInterval(
+      () =>
+        pool
+          .query(
+            "UPDATE campaign_runs SET heartbeat_at=NOW(), lease_expires_at=NOW()+INTERVAL '90 seconds' WHERE id=$1 AND lease_owner=$2",
+            [run.id, workerId],
+          )
+          .catch(() => undefined),
+      30_000,
+    );
+    heartbeat.unref();
+    try {
+      await (pipeline ?? new CampaignPipeline()).execute(
+        run.id,
+        run.context_snapshot,
+      );
+    } catch (error) {
+      const current = await pool.query(
+        "SELECT retry_count FROM campaign_runs WHERE id=$1",
+        [run.id],
+      );
+      const failure = workerFailureUpdate(
+        error,
+        current.rows[0]?.retry_count ?? 0,
+      );
+      logger.error(
+        {
+          runId: run.id,
+          failureCode: failure.code,
+          retryable: failure.retryable,
+        },
+        "Campaign run interrupted",
+      );
+      await pool.query(
+        `WITH changed AS (
+           UPDATE campaign_runs SET status=$2, retry_count=retry_count+1, failure_code=$3,
+             lease_owner=NULL, lease_expires_at=NULL, updated_at=NOW(),
+             completed_at=CASE WHEN $2='failed' THEN NOW() ELSE completed_at END
+           WHERE id=$1 RETURNING campaign_id
+         ) UPDATE campaigns SET status=$2, updated_at=NOW() WHERE id=(SELECT campaign_id FROM changed)`,
+        [run.id, failure.status, failure.code],
+      );
+    } finally {
+      clearInterval(heartbeat);
+    }
+  } finally {
+    busy = false;
+  }
+}
+
+export function startCampaignWorker() {
+  if (timer) return;
+  timer = setInterval(() => void workOnce(), 2_000);
+  timer.unref();
+  void workOnce();
+}
