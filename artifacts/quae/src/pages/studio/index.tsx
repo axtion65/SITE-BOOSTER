@@ -18,6 +18,7 @@ import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { approvedCampaignToStudio, shouldRestoreStudioDraft, type ApprovedCampaignHandoff } from "@/lib/campaign-handoff";
 import { compilePreviewRenderBrief } from "@/lib/render-brief";
+import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -137,29 +138,30 @@ export default function StudioIndex() {
 function Wizard() {
   const search = useSearch();
   const campaignId = new URLSearchParams(search).get("campaignId")?.trim() || null;
+  const approvedMockup = new URLSearchParams(search).get("source") === "approved-mockup" ? loadMockupVideoHandoff() : null;
 
   // Load saved draft once (before state initialisation)
-  const savedDraft = shouldRestoreStudioDraft(search) ? loadDraft() : null;
+  const savedDraft = approvedMockup ? null : shouldRestoreStudioDraft(search) ? loadDraft() : null;
 
   const [step, setStep] = useState(savedDraft?.step ?? 1);
-  const [modelId, setModelId] = useState<string>(savedDraft?.modelId ?? "ltx-fast");
+  const [modelId, setModelId] = useState<string>(approvedMockup?.renderingModelId ?? savedDraft?.modelId ?? "ltx-fast");
   const [voiceId, setVoiceId] = useState<string>(savedDraft?.voiceId ?? "alloy");
 
   // Step 1 State
-  const [productName, setProductName] = useState(savedDraft?.productName ?? "");
-  const [description, setDescription] = useState(savedDraft?.description ?? "");
+  const [productName, setProductName] = useState(approvedMockup?.product?.name ?? savedDraft?.productName ?? "");
+  const [description, setDescription] = useState(approvedMockup?.product?.description ?? savedDraft?.description ?? "");
   const [targetAudience, setTargetAudience] = useState(savedDraft?.targetAudience ?? "");
   const [platform, setPlatform] = useState(savedDraft?.platform ?? "tiktok");
   const [duration, setDuration] = useState(savedDraft?.duration ?? "10s");
 
   // Product image state
   // productImageUrl: GCS serving URL stored in DB and draft (short path, no bloat)
-  const [productImageUrl, setProductImageUrl] = useState<string | null>(savedDraft?.productImageUrl ?? null);
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(approvedMockup ? `/api/storage${approvedMockup.authoritativeImagePath}` : savedDraft?.productImageUrl ?? null);
   // imagePreviewUrl: local data URL for thumbnail display only — NOT persisted in draft
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   // signedProductImageUrl: short-lived GCS signed URL resolved from productImageUrl
   const signedProductImageUrl = usePrivateImageUrl(productImageUrl);
-  const [productImageFileName, setProductImageFileName] = useState<string | null>(savedDraft?.productImageFileName ?? null);
+  const [productImageFileName, setProductImageFileName] = useState<string | null>(approvedMockup ? "Approved Quae visual" : savedDraft?.productImageFileName ?? null);
   const [imageUploading, setImageUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 

@@ -1,4 +1,4 @@
-import { boolean, index, jsonb, numeric, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 const timestamps = {
@@ -51,7 +51,29 @@ export const productImagesTable = pgTable("product_images", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index("product_images_product_id_idx").on(table.productId), uniqueIndex("product_images_object_path_unique").on(table.objectPath)]);
 
+export const brandModelsTable = pgTable("brand_models", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()), businessId: text("business_id").notNull().references(() => businessesTable.id, { onDelete: "cascade" }),
+  displayName: text("display_name").notNull(), adultAgeRange: text("adult_age_range").notNull(), presentation: text("presentation"), archetype: text("archetype").notNull(),
+  appearanceDescription: text("appearance_description"), styling: text("styling"), hair: text("hair"), aesthetic: text("aesthetic"), wardrobeDirection: text("wardrobe_direction"), visualEnergy: text("visual_energy"),
+  preferredEnvironments: jsonb("preferred_environments").$type<string[]>().notNull().default([]), referenceObjectPaths: jsonb("reference_object_paths").$type<string[]>().notNull().default([]),
+  referenceRightsAcknowledgedAt: timestamp("reference_rights_acknowledged_at", { withTimezone: true }), active: boolean("active").notNull().default(true), ...timestamps,
+}, (table) => [index("brand_models_business_id_idx").on(table.businessId)]);
+
+export const mockupProjectsTable = pgTable("mockup_projects", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()), userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  businessId: text("business_id").notNull().references(() => businessesTable.id, { onDelete: "cascade" }), productId: text("product_id").notNull().references(() => productsTable.id, { onDelete: "restrict" }),
+  campaignId: text("campaign_id"), brandModelId: text("brand_model_id").references(() => brandModelsTable.id, { onDelete: "set null" }), creationPath: text("creation_path").notNull(),
+  status: text("status").notNull().default("draft"), approvedVisualId: text("approved_visual_id"), creativeDirection: jsonb("creative_direction").$type<Record<string, unknown>>().notNull().default({}), ...timestamps,
+}, (table) => [index("mockup_projects_user_id_idx").on(table.userId)]);
+
+export const mockupVersionsTable = pgTable("mockup_versions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()), mockupProjectId: text("mockup_project_id").notNull().references(() => mockupProjectsTable.id, { onDelete: "cascade" }),
+  versionNumber: integer("version_number").notNull(), objectPath: text("object_path"), status: text("status").notNull().default("draft"), revisionRequest: text("revision_request"),
+  qaDecision: text("qa_decision"), qaChecks: jsonb("qa_checks").$type<Record<string, boolean>>().notNull().default({}), providerJobRef: text("provider_job_ref"), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("mockup_versions_project_version_unique").on(table.mockupProjectId, table.versionNumber)]);
+
 export type Business = typeof businessesTable.$inferSelect;
 export type BrandKit = typeof brandKitsTable.$inferSelect;
 export type Product = typeof productsTable.$inferSelect;
 export type ProductImage = typeof productImagesTable.$inferSelect;
+export type BrandModel = typeof brandModelsTable.$inferSelect;
