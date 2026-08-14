@@ -41,21 +41,30 @@ const getUserIdFromToken = resolveUserIdFromToken;
 
 /**
  * If a video URL points to our own object storage (/api/storage/objects/…),
- * generate a fresh 24-hour signed URL so the client can always play it.
- * For external URLs (fal.media, shotstack, etc.) the value is returned as-is.
+ * generate a fresh short-lived signed URL so the client can always play it.
+ * External URLs are returned only for backward-compatible completed projects.
  */
-async function resolveVideoUrl(videoUrl: string | null | undefined): Promise<string | null> {
+async function resolveVideoUrl(videoUrl: string | null | undefined, status?: string): Promise<string | null> {
   if (!videoUrl) return null;
-  if (!videoUrl.startsWith("/api/storage/objects/")) return videoUrl;
+  if (!videoUrl.startsWith("/api/storage/objects/")) return status === "completed" ? videoUrl : null;
   try {
     const { ObjectStorageService } = await import("../lib/objectStorage");
     const storage = new ObjectStorageService();
     const internalPath = "/objects/" + videoUrl.slice("/api/storage/objects/".length);
-    return await storage.getSignedObjectEntityUrl(internalPath, 86400); // 24-hour signed URL
+    return await storage.getSignedObjectEntityUrl(internalPath, 900);
   } catch (err) {
     console.error("[projects] Failed to sign video URL:", err);
-    return videoUrl; // fallback — client will see a broken link, but we don't lose the reference
+    return null; // keep the durable reference private and let the client retry
   }
+}
+
+function isDurableVideoPath(value: string | null | undefined): value is string {
+  return Boolean(value?.startsWith("/api/storage/objects/videos/"));
+}
+
+function downloadFilename(title: string): string {
+  const safe = title.normalize("NFKD").replace(/[^a-zA-Z0-9 _-]/g, "").trim().replace(/\s+/g, "-").slice(0, 100);
+  return `${safe || "quae-video"}.mp4`;
 }
 
 interface ArchiveJobContext {
@@ -65,6 +74,7 @@ interface ArchiveJobContext {
   projectTitle: string;
   creditCost: number;
   isAdmin: boolean;
+  renderId: string;
   voiceoverText?: string | null;
   voiceId?: string | null;
 }
@@ -86,12 +96,13 @@ interface ArchiveJobContext {
  * Non-blocking — caller does not await this.
  */
 function archiveVideoAsync(ctx: ArchiveJobContext) {
-  const { projectId, falUrl, userId, projectTitle, creditCost, isAdmin, voiceoverText, voiceId } = ctx;
+  const { projectId, falUrl, userId, projectTitle, creditCost, isAdmin, renderId, voiceoverText, voiceId } = ctx;
   setImmediate(async () => {
     let permanentPath: string;
     try {
       const { ObjectStorageService } = await import("../lib/objectStorage");
       const storage = new ObjectStorageService();
+      const storageIdentity = { userId, projectId, renderId };
 
       // Transition to "narrating" so the client can show "Adding voiceover…" instead
       // of a broken silent video. Guard: status='processing' AND videoUrl=falUrl —
@@ -120,22 +131,22 @@ function archiveVideoAsync(ctx: ArchiveJobContext) {
             const narratedBuffer = await addNarrationToVideo(falUrl, audioBuffer);
 
             if (narratedBuffer) {
-              permanentPath = await storage.uploadVideoBuffer(narratedBuffer);
+              permanentPath = await storage.uploadVideoBuffer(narratedBuffer, storageIdentity);
               console.log(`[projects] Narrated video archived for project ${projectId}`);
             } else {
               console.warn("[projects] FFmpeg mix failed — archiving silent video");
-              permanentPath = await storage.uploadVideoFromUrl(falUrl);
+              permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
             }
           } else {
             console.warn("[projects] TTS returned null — archiving silent video");
-            permanentPath = await storage.uploadVideoFromUrl(falUrl);
+            permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
           }
         } catch (err) {
           console.error("[projects] Narration pipeline error — archiving silent video:", err);
-          permanentPath = await storage.uploadVideoFromUrl(falUrl);
+          permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
         }
       } else {
-        permanentPath = await storage.uploadVideoFromUrl(falUrl);
+        permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
       }
 
       // Transition to completed — guarded by status='narrating' (we own this state
@@ -252,7 +263,7 @@ router.get("/projects", async (req, res) => {
   const resolved = await Promise.all(
     projects.map(async (p) => ({
       ...p,
-      videoUrl: await resolveVideoUrl(p.videoUrl),
+      videoUrl: await resolveVideoUrl(p.videoUrl, p.status),
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
     }))
@@ -399,15 +410,16 @@ router.get("/projects/:id", async (req, res) => {
             projectTitle: project.title,
             creditCost,
             isAdmin: owner?.isAdmin ?? false,
+            renderId: (() => { try { return new URL(poll.url).searchParams.get("request_id") || project.id + "-" + project.updatedAt.getTime(); } catch { return project.id + "-" + project.updatedAt.getTime(); } })(),
             voiceoverText,
             voiceId: project.voiceId,
           });
           // Return current row — status is still "processing"; client keeps polling
-          res.json({ ...updated[0], createdAt: updated[0].createdAt.toISOString(), updatedAt: updated[0].updatedAt.toISOString() });
+          res.json({ ...updated[0], videoUrl: null, createdAt: updated[0].createdAt.toISOString(), updatedAt: updated[0].updatedAt.toISOString() });
         } else {
           // Already resolved (e.g. by timeout watcher) — return current state
           const [current] = await db.select().from(projectsTable).where(eq(projectsTable.id, project.id));
-          const resolved = await resolveVideoUrl(current.videoUrl);
+          const resolved = await resolveVideoUrl(current.videoUrl, current.status);
           res.json({ ...current, videoUrl: resolved, createdAt: current.createdAt.toISOString(), updatedAt: current.updatedAt.toISOString() });
         }
         return;
@@ -430,8 +442,41 @@ router.get("/projects/:id", async (req, res) => {
     } catch (err) { console.error("[fal-video] poll error", err); }
   }
 
-  const resolvedVideoUrl = await resolveVideoUrl(project.videoUrl);
+  const resolvedVideoUrl = await resolveVideoUrl(project.videoUrl, project.status);
   res.json({ ...project, videoUrl: resolvedVideoUrl, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
+});
+
+/** Authenticated download; never redirects customers to a provider URL. */
+router.get("/projects/:id/video/download", async (req, res) => {
+  const userId = await getUserIdFromToken(req.headers.authorization);
+  if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const [project] = await db.select().from(projectsTable)
+    .where(and(eq(projectsTable.id, req.params.id), eq(projectsTable.userId, userId)));
+  if (!project) { res.status(404).json({ error: "Not found" }); return; }
+  if (!isDurableVideoPath(project.videoUrl)) {
+    res.status(409).json({ error: "This legacy video is not yet secured for download. Please try re-rendering it." });
+    return;
+  }
+
+  try {
+    const { ObjectStorageService } = await import("../lib/objectStorage");
+    const storage = new ObjectStorageService();
+    const objectFile = await storage.getObjectEntityFile(project.videoUrl);
+    const allowed = await storage.canAccessObjectEntity({ userId, objectFile });
+    if (!allowed) { res.status(403).json({ error: "Forbidden" }); return; }
+    const response = await storage.downloadObject(objectFile, 0);
+    res.status(response.status);
+    response.headers.forEach((value, key) => res.setHeader(key, value));
+    res.setHeader("Content-Disposition", `attachment; filename="${downloadFilename(project.title)}"`);
+    if (response.body) {
+      const { Readable } = await import("stream");
+      Readable.fromWeb(response.body as ReadableStream<Uint8Array>).pipe(res);
+    } else res.end();
+  } catch (err) {
+    console.error(`[projects] Durable download failed for project ${project.id}:`, err);
+    res.status(503).json({ error: "Your video is temporarily unavailable. Please try again shortly." });
+  }
 });
 
 router.post("/projects/:id/rerender", async (req, res) => {
