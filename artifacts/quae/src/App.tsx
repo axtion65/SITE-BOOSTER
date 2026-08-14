@@ -9,7 +9,7 @@ import { AuthProvider } from '@/hooks/use-auth';
 import Home from '@/pages/home';
 import SignIn from '@/pages/signin';
 import StudioLayout from '@/pages/studio/layout';
-import StudioIndex from '@/pages/studio/index';
+import StudioEntry from '@/pages/studio/studio-entry';
 import StudioProjects from '@/pages/studio/projects';
 import StudioProjectDetail from '@/pages/studio/project-detail';
 import StudioDashboard from '@/pages/studio/dashboard';
@@ -38,7 +38,7 @@ function Router() {
       <Route path="/studio/campaigns/:id" component={() => <StudioLayout><CampaignDetail /></StudioLayout>} />
       <Route path="/studio/campaigns" component={() => <StudioLayout><CampaignsPage /></StudioLayout>} />
       <Route path="/studio/dashboard" component={() => <StudioLayout><StudioDashboard /></StudioLayout>} />
-      <Route path="/studio" component={() => <StudioLayout><StudioIndex /></StudioLayout>} />
+      <Route path="/studio" component={() => <StudioLayout><StudioEntry /></StudioLayout>} />
       <Route path="/studio/projects" component={() => <StudioLayout><StudioProjects /></StudioLayout>} />
       <Route path="/studio/projects/:id" component={() => <StudioLayout><StudioProjectDetail /></StudioLayout>} />
       <Route path="/studio/billing" component={() => <StudioLayout><StudioBilling /></StudioLayout>} />
