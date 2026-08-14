@@ -38,6 +38,8 @@ export class FalMockupImageProvider implements MockupImageProvider {
 }
 
 export function chooseImageOperation(input: MockupGenerationRequest) {if(input.style==="brand_model"&&input.brandModelReferencePaths?.length)return "composeProductWithBrandModel" as const;return input.productReferencePaths.length?"editProductIntoScene" as const:"generateMockup" as const;}
+export function hasAuthoritativeBrandModel(style:MockupStyle,brandModelId?:string|null,references?:string[]|null){return style!=="brand_model"||Boolean(brandModelId&&references?.length);}
+export function customerMockupVersion(v:any){return {id:v.id,versionNumber:v.version_number,status:v.status,objectPath:v.object_path||undefined,message:v.status==="generating"?"Creating your visual…":undefined};}
 export function chooseAspectRatio(style:MockupStyle,channel?:string){const c=(channel||"").toLowerCase();if(/story|reel|tiktok/.test(c))return "9:16" as const;if(/landscape|youtube/.test(c))return "16:9" as const;if(style==="product_hero")return "1:1" as const;return "4:5" as const;}
 export function selectProductReferences(images:Array<{object_path:string;role:string;sort_order?:number}>,category?:string){const sorted=[...images].sort((a,b)=>(a.role==="primary"?-100:0)-(b.role==="primary"?-100:0)+Number(a.sort_order||0)-Number(b.sort_order||0));return sorted.slice(0,/shirt|apparel|garment|clothing/i.test(category||"")?2:1).map(x=>x.object_path);}
 export function buildGenerationBrief(input:{style:MockupStyle;product:any;business:any;brandKit?:any;campaign?:any;brandModel?:any;revision?:string}){

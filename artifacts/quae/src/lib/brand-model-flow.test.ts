@@ -1,0 +1,3 @@
+import test from "node:test";import assert from "node:assert/strict";import {canCreateBrandModelMockup,QUAE_CHOICE_MODEL_INPUT,requiresQuaeBrandModel} from "./brand-model-flow";
+test("Let Quae Choose requires real candidate generation",()=>{assert.equal(requiresQuaeBrandModel("brand_model",""),true);assert.equal(QUAE_CHOICE_MODEL_INPUT.archetype,"quae_choice");});
+test("Brand Model mockup cannot proceed without selected durable reference",()=>{assert.equal(canCreateBrandModelMockup("brand_model","model-1"),false);assert.equal(canCreateBrandModelMockup("brand_model","model-1","/api/storage/objects/model.png"),true);});
