@@ -34,13 +34,33 @@ router.post("/mockups/:id/generate",async(req,res):Promise<any>=>{
   const refs=selectProductReferences(project.product_images,project.category);if(!refs.length)return res.status(409).json({error:"Add a product image before creating this visual"});
   for(const path of [...refs,...(project.brand_model_refs||[])])if(!await ownsObject(userId,path))return res.status(403).json({error:"A reference image is not owned by this account"});
   const client=await pool.connect();let version:any;
-  try{await client.query("BEGIN");await client.query("SELECT id FROM mockup_projects WHERE id=$1 AND user_id=$2 FOR UPDATE",[project.id,userId]);
+  try{
+    await client.query("BEGIN");
+    const lockedProject=(await client.query("SELECT id FROM mockup_projects WHERE id=$1 AND user_id=$2 FOR UPDATE",[project.id,userId])).rows[0];
+    if(!lockedProject){
+      await client.query("ROLLBACK");
+      logger.warn({event:"mockup_project_missing_during_generation",mockupId:project.id,requestId:req.id});
+      return res.status(409).json({error:"This production brief is no longer available. Prepare the visual again."});
+    }
     version=(await client.query("SELECT * FROM mockup_versions WHERE mockup_project_id=$1 AND idempotency_key=$2",[project.id,idempotencyKey])).rows[0];
-    if(!version){const active=(await client.query("SELECT * FROM mockup_versions WHERE mockup_project_id=$1 AND status='generating' ORDER BY version_number DESC LIMIT 1",[project.id])).rows[0];if(active){await client.query("COMMIT");return res.status(202).json(customerMockupVersion(active));}
-      const versionId=crypto.randomUUID();const versionNo=Number((await client.query("SELECT COALESCE(MAX(version_number),0)+1 n FROM mockup_versions WHERE mockup_project_id=$1",[project.id])).rows[0].n);
-      version=(await client.query("INSERT INTO mockup_versions(id,mockup_project_id,version_number,status,revision_request,idempotency_key,creation_path,product_reference_paths,brand_model_id) VALUES($1,$2,$3,'generating',$4,$5,$6,$7,$8) RETURNING *",[versionId,project.id,versionNo,parsed.data.revisionRequest||null,idempotencyKey,project.creation_path,JSON.stringify(refs),project.brand_model_id])).rows[0];await client.query("UPDATE mockup_projects SET status='generating',updated_at=NOW() WHERE id=$1",[project.id]);}
+    if(!version){
+      const active=(await client.query("SELECT * FROM mockup_versions WHERE mockup_project_id=$1 AND status='generating' ORDER BY version_number DESC LIMIT 1",[project.id])).rows[0];
+      if(active){await client.query("COMMIT");return res.status(202).json(customerMockupVersion(active));}
+      const versionId=crypto.randomUUID();
+      const versionNo=Number((await client.query("SELECT COALESCE(MAX(version_number),0)+1 n FROM mockup_versions WHERE mockup_project_id=$1",[project.id])).rows[0].n);
+      version=(await client.query(
+        "INSERT INTO mockup_versions(id,mockup_project_id,version_number,status,revision_request,idempotency_key,creation_path,product_reference_paths,brand_model_id) SELECT $1,mp.id,$3,'generating',$4,$5,$6,$7,$8 FROM mockup_projects mp WHERE mp.id=$2 AND mp.user_id=$9 RETURNING *",
+        [versionId,project.id,versionNo,parsed.data.revisionRequest||null,idempotencyKey,project.creation_path,JSON.stringify(refs),project.brand_model_id,userId],
+      )).rows[0];
+      if(!version)throw new Error("mockup_project_missing_during_version_insert");
+      await client.query("UPDATE mockup_projects SET status='generating',updated_at=NOW() WHERE id=$1 AND user_id=$2",[project.id,userId]);
+    }
     await client.query("COMMIT");
-  }catch(error){await client.query("ROLLBACK").catch(()=>{});throw error}finally{client.release()}
+  }catch(error){
+    await client.query("ROLLBACK").catch(()=>{});
+    logger.error({event:"mockup_version_persistence_failed",mockupId:project.id,requestId:req.id,error:error instanceof Error?error.message:"unknown"});
+    return res.status(500).json({error:CUSTOMER_SAFE_GENERATION_ERROR});
+  }finally{client.release()}
   if(version.status!=="generating"){await pool.query("UPDATE mockup_projects SET status=$2,updated_at=NOW() WHERE id=$1 AND status='generating'",[project.id,version.status]);return res.json(customerMockupVersion(version));}
   const versionId=version.id;logger.info({event:"mockup_generation_requested",mockupId:project.id,versionId});
   try{const storage=new ObjectStorageService();const provider=new FalMockupImageProvider(async path=>storage.getSignedObjectEntityUrl(path.replace(/^\/api\/storage/,""),900));const input={style:project.creation_path,productReferencePaths:refs,brandModelReferencePaths:project.brand_model_refs||[],creativeDirection:buildGenerationBrief({style:project.creation_path,product:{name:project.product_name,category:project.category,target_customer:project.target_customer},business:{industry:project.industry,target_customer:project.target_customer},brandKit:{personality:project.personality},campaign:project.campaign_brief,brandModel:project.brand_model_name?{name:project.brand_model_name}:null,sceneDirection:project.creative_direction?.sceneDirection,revision:parsed.data.revisionRequest}),aspectRatio:chooseAspectRatio(project.creation_path,project.campaign_channel)};const generated=await provider[chooseImageOperation(input)](input);logger.info({event:"mockup_provider_completed",mockupId:project.id,versionId,jobRef:generated.providerJobRef});const saved=await storage.uploadMockupImageFromUrl(generated.temporaryUrl,{userId,businessId:project.business_id,mockupId:project.id,versionId},generated.contentType);const qa=visualQa({objectPath:saved.objectPath,contentType:saved.contentType,width:generated.width,height:generated.height,owned:true,productReferenceCount:refs.length,completed:true});const completed=(await pool.query("UPDATE mockup_versions SET object_path=$2,status=$3,qa_decision=$3,qa_checks=$4,provider_job_ref=$5,provider_model=$6,width=$7,height=$8,content_type=$9,generation_brief=$10 WHERE id=$1 RETURNING *",[versionId,saved.objectPath,qa.decision,JSON.stringify(qa.checks),generated.providerJobRef,generated.providerModel,generated.width,generated.height,saved.contentType,input.creativeDirection])).rows[0];await pool.query("UPDATE mockup_projects SET status=$2,updated_at=NOW() WHERE id=$1",[project.id,qa.decision]);logger.info({event:"mockup_version_created",mockupId:project.id,versionId,qaDecision:qa.decision});res.status(201).json({...customerMockupVersion(completed),qaNote:qa.note});
