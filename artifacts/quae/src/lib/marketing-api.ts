@@ -8,9 +8,14 @@ export async function marketingApi<T>(path: string, init?: RequestInit): Promise
   return response.status === 204 ? undefined as T : response.json();
 }
 export async function uploadMarketingImage(file: File): Promise<string> {
-  const intent = await marketingApi<{ uploadURL: string; objectPath: string; finalizeToken: string }>("/storage/uploads/request-url", { method: "POST", body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }) });
-  const uploaded = await fetch(intent.uploadURL, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-  if (!uploaded.ok) throw new Error("Image upload failed");
+  const contentType = file.type;
+  const intent = await marketingApi<{ uploadURL: string; objectPath: string; finalizeToken: string }>("/storage/uploads/request-url", { method: "POST", body: JSON.stringify({ name: file.name, size: file.size, contentType }) });
+  const uploaded = await fetch(intent.uploadURL, { method: "PUT", headers: { "Content-Type": contentType }, body: file });
+  if (!uploaded.ok) {
+    const data = await uploaded.json().catch(() => null) as { error?: unknown } | null;
+    const detail = typeof data?.error === "string" && data.error.length <= 200 ? data.error : null;
+    throw new Error(detail || `Image upload failed (${uploaded.status})`);
+  }
   await marketingApi("/storage/uploads/finalize", { method: "POST", body: JSON.stringify({ objectPath: intent.objectPath, finalizeToken: intent.finalizeToken }) });
   return intent.objectPath;
 }

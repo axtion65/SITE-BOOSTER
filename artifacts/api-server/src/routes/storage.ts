@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import { Readable } from 'stream';
 import {
   RequestUploadUrlBody,
@@ -12,6 +11,11 @@ import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from '../lib/objectStorage';
+import {
+  consumeUploadIntent,
+  issueUploadIntent,
+  validateUpload,
+} from '../lib/uploadSecurity';
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -19,39 +23,6 @@ const objectStorageService = new ObjectStorageService();
 // ---------------------------------------------------------------------------
 // Upload intent token store — single-use, server-issued, short-lived
 // ---------------------------------------------------------------------------
-interface UploadIntent {
-  userId: string;
-  objectPath: string;
-  expiresAt: number; // unix ms
-}
-
-// In-memory map: token (UUID) -> intent
-const uploadIntents = new Map<string, UploadIntent>();
-const INTENT_TTL_MS = 15 * 60 * 1000; // 15 minutes
-
-function issueUploadIntent(userId: string, objectPath: string): string {
-  const token = crypto.randomUUID();
-  const expiresAt = Date.now() + INTENT_TTL_MS;
-  uploadIntents.set(token, { userId, objectPath, expiresAt });
-  return token;
-}
-
-/** Consume a token. Returns the intent if valid & matching, or null. */
-function consumeUploadIntent(
-  token: string,
-  userId: string,
-  objectPath: string,
-): UploadIntent | null {
-  const intent = uploadIntents.get(token);
-  if (!intent) return null;
-  // Always remove — token is single-use regardless of outcome
-  uploadIntents.delete(token);
-  if (Date.now() > intent.expiresAt) return null;
-  if (intent.userId !== userId) return null;
-  if (intent.objectPath !== objectPath) return null;
-  return intent;
-}
-
 // ---------------------------------------------------------------------------
 // Auth helpers
 // ---------------------------------------------------------------------------
@@ -64,14 +35,6 @@ const resolveVerifiedUserId = resolveUserIdFromToken;
 // ---------------------------------------------------------------------------
 // Upload constraints
 // ---------------------------------------------------------------------------
-
-const ALLOWED_UPLOAD_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-]);
-const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -104,21 +67,14 @@ router.post(
     const { name, size, contentType } = parsed.data;
 
     // Server-side constraints — reject oversized files and disallowed MIME types.
-    if (size > MAX_UPLOAD_SIZE_BYTES) {
-      res.status(400).json({
-        error: `File too large. Maximum upload size is ${MAX_UPLOAD_SIZE_BYTES / 1024 / 1024} MB.`,
-      });
-      return;
-    }
-    if (!ALLOWED_UPLOAD_MIME_TYPES.has(contentType)) {
-      res.status(400).json({
-        error: `Unsupported file type "${contentType}". Allowed: ${[...ALLOWED_UPLOAD_MIME_TYPES].join(', ')}.`,
-      });
+    const validationError = validateUpload(size, contentType);
+    if (validationError) {
+      res.status(400).json({ error: validationError });
       return;
     }
 
     try {
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL(contentType);
       const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
       // Issue a single-use intent token: binds this caller + objectPath + expiry

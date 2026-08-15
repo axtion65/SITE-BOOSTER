@@ -78,6 +78,17 @@ export class ObjectNotFoundError extends Error {
   }
 }
 
+export function createObjectEntityUploadCommand(
+  contentType: string,
+  objectId: string = randomUUID(),
+): PutObjectCommand {
+  return new PutObjectCommand({
+    Bucket: storageConfig.bucket,
+    Key: `uploads/${objectId}`,
+    ContentType: contentType,
+  });
+}
+
 /**
  * Small Google-Storage-like compatibility wrapper.
  *
@@ -427,17 +438,10 @@ export class ObjectStorageService {
    * The uploaded object is stored at:
    * uploads/<uuid>
    */
-  async getObjectEntityUploadURL(): Promise<string> {
-    const objectId = randomUUID();
-    const objectName = `uploads/${objectId}`;
-
+  async getObjectEntityUploadURL(contentType: string): Promise<string> {
     return getSignedUrl(
       objectStorageClient,
-      new PutObjectCommand({
-        Bucket: storageConfig.bucket,
-        Key: objectName,
-        ContentType: "application/octet-stream",
-      }),
+      createObjectEntityUploadCommand(contentType),
       { expiresIn: 900 },
     );
   }
