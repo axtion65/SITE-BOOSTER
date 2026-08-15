@@ -11,6 +11,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0004_mockup_image_production.sql",
     "0005_safe_brand_model_replacement.sql",
     "0006_mockup_generation_runtime_guard.sql",
+    "0007_repair_mockup_version_project_foreign_key.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
@@ -49,4 +50,18 @@ test("mockup generation runtime guard repairs every production column safely", a
   ]) assert.match(sql, new RegExp(`ADD COLUMN IF NOT EXISTS ${column}`));
   assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS mockup_versions_idempotency_key_unique/);
   assert.doesNotMatch(sql, /DROP\s+(TABLE|COLUMN)/i);
+});
+
+test("mockup version relationship repair preserves customer data", async () => {
+  const sql = await readFile(
+    new URL("lib/db/migrations/0007_repair_mockup_version_project_foreign_key.sql", root),
+    "utf8",
+  );
+  assert.match(sql, /REFERENCES mockup_projects\(id\)/);
+  assert.match(sql, /ON DELETE CASCADE/);
+  assert.match(sql, /orphan_count/);
+  assert.match(sql, /administrator review/);
+  assert.match(sql, /VALIDATE CONSTRAINT mockup_versions_mockup_project_id_fkey/);
+  assert.doesNotMatch(sql, /DROP\s+(TABLE|COLUMN)/i);
+  assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE/i);
 });
