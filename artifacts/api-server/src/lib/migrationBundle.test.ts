@@ -9,6 +9,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0002_campaign_department.sql",
     "0003_mockup_studio.sql",
     "0004_mockup_image_production.sql",
+    "0005_safe_brand_model_replacement.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),

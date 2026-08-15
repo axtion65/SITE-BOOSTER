@@ -25,5 +25,7 @@ test("MarketingImage resolves signed URLs and shows a safe loading placeholder",
 test("Mockup Studio restores pending candidate selection from persisted models", () => {
   assert.match(mockupsSource, /findPendingCandidateSet\(m\)/);
   assert.match(mockupsSource, /setCandidates\(\{model:pending,paths:pending\.reference_object_paths!\}\)/);
-  assert.match(mockupsSource, /isPendingCandidateSet\(m\)\?" \(choose a candidate\)"/);
+  assert.match(mockupsSource, /Your previous Brand Model candidates/);
+  assert.match(mockupsSource, /Change preferences and create new candidates/);
+  assert.match(mockupsSource, /pending&&!replacePending/);
 });
