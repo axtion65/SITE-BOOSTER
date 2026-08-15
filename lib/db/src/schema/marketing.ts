@@ -56,6 +56,7 @@ export const brandModelsTable = pgTable("brand_models", {
   displayName: text("display_name").notNull(), adultAgeRange: text("adult_age_range").notNull(), presentation: text("presentation"), archetype: text("archetype").notNull(),
   appearanceDescription: text("appearance_description"), styling: text("styling"), hair: text("hair"), aesthetic: text("aesthetic"), wardrobeDirection: text("wardrobe_direction"), visualEnergy: text("visual_energy"),
   preferredEnvironments: jsonb("preferred_environments").$type<string[]>().notNull().default([]), referenceObjectPaths: jsonb("reference_object_paths").$type<string[]>().notNull().default([]),
+  replacementPendingModelIds: jsonb("replacement_pending_model_ids").$type<string[]>().notNull().default([]),
   referenceRightsAcknowledgedAt: timestamp("reference_rights_acknowledged_at", { withTimezone: true }), active: boolean("active").notNull().default(true), ...timestamps,
 }, (table) => [index("brand_models_business_id_idx").on(table.businessId)]);
 
