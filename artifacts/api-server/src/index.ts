@@ -6,6 +6,7 @@ import { startCampaignWorker } from "./lib/campaignWorker";
 import { pool } from "@workspace/db";
 import { bootstrapAdminFromEnvironment } from "./lib/adminBootstrap";
 import { runSqlMigrations } from "./lib/migrations";
+import { verifyMockupPersistenceBeforeTraffic } from "./lib/mockupPersistenceInvariant";
 
 // Idempotent schema migration — runs before the server accepts requests.
 // Safe to run on every startup: CREATE/ALTER IF NOT EXISTS never destroys data.
@@ -143,6 +144,7 @@ if (!process.env.STRIPE_API_KEY) {
 
 // Run idempotent migrations before accepting traffic
 await runStartupMigrations();
+await verifyMockupPersistenceBeforeTraffic(pool);
 
 // Optional, narrowly-scoped deployment bootstrap. This runs before traffic is
 // accepted and can only promote the one existing account named by the env var.

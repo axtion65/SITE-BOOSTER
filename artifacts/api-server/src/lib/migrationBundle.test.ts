@@ -12,6 +12,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0005_safe_brand_model_replacement.sql",
     "0006_mockup_generation_runtime_guard.sql",
     "0007_repair_mockup_version_project_foreign_key.sql",
+    "0008_repair_resolved_mockup_relationship.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
@@ -64,4 +65,17 @@ test("mockup version relationship repair preserves customer data", async () => {
   assert.match(sql, /VALIDATE CONSTRAINT mockup_versions_mockup_project_id_fkey/);
   assert.doesNotMatch(sql, /DROP\s+(TABLE|COLUMN)/i);
   assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE/i);
+});
+
+
+test("resolved mockup relationship repair targets application relations", async () => {
+  const sql = await readFile(
+    new URL("lib/db/migrations/0008_repair_resolved_mockup_relationship.sql", root),
+    "utf8",
+  );
+  assert.match(sql, /to_regclass\('mockup_versions'\)/);
+  assert.match(sql, /to_regclass\('mockup_projects'\)/);
+  assert.match(sql, /REFERENCES %s\(id\) ON DELETE CASCADE NOT VALID/);
+  assert.match(sql, /VALIDATE CONSTRAINT mockup_versions_mockup_project_id_fkey/);
+  assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE|DROP\s+TABLE/i);
 });
