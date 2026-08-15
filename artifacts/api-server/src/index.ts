@@ -142,6 +142,13 @@ if (!process.env.STRIPE_API_KEY) {
   logger.warn("STRIPE_API_KEY not set — billing endpoints will fail");
 }
 
+const falKey = process.env.FAL_KEY?.trim();
+if (!falKey) {
+  logger.error({ event: "mockup_provider_configuration_invalid", provider: "fal" }, "FAL_KEY is required — refusing to accept paid generation traffic");
+  process.exit(1);
+}
+logger.info({ event: "mockup_provider_configuration_verified", provider: "fal" }, "Mockup provider configuration present");
+
 // Run idempotent migrations before accepting traffic
 await runStartupMigrations();
 await verifyMockupPersistenceBeforeTraffic(pool);
