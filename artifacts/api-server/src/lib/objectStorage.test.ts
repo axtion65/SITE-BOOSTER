@@ -6,7 +6,40 @@ process.env.AWS_S3_BUCKET_NAME ||= "private-test-bucket";
 process.env.AWS_ACCESS_KEY_ID ||= "test";
 process.env.AWS_SECRET_ACCESS_KEY ||= "test";
 
-const { createObjectEntityUploadCommand, validateVideoPayload, videoObjectName, validateImagePayload, mockupImageObjectName } = await import("./objectStorage");
+const {
+  createObjectEntityUploadCommand,
+  validateVideoPayload,
+  videoObjectName,
+  validateImagePayload,
+  mockupImageObjectName,
+  ObjectStorageService,
+} = await import("./objectStorage");
+const { getObjectAclPolicy, ObjectPermission, setObjectAclPolicy } = await import("./objectAcl");
+
+class LowercasingMetadataFile {
+  readonly name = "uploads/fixed-id";
+  private metadata: Record<string, string> = {};
+
+  async exists(): Promise<[boolean]> {
+    return [true];
+  }
+
+  async getMetadata(): Promise<[Record<string, unknown>]> {
+    return [{ metadata: { ...this.metadata }, contentType: "image/png" }];
+  }
+
+  async setMetadata(input: Record<string, any>): Promise<void> {
+    for (const key of Object.keys(input.metadata ?? input)) {
+      assert.match(key, /^[a-zA-Z0-9-]+$/, "S3 metadata keys must be HTTP-header safe");
+    }
+    this.metadata = Object.fromEntries(
+      Object.entries(input.metadata ?? input).map(([key, value]) => [
+        key.toLowerCase(),
+        String(value),
+      ]),
+    );
+  }
+}
 
 for (const contentType of ["image/png", "image/jpeg", "image/webp"]) {
   test(`signed upload command preserves ${contentType}`, () => {
@@ -15,6 +48,55 @@ for (const contentType of ["image/png", "image/jpeg", "image/webp"]) {
     assert.equal(command.input.Key, "uploads/fixed-id");
   });
 }
+
+test("finalized Railway upload persists a private, owner-scoped ACL", async () => {
+  const file = new LowercasingMetadataFile();
+  const storage = new ObjectStorageService();
+  storage.getObjectEntityFile = async () => file as any;
+
+  const path = await storage.trySetObjectEntityAclPolicy(
+    "/objects/uploads/fixed-id",
+    { owner: "owner-1", visibility: "private" },
+  );
+
+  assert.equal(path, "/objects/uploads/fixed-id");
+  assert.deepEqual(await getObjectAclPolicy(file), {
+    owner: "owner-1",
+    visibility: "private",
+  });
+  assert.equal(
+    await storage.canAccessObjectEntity({
+      userId: "owner-1",
+      objectFile: file as any,
+      requestedPermission: ObjectPermission.READ,
+    }),
+    true,
+    "product image ownership validation succeeds for the owner",
+  );
+  assert.equal(
+    await storage.canAccessObjectEntity({
+      userId: "another-account",
+      objectFile: file as any,
+      requestedPermission: ObjectPermission.READ,
+    }),
+    false,
+    "product image ownership validation rejects another account",
+  );
+  assert.equal(
+    await storage.canAccessObjectEntity({
+      objectFile: file as any,
+      requestedPermission: ObjectPermission.READ,
+    }),
+    false,
+    "the image remains private when served without its owner",
+  );
+});
+
+test("ACL reads tolerate S3-lowercased metadata keys", async () => {
+  const file = new LowercasingMetadataFile();
+  await setObjectAclPolicy(file, { owner: "owner-1", visibility: "private" });
+  assert.equal((await getObjectAclPolicy(file))?.owner, "owner-1");
+});
 
 function mp4(payload = "video-data"): Buffer {
   return Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom"), Buffer.from(payload)]);

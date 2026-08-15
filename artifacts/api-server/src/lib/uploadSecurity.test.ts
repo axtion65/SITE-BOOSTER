@@ -24,3 +24,23 @@ test("finalize intents remain ownership scoped and single use", () => {
   assert.equal(consumeUploadIntent(validToken, "owner", "/objects/a")?.userId, "owner");
   assert.equal(consumeUploadIntent(validToken, "owner", "/objects/a"), null);
 });
+
+test("expired finalize intents cannot be used to assign ownership", () => {
+  const originalNow = Date.now;
+  let now = originalNow();
+  Date.now = () => now;
+  try {
+    const token = issueUploadIntent("owner", "/objects/a");
+    now += 15 * 60 * 1000 + 1;
+
+    let ownershipAssigned = false;
+    if (consumeUploadIntent(token, "owner", "/objects/a")) {
+      ownershipAssigned = true;
+    }
+
+    assert.equal(ownershipAssigned, false);
+    assert.equal(consumeUploadIntent(token, "owner", "/objects/a"), null);
+  } finally {
+    Date.now = originalNow;
+  }
+});
