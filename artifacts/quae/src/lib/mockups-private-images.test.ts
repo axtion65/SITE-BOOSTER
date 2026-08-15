@@ -29,3 +29,15 @@ test("Mockup Studio restores pending candidate selection from persisted models",
   assert.match(mockupsSource, /Change preferences and create new candidates/);
   assert.match(mockupsSource, /pending&&!replacePending/);
 });
+
+test("Mockup Studio retains PR 30 model preferences and scene controls", () => {
+  assert.match(mockupsSource, /3 · Model preferences/i);
+  for (const label of ["Gender / Presentation", "Ethnicity / Appearance", "Age (adults only)", "Model Style", "Additional model direction"]) {
+    assert.match(mockupsSource, new RegExp(label.replace(/[()]/g, "\\$&")));
+  }
+  assert.match(mockupsSource, /4 · Scene/);
+  assert.match(mockupsSource, /<Select label="Scene"/);
+  assert.match(mockupsSource, /scene==="custom".*Custom scene/s);
+  assert.match(mockupsSource, /Change preferences and create new candidates/);
+  assert.match(mockupsSource, /sceneDirection:direction\(\)/);
+});
