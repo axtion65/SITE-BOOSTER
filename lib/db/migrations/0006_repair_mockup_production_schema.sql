@@ -1,0 +1,15 @@
+-- Repair/normalize Mockup Studio production columns on existing databases.
+-- This migration is intentionally idempotent so schema drift cannot break generation.
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS creation_path TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS brand_model_id TEXT REFERENCES brand_models(id) ON DELETE SET NULL;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS product_reference_paths JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS generation_brief TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS provider_model TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS width INTEGER;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS height INTEGER;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS content_type TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS failure_code TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS mockup_versions_idempotency_key_unique
+  ON mockup_versions(idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
