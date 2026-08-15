@@ -6,7 +6,7 @@ process.env.AWS_S3_BUCKET_NAME ||= "private-test-bucket";
 process.env.AWS_ACCESS_KEY_ID ||= "test";
 process.env.AWS_SECRET_ACCESS_KEY ||= "test";
 
-const { validateVideoPayload, videoObjectName } = await import("./objectStorage");
+const { validateVideoPayload, videoObjectName, validateImagePayload, mockupImageObjectName } = await import("./objectStorage");
 
 function mp4(payload = "video-data"): Buffer {
   return Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom"), Buffer.from(payload)]);
@@ -36,3 +36,7 @@ test("rejects empty, oversized, and non-MP4 provider output", () => {
   assert.throws(() => validateVideoPayload(mp4(), "video/mp4", 4), /storage limit/);
   assert.throws(() => validateVideoPayload(Buffer.from("not an mp4"), "video/mp4"), /valid MP4/);
 });
+
+
+test("durable mockup keys are scoped and deterministic",()=>{const i={userId:"u",businessId:"b",mockupId:"m",versionId:"v"};assert.equal(mockupImageObjectName(i),"mockups/u/b/m/v.png");assert.equal(mockupImageObjectName(i),mockupImageObjectName(i));});
+test("image validation accepts magic bytes and rejects provider documents",()=>{const png=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),Buffer.alloc(32)]);assert.doesNotThrow(()=>validateImagePayload(png,"image/png"));assert.throws(()=>validateImagePayload(Buffer.from("<html>failure</html>"),"text/html"),/unsupported|error document/);assert.throws(()=>validateImagePayload(Buffer.from('{"error":true}'),"image/png"),/error document/);});

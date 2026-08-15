@@ -1,0 +1,4 @@
+import test from "node:test";import assert from "node:assert/strict";import {readFile} from "node:fs/promises";
+const source=await readFile(new URL("../routes/mockups.ts",import.meta.url),"utf8");
+test("generation resolves a duplicate key before provider construction",()=>{const duplicate=source.indexOf('if(existing){');const provider=source.indexOf('new FalMockupImageProvider',source.indexOf('router.post("/mockups/:id/generate"'));assert.ok(duplicate>0);assert.ok(provider>duplicate);assert.match(source,/FOR UPDATE/);assert.match(source,/status='generating'.*ORDER BY version_number DESC/);assert.match(source,/project\.status==="generating".*UPDATE mockup_projects SET status=\$2/);});
+test("AI Model route blocks generation without an authoritative character",()=>{assert.match(source,/hasAuthoritativeBrandModel\(project\.creation_path,project\.brand_model_id,project\.brand_model_refs\)/);assert.match(source,/Choose a Brand Model before creating this visual/);});
