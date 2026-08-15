@@ -1,0 +1,17 @@
+-- Runtime repair guard for Mockup Studio generation.
+-- Safe and idempotent: this intentionally repeats the 0004 production columns
+-- so databases that predate or partially applied that migration are repaired
+-- before the API accepts traffic.
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS creation_path TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS brand_model_id TEXT REFERENCES brand_models(id) ON DELETE SET NULL;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS product_reference_paths JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS generation_brief TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS provider_model TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS width INTEGER;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS height INTEGER;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS content_type TEXT;
+ALTER TABLE mockup_versions ADD COLUMN IF NOT EXISTS failure_code TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS mockup_versions_idempotency_key_unique
+  ON mockup_versions(idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
