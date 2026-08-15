@@ -6,7 +6,10 @@ export interface ObjectFile {
   setMetadata(metadata: Record<string, unknown>): Promise<unknown>;
 }
 
-const ACL_POLICY_METADATA_KEY = 'custom:aclPolicy';
+// S3 user metadata is transported as HTTP headers, so use a header-safe key.
+// Providers generally return this key lowercased.
+const ACL_POLICY_METADATA_KEY = 'custom-acl-policy';
+const LEGACY_ACL_POLICY_METADATA_KEY = 'custom:aclPolicy';
 
 // Can be flexibly defined according to the use case.
 //
@@ -35,7 +38,7 @@ export interface ObjectAclRule {
   permission: ObjectPermission;
 }
 
-// Stored as object custom metadata under "custom:aclPolicy" (JSON string).
+// Stored as JSON in private object custom metadata.
 export interface ObjectAclPolicy {
   owner: string;
   visibility: 'public' | 'private';
@@ -93,11 +96,25 @@ export async function getObjectAclPolicy(
   objectFile: ObjectFile,
 ): Promise<ObjectAclPolicy | null> {
   const [metadata] = await objectFile.getMetadata();
-  const aclPolicy = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
-  if (!aclPolicy) {
+  const customMetadata = metadata?.metadata;
+  if (!customMetadata || typeof customMetadata !== 'object') {
     return null;
   }
-  return JSON.parse(aclPolicy as string);
+
+  // S3-compatible providers normalize user-metadata keys to lowercase. Keep
+  // a header-safe key for writes while accepting provider-normalized casing
+  // and the legacy GCS key when policies are read back.
+  const aclPolicyEntry = Object.entries(customMetadata).find(
+    ([key]) =>
+      [ACL_POLICY_METADATA_KEY, LEGACY_ACL_POLICY_METADATA_KEY].some(
+        (candidate) => key.toLowerCase() === candidate.toLowerCase(),
+      ),
+  );
+  const aclPolicy = aclPolicyEntry?.[1];
+  if (typeof aclPolicy !== 'string' || !aclPolicy) {
+    return null;
+  }
+  return JSON.parse(aclPolicy) as ObjectAclPolicy;
 }
 
 export async function canAccessObject({
