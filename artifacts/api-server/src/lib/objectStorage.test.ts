@@ -6,7 +6,15 @@ process.env.AWS_S3_BUCKET_NAME ||= "private-test-bucket";
 process.env.AWS_ACCESS_KEY_ID ||= "test";
 process.env.AWS_SECRET_ACCESS_KEY ||= "test";
 
-const { validateVideoPayload, videoObjectName, validateImagePayload, mockupImageObjectName } = await import("./objectStorage");
+const { createObjectEntityUploadCommand, validateVideoPayload, videoObjectName, validateImagePayload, mockupImageObjectName } = await import("./objectStorage");
+
+for (const contentType of ["image/png", "image/jpeg", "image/webp"]) {
+  test(`signed upload command preserves ${contentType}`, () => {
+    const command = createObjectEntityUploadCommand(contentType, "fixed-id");
+    assert.equal(command.input.ContentType, contentType);
+    assert.equal(command.input.Key, "uploads/fixed-id");
+  });
+}
 
 function mp4(payload = "video-data"): Buffer {
   return Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom"), Buffer.from(payload)]);
