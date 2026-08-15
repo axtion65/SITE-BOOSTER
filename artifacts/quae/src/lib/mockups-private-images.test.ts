@@ -21,3 +21,9 @@ test("MarketingImage resolves signed URLs and shows a safe loading placeholder",
   assert.match(sharedSource, /url \? <img src=\{url\}/);
   assert.match(sharedSource, /role="status" aria-label="Loading secure image"/);
 });
+
+test("Mockup Studio restores pending candidate selection from persisted models", () => {
+  assert.match(mockupsSource, /findPendingCandidateSet\(m\)/);
+  assert.match(mockupsSource, /setCandidates\(\{model:pending,paths:pending\.reference_object_paths!\}\)/);
+  assert.match(mockupsSource, /isPendingCandidateSet\(m\)\?" \(choose a candidate\)"/);
+});

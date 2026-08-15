@@ -19,4 +19,10 @@ export async function uploadMarketingImage(file: File): Promise<string> {
   await marketingApi("/storage/uploads/finalize", { method: "POST", body: JSON.stringify({ objectPath: intent.objectPath, finalizeToken: intent.finalizeToken }) });
   return intent.objectPath;
 }
-export function privateImageUrl(path?: string | null) { return path ? `/api/storage/objects/${path.replace(/^\/objects\//, "")}` : ""; }
+export function privateImageUrl(path?: string | null) {
+  if (!path) return "";
+  const objectKey = path
+    .replace(/^\/api\/storage\/objects\//, "")
+    .replace(/^\/objects\//, "");
+  return `/api/storage/objects/${objectKey}`;
+}
