@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { startRenderTimeoutWatcher } from "./lib/renderTimeout";
 import { startEmailQueueWorker } from "./lib/emailQueueWorker";
 import { startCampaignWorker } from "./lib/campaignWorker";
+import { startMockupWorker } from "./lib/mockupWorker";
 import { pool } from "@workspace/db";
 import { bootstrapAdminFromEnvironment } from "./lib/adminBootstrap";
 import { runSqlMigrations } from "./lib/migrations";
@@ -165,6 +166,7 @@ const server = app.listen(port, (err) => {
   // Retry pending emails on a bounded-backoff schedule
   startEmailQueueWorker();
   startCampaignWorker();
+  startMockupWorker();
 });
 
 // Graceful shutdown — release the port cleanly before the process exits.
