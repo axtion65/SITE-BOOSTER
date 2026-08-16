@@ -1,0 +1,9 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {readFile} from "node:fs/promises";
+const source=await readFile(new URL("../routes/mockups.ts",import.meta.url),"utf8");
+const route=source.slice(source.indexOf('router.post("/mockups/:id/generate"'),source.indexOf('router.post("/mockups/:id/versions"'));
+test("preserved owned references use relational ownership and queue first version",()=>{assert.match(route,/project\.product_images\|\|\[\]/);assert.match(route,/Relational ownership is authoritative/);assert.match(route,/SELECT \$1,mp\.id,\$3,'queued','queued'/);assert.match(route,/\$7::jsonb/);});
+test("all pre-provider stages have structured diagnostics",()=>{for(const event of ["request_received","owner_resolved","project_loaded","product_references_selected","ownership_validation_started","ownership_validation_completed","transaction_started","project_locked","version_insert_attempted","version_insert_completed","job_queued"])assert.match(route,new RegExp(`mockup_generation_${event}`));assert.match(route,/pgCode:pg\?\.code/);assert.match(route,/pgConstraint:pg\?\.constraint/);assert.match(route,/pgTable:pg\?\.table/);assert.match(route,/requestId,mockupId,stage/);});
+test("missing projects, ownership failures, and persistence failures are safe",()=>{assert.match(route,/fail\(404/);assert.match(route,/ownership_validation_failed/);assert.match(route,/mockup_generation_prequeue_failed/);assert.match(route,/Contact support with request code/);assert.doesNotMatch(route,/res\.status\(500\).*databaseDetails/s);});
+test("idempotent retries cannot add a duplicate active version or call provider",()=>{assert.match(route,/idempotency_key=\$2/);assert.match(route,/FOR UPDATE/);assert.match(route,/status IN \('queued','provider_submitting','provider_processing','saving_asset'\)/);assert.doesNotMatch(route,/FalMockupImageProvider|generateMockup|composeProductWithBrandModel|editProductIntoScene/);});
