@@ -62,7 +62,8 @@ async function submit(job:Job){
   const storage=new ObjectStorageService();
   const refs:string[]=row.product_reference_paths||[];
   const allRefs=[...refs,...(row.brand_model_refs||[])];
-  const signedUrls=await Promise.all(allRefs.map((path:string)=>storage.getSignedObjectEntityUrl(normalizeStoragePath(path),900)));\n  const referenceUrls=await Promise.all(signedUrls.map(ingestReference));
+  const signedUrls=await Promise.all(allRefs.map((path:string)=>storage.getSignedObjectEntityUrl(normalizeStoragePath(path),900)));
+  const referenceUrls=await Promise.all(signedUrls.map(ingestReference));
   const brief=buildGenerationBrief({
     style:row.creation_path,
     product:{name:row.product_name,category:row.category,target_customer:row.target_customer},
