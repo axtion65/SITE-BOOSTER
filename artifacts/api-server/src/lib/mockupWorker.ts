@@ -2,7 +2,7 @@ import { hostname } from "node:os";
 import { fal } from "@fal-ai/client";
 import { pool } from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage";
-import { buildFalImageInput, buildGenerationBrief, chooseAspectRatio, PRIMARY_IMAGE_ENGINE, visualQa } from "./mockupProduction";
+import { buildFalImageInput, buildGenerationBrief, chooseAspectRatio, normalizeStoragePath, PRIMARY_IMAGE_ENGINE, visualQa } from "./mockupProduction";
 import { logger } from "./logger";
 
 const workerId=`${hostname()}:${process.pid}:${crypto.randomUUID()}`;
