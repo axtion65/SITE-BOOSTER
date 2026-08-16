@@ -3,8 +3,15 @@ export function apiHeaders(json = true): HeadersInit {
   return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(json ? { "Content-Type": "application/json" } : {}) };
 }
 export class MarketingApiError extends Error { constructor(message:string,public readonly requestId?:string){super(message);this.name="MarketingApiError";} }
+export const MARKETING_API_PREFIX = "/api";
+export function marketingApiPath(path: string): string {
+  if (!path.startsWith("/") || path === "/api" || path.startsWith("/api/")) {
+    throw new Error(`marketingApi expects a relative API path, received "${path}"`);
+  }
+  return `${MARKETING_API_PREFIX}${path}`;
+}
 export async function marketingApi<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, { ...init, headers: { ...apiHeaders(init?.body !== undefined), ...init?.headers } });
+  const response = await fetch(marketingApiPath(path), { ...init, headers: { ...apiHeaders(init?.body !== undefined), ...init?.headers } });
   if (!response.ok) { const data = await response.json().catch(() => null); throw new MarketingApiError(data?.error || "Something went wrong",typeof data?.requestId === "string" ? data.requestId : response.headers.get("x-request-id") || undefined); }
   return response.status === 204 ? undefined as T : response.json();
 }
