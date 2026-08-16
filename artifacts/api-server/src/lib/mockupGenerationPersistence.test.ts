@@ -40,4 +40,6 @@ test("private references are ingested before any paid provider submission", asyn
   assert.ok(upload > download);
   assert.ok(submit > upload);
   assert.match(worker, /reference_payload_not_image/);
+  assert.match(worker, /new File\(\[blob\]/);
+  assert.match(worker, /reference_upload_missing_url/);
 });

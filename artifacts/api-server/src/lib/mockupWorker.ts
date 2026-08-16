@@ -54,7 +54,11 @@ async function ingestReference(signedUrl:string){
   if(!response.ok)throw new Error(`reference_download_failed_${response.status}`);
   const blob=await response.blob();
   if(!blob.type.startsWith("image/"))throw new Error("reference_payload_not_image");
-  return String(await (fal as any).storage.upload(blob));
+  const extension=blob.type==="image/png"?"png":blob.type==="image/webp"?"webp":"jpg";
+  const file=new File([blob],`quae-reference.${extension}`,{type:blob.type});
+  const uploaded=await (fal as any).storage.upload(file);
+  if(typeof uploaded!=="string"||!uploaded.startsWith("http"))throw new Error("reference_upload_missing_url");
+  return uploaded;
 }
 
 async function submit(job:Job){
@@ -120,11 +124,12 @@ async function saveAsset(job:Job){
 }
 
 async function fail(job:Job,error:unknown){
-  const uncertain=job.status==="queued"||job.status==="provider_submitting";
-  const code=uncertain?"provider_submission_uncertain":`mockup_${job.status}_failed`;
+  const message=error instanceof Error?error.message:"unknown";
+  const beforePaidSubmission=job.status==="queued";
+  const code=beforePaidSubmission&&message.startsWith("reference_")?message:beforePaidSubmission?"mockup_preflight_failed":job.status==="provider_submitting"?"provider_submission_uncertain":`mockup_${job.status}_failed`;
   await pool.query("UPDATE mockup_versions SET status='failed',job_stage='failed',failure_code=$2,lease_owner=NULL,lease_expires_at=NULL WHERE id=$1",[job.id,code]).catch(()=>{});
   await pool.query("UPDATE mockup_projects SET status='failed',updated_at=NOW() WHERE id=$1",[job.mockup_project_id]).catch(()=>{});
-  logger.error({event:"mockup_job_failed",versionId:job.id,mockupId:job.mockup_project_id,stage:job.status,failureCode:code,error:error instanceof Error?error.message:"unknown"});
+  logger.error({event:"mockup_job_failed",versionId:job.id,mockupId:job.mockup_project_id,stage:job.status,failureCode:code,error:message});
 }
 
 export async function workMockupOnce(){
