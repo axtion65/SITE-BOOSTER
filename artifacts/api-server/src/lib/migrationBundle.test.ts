@@ -13,6 +13,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0006_mockup_generation_runtime_guard.sql",
     "0007_repair_mockup_version_project_foreign_key.sql",
     "0008_repair_resolved_mockup_relationship.sql",
+    "0009_resumable_mockup_production.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
@@ -78,4 +79,12 @@ test("resolved mockup relationship repair targets application relations", async 
   assert.match(sql, /REFERENCES %s\(id\) ON DELETE CASCADE NOT VALID/);
   assert.match(sql, /VALIDATE CONSTRAINT mockup_versions_mockup_project_id_fkey/);
   assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE|DROP\s+TABLE/i);
+});
+
+test("resumable mockup migration is additive and protects paid jobs", async () => {
+  const sql = await readFile(new URL("lib/db/migrations/0009_resumable_mockup_production.sql", root), "utf8");
+  for (const column of ["job_stage","queued_at","lease_owner","lease_expires_at","attempt_count","provider_output_url"])
+    assert.match(sql, new RegExp(`ADD COLUMN IF NOT EXISTS ${column}`));
+  assert.match(sql, /mockup_versions_production_queue_idx/);
+  assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
 });
