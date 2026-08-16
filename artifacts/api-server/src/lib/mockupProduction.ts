@@ -37,6 +37,8 @@ export class FalMockupImageProvider implements MockupImageProvider {
   async createBrandModel(input:Omit<MockupGenerationRequest,"productReferencePaths">){const results=[];for(let i=0;i<BRAND_MODEL_CANDIDATE_COUNT;i++)results.push(await this.run(BRAND_MODEL_IMAGE_ENGINE,{prompt:`${input.creativeDirection} Candidate ${i+1}: distinct natural pose and framing.`,num_images:1,aspect_ratio:"4:5",resolution:"1K",output_format:"png"}));return results;}
 }
 
+export function normalizeStoragePath(path:string){const prefix="/api/storage";return path.startsWith(prefix)?path.slice(prefix.length):path;}
+
 export function chooseImageOperation(input: MockupGenerationRequest) {if(input.style==="brand_model"&&input.brandModelReferencePaths?.length)return "composeProductWithBrandModel" as const;return input.productReferencePaths.length?"editProductIntoScene" as const:"generateMockup" as const;}
 export function hasAuthoritativeBrandModel(style:MockupStyle,brandModelId?:string|null,references?:string[]|null){return style!=="brand_model"||Boolean(brandModelId&&references?.length);}
 export function customerMockupVersion(v:any){const active=["queued","provider_submitting","provider_processing","saving_asset"].includes(v.status);return {id:v.id,versionNumber:v.version_number,status:v.status,stage:v.job_stage||v.status,objectPath:v.object_path||undefined,failureCode:v.failure_code||undefined,message:active?"Quae is producing your visual in the background. You can safely leave this page.":undefined};}

@@ -2,7 +2,7 @@ import { hostname } from "node:os";
 import { fal } from "@fal-ai/client";
 import { pool } from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage";
-import { buildFalImageInput, buildGenerationBrief, chooseAspectRatio, PRIMARY_IMAGE_ENGINE, visualQa } from "./mockupProduction";
+import { buildFalImageInput, buildGenerationBrief, chooseAspectRatio, normalizeStoragePath, PRIMARY_IMAGE_ENGINE, visualQa } from "./mockupProduction";
 import { logger } from "./logger";
 
 const workerId=`${hostname()}:${process.pid}:${crypto.randomUUID()}`;
@@ -54,7 +54,7 @@ async function submit(job:Job){
   const storage=new ObjectStorageService();
   const refs:string[]=row.product_reference_paths||[];
   const allRefs=[...refs,...(row.brand_model_refs||[])];
-  const referenceUrls=await Promise.all(allRefs.map((path:string)=>storage.getSignedObjectEntityUrl(path.replace(/^\\/api\\/storage/,""),900)));
+  const referenceUrls=await Promise.all(allRefs.map((path:string)=>storage.getSignedObjectEntityUrl(path.replace(/^\/api\/storage/,""),900)));
   const brief=buildGenerationBrief({
     style:row.creation_path,
     product:{name:row.product_name,category:row.category,target_customer:row.target_customer},
