@@ -19,13 +19,14 @@ test("generation persists a version only from the locked owned project", async (
   assert.match(source, /mockup_version_persistence_failed/);
 });
 
-test("provider construction stays after successful version persistence", async () => {
-  const source = await readFile(routeUrl, "utf8");
-  const persistence = source.indexOf("INSERT INTO mockup_versions");
-  const commit = source.indexOf('await client.query("COMMIT")', persistence);
-  const provider = source.indexOf("new FalMockupImageProvider", persistence);
-
-  assert.ok(persistence >= 0);
-  assert.ok(commit > persistence);
-  assert.ok(provider > commit);
+test("paid provider execution exists only in the background worker", async () => {
+  const route = await readFile(routeUrl, "utf8");
+  const worker = await readFile(new URL("./mockupWorker.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(route.slice(route.indexOf('router.post("/mockups/:id/generate"'), route.indexOf('router.post("/mockups/:id/versions"')), /queue\.submit|queue\.result/);
+  assert.match(worker, /status='provider_submitting'/);
+  assert.match(worker, /queue\.submit/);
+  assert.match(worker, /provider_job_ref=\$2/);
+  assert.match(worker, /queue\.result/);
+  assert.match(worker, /status='saving_asset'/);
+  assert.match(worker, /FOR UPDATE SKIP LOCKED/);
 });
