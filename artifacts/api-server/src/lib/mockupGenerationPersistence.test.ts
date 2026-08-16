@@ -34,7 +34,7 @@ test("paid provider execution exists only in the background worker", async () =>
 test("private references are ingested before any paid provider submission", async () => {
   const worker = await readFile(new URL("./mockupWorker.ts", import.meta.url), "utf8");
   const download = worker.indexOf("await fetch(signedUrl");
-  const upload = worker.indexOf("storage.upload(blob)");
+  const upload = worker.indexOf("storage.upload(file)");
   const submit = worker.indexOf("queue.submit");
   assert.ok(download >= 0);
   assert.ok(upload > download);
@@ -42,4 +42,10 @@ test("private references are ingested before any paid provider submission", asyn
   assert.match(worker, /reference_payload_not_image/);
   assert.match(worker, /new File\(\[blob\]/);
   assert.match(worker, /reference_upload_missing_url/);
+});
+
+test("worker normalizes and signs preserved uploads keys before provider submission", async () => {
+  const worker=await readFile(new URL("./mockupWorker.ts",import.meta.url),"utf8");
+  assert.match(worker,/getSignedObjectEntityUrl\(normalizeStoragePath\(path\),900\)/);
+  assert.ok(worker.indexOf("getSignedObjectEntityUrl(normalizeStoragePath(path),900)")<worker.indexOf("queue.submit"));
 });
