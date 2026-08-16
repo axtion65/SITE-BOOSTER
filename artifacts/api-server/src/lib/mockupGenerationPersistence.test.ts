@@ -43,3 +43,9 @@ test("private references are ingested before any paid provider submission", asyn
   assert.match(worker, /new File\(\[blob\]/);
   assert.match(worker, /reference_upload_missing_url/);
 });
+
+test("worker normalizes and signs preserved uploads keys before provider submission", async () => {
+  const worker=await readFile(new URL("./mockupWorker.ts",import.meta.url),"utf8");
+  assert.match(worker,/getSignedObjectEntityUrl\(normalizeStoragePath\(path\),900\)/);
+  assert.ok(worker.indexOf("getSignedObjectEntityUrl(normalizeStoragePath(path),900)")<worker.indexOf("queue.submit"));
+});

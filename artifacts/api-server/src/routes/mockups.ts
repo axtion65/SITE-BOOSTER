@@ -4,7 +4,7 @@ import { z } from "@workspace/api-zod";
 import { resolveUserIdFromToken } from "./auth";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
-import { buildGenerationBrief, buildVideoHandoff, chooseAspectRatio, chooseImageOperation, customerMockupVersion, CUSTOMER_SAFE_GENERATION_ERROR, deriveBrandModelBrief, FalMockupImageProvider, hasAuthoritativeBrandModel, selectProductReferences, visualQa } from "../lib/mockupProduction";
+import { buildGenerationBrief, buildVideoHandoff, chooseAspectRatio, chooseImageOperation, customerMockupVersion, CUSTOMER_SAFE_GENERATION_ERROR, deriveBrandModelBrief, FalMockupImageProvider, hasAuthoritativeBrandModel, normalizePersistedObjectPath, selectProductReferences, visualQa } from "../lib/mockupProduction";
 import { logger } from "../lib/logger";
 import {mockupCreateSchema,mockupCreateValidationError,sceneDirectionSchema} from "../lib/mockupCreateRequest";
 const router=Router();
@@ -59,8 +59,10 @@ router.post("/mockups/:id/generate",async(req,res):Promise<any>=>{
     // These paths came from product_images/brand_models joined through this owned
     // project. Relational ownership is authoritative and keeps preserved uploads
     // usable when legacy S3 objects predate ACL metadata.
-    const invalidPath=[...refs,...(project.brand_model_refs||[])].find(path=>typeof path!=="string"||(!path.startsWith("/objects/")&&!path.startsWith("/api/storage/objects/")));
-    if(invalidPath){logger.warn({event:"mockup_generation_ownership_validation_failed",...context(),error:"invalid_owned_object_path"});return fail(403,"A reference image is not owned by this account");}
+    const normalizedRefs=refs.map(normalizePersistedObjectPath);
+    const normalizedBrandRefs=(project.brand_model_refs||[]).map(normalizePersistedObjectPath);
+    if([...normalizedRefs,...normalizedBrandRefs].some(path=>!path)){logger.warn({event:"mockup_generation_ownership_validation_failed",...context(),error:"invalid_owned_object_path"});return fail(403,"A reference image is not owned by this account");}
+    const persistedRefs=normalizedRefs as string[];
     logger.info({event:"mockup_generation_ownership_validation_completed",...context()});
 
     stage="transaction_start";
@@ -78,7 +80,7 @@ router.post("/mockups/:id/generate",async(req,res):Promise<any>=>{
       const versionId=crypto.randomUUID();
       const versionNo=Number((await client.query("SELECT COALESCE(MAX(version_number),0)+1 n FROM mockup_versions WHERE mockup_project_id=$1",[project.id])).rows[0].n);
       stage="version_insert";logger.info({event:"mockup_generation_version_insert_attempted",...context(),versionId});
-      version=(await client.query("INSERT INTO mockup_versions(id,mockup_project_id,version_number,status,job_stage,queued_at,revision_request,idempotency_key,creation_path,product_reference_paths,brand_model_id) SELECT $1,mp.id,$3,'queued','queued',NOW(),$4,$5,$6,$7::jsonb,$8 FROM mockup_projects mp WHERE mp.id=$2 AND mp.user_id=$9 RETURNING *",[versionId,project.id,versionNo,parsed.data.revisionRequest||null,idempotencyKey,project.creation_path,JSON.stringify(refs),project.brand_model_id,userId])).rows[0];
+      version=(await client.query("INSERT INTO mockup_versions(id,mockup_project_id,version_number,status,job_stage,queued_at,revision_request,idempotency_key,creation_path,product_reference_paths,brand_model_id) SELECT $1,mp.id,$3,'queued','queued',NOW(),$4,$5,$6,$7::jsonb,$8 FROM mockup_projects mp WHERE mp.id=$2 AND mp.user_id=$9 RETURNING *",[versionId,project.id,versionNo,parsed.data.revisionRequest||null,idempotencyKey,project.creation_path,JSON.stringify(persistedRefs),project.brand_model_id,userId])).rows[0];
       if(!version)throw new Error("mockup_project_missing_during_version_insert");
       logger.info({event:"mockup_generation_version_insert_completed",...context(),versionId});
       await client.query("UPDATE mockup_projects SET status='queued',updated_at=NOW() WHERE id=$1 AND user_id=$2",[project.id,userId]);
