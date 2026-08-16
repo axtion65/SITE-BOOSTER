@@ -130,3 +130,10 @@ test("rejects empty, oversized, and non-MP4 provider output", () => {
 
 test("durable mockup keys are scoped and deterministic",()=>{const i={userId:"u",businessId:"b",mockupId:"m",versionId:"v"};assert.equal(mockupImageObjectName(i),"mockups/u/b/m/v.png");assert.equal(mockupImageObjectName(i),mockupImageObjectName(i));});
 test("image validation accepts magic bytes and rejects provider documents",()=>{const png=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),Buffer.alloc(32)]);assert.doesNotThrow(()=>validateImagePayload(png,"image/png"));assert.throws(()=>validateImagePayload(Buffer.from("<html>failure</html>"),"text/html"),/unsupported|error document/);assert.throws(()=>validateImagePayload(Buffer.from('{"error":true}'),"image/png"),/error document/);});
+
+
+test("object storage and generation share preserved-key normalization", () => {
+  const service = new ObjectStorageService();
+  assert.equal(service.normalizeObjectEntityPath("uploads/preserved-id"), "/objects/uploads/preserved-id");
+  assert.equal(service.normalizeObjectEntityPath("/api/storage/objects/uploads/preserved-id"), "/objects/uploads/preserved-id");
+});

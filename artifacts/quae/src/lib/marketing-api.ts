@@ -2,9 +2,10 @@ export function apiHeaders(json = true): HeadersInit {
   const token = localStorage.getItem("quae_token");
   return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(json ? { "Content-Type": "application/json" } : {}) };
 }
+export class MarketingApiError extends Error { constructor(message:string,public readonly requestId?:string){super(message);this.name="MarketingApiError";} }
 export async function marketingApi<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, { ...init, headers: { ...apiHeaders(init?.body !== undefined), ...init?.headers } });
-  if (!response.ok) { const data = await response.json().catch(() => null); throw new Error(data?.error || "Something went wrong"); }
+  if (!response.ok) { const data = await response.json().catch(() => null); throw new MarketingApiError(data?.error || "Something went wrong",typeof data?.requestId === "string" ? data.requestId : response.headers.get("x-request-id") || undefined); }
   return response.status === 204 ? undefined as T : response.json();
 }
 export async function uploadMarketingImage(file: File): Promise<string> {

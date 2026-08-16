@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { normalizeInternalObjectPath } from "./objectPath";
 import { Readable } from "stream";
 
 import {
@@ -470,12 +471,8 @@ export class ObjectStorageService {
   }
 
   normalizeObjectEntityPath(rawPath: string): string {
-    if (
-      rawPath.startsWith("/objects/") ||
-      rawPath.startsWith("/api/storage/objects/")
-    ) {
-      return `/objects/${normalizeKey(rawPath)}`;
-    }
+    const internalPath = normalizeInternalObjectPath(rawPath);
+    if (internalPath) return internalPath;
 
     try {
       const url = new URL(rawPath);

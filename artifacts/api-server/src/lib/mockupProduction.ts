@@ -1,4 +1,5 @@
 import { fal } from "@fal-ai/client";
+import { normalizeInternalObjectPath } from "./objectPath";
 
 export const PRIMARY_VIDEO_ENGINE = process.env.PRIMARY_VIDEO_ENGINE?.trim() || "ltx-fast";
 export const PRIMARY_IMAGE_ENGINE = "fal-ai/nano-banana-2/edit";
@@ -37,7 +38,9 @@ export class FalMockupImageProvider implements MockupImageProvider {
   async createBrandModel(input:Omit<MockupGenerationRequest,"productReferencePaths">){const results=[];for(let i=0;i<BRAND_MODEL_CANDIDATE_COUNT;i++)results.push(await this.run(BRAND_MODEL_IMAGE_ENGINE,{prompt:`${input.creativeDirection} Candidate ${i+1}: distinct natural pose and framing.`,num_images:1,aspect_ratio:"4:5",resolution:"1K",output_format:"png"}));return results;}
 }
 
-export function normalizeStoragePath(path:string){const prefix="/api/storage";return path.startsWith(prefix)?path.slice(prefix.length):path;}
+export function normalizeStoragePath(path:string){return normalizeInternalObjectPath(path)??path.trim();}
+/** Normalize only persisted, internal object keys; external URLs are never references. */
+export const normalizePersistedObjectPath=normalizeInternalObjectPath;
 
 export function chooseImageOperation(input: MockupGenerationRequest) {if(input.style==="brand_model"&&input.brandModelReferencePaths?.length)return "composeProductWithBrandModel" as const;return input.productReferencePaths.length?"editProductIntoScene" as const:"generateMockup" as const;}
 export function hasAuthoritativeBrandModel(style:MockupStyle,brandModelId?:string|null,references?:string[]|null){return style!=="brand_model"||Boolean(brandModelId&&references?.length);}

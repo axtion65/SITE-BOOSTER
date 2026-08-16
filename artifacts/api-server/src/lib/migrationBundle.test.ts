@@ -14,6 +14,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0007_repair_mockup_version_project_foreign_key.sql",
     "0008_repair_resolved_mockup_relationship.sql",
     "0009_resumable_mockup_production.sql",
+    "0010_mockup_generation_schema_guard.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
@@ -87,4 +88,12 @@ test("resumable mockup migration is additive and protects paid jobs", async () =
     assert.match(sql, new RegExp(`ADD COLUMN IF NOT EXISTS ${column}`));
   assert.match(sql, /mockup_versions_production_queue_idx/);
   assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
+});
+
+
+test("generation schema guard bundles every route-required column", async () => {
+  const sql = await readFile(new URL("lib/db/migrations/0010_mockup_generation_schema_guard.sql", root), "utf8");
+  for (const column of ["creative_direction","idempotency_key","creation_path","brand_model_id","product_reference_paths","job_stage","queued_at","lease_owner","lease_expires_at","attempt_count"]) assert.match(sql,new RegExp(`ADD COLUMN IF NOT EXISTS ${column}`));
+  assert.match(sql,/mockup_versions_project_idempotency_unique/);
+  assert.doesNotMatch(sql,/DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
 });
