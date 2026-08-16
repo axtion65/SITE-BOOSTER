@@ -49,12 +49,20 @@ async function contextFor(job:Job){
   return row;
 }
 
+async function ingestReference(signedUrl:string){
+  const response=await fetch(signedUrl,{signal:AbortSignal.timeout(30_000)});
+  if(!response.ok)throw new Error(`reference_download_failed_${response.status}`);
+  const blob=await response.blob();
+  if(!blob.type.startsWith("image/"))throw new Error("reference_payload_not_image");
+  return String(await (fal as any).storage.upload(blob));
+}
+
 async function submit(job:Job){
   const row=await contextFor(job);
   const storage=new ObjectStorageService();
   const refs:string[]=row.product_reference_paths||[];
   const allRefs=[...refs,...(row.brand_model_refs||[])];
-  const referenceUrls=await Promise.all(allRefs.map((path:string)=>storage.getSignedObjectEntityUrl(path.replace(/^\/api\/storage/,""),900)));
+  const signedUrls=await Promise.all(allRefs.map((path:string)=>storage.getSignedObjectEntityUrl(normalizeStoragePath(path),900)));\n  const referenceUrls=await Promise.all(signedUrls.map(ingestReference));
   const brief=buildGenerationBrief({
     style:row.creation_path,
     product:{name:row.product_name,category:row.category,target_customer:row.target_customer},

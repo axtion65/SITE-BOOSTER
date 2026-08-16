@@ -30,3 +30,14 @@ test("paid provider execution exists only in the background worker", async () =>
   assert.match(worker, /status='saving_asset'/);
   assert.match(worker, /FOR UPDATE SKIP LOCKED/);
 });
+
+test("private references are ingested before any paid provider submission", async () => {
+  const worker = await readFile(new URL("./mockupWorker.ts", import.meta.url), "utf8");
+  const download = worker.indexOf("await fetch(signedUrl");
+  const upload = worker.indexOf("storage.upload(blob)");
+  const submit = worker.indexOf("queue.submit");
+  assert.ok(download >= 0);
+  assert.ok(upload > download);
+  assert.ok(submit > upload);
+  assert.match(worker, /reference_payload_not_image/);
+});
