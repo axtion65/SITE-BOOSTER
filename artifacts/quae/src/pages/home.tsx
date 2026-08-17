@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { PLAN_CATALOG, formatUsd } from "@workspace/plans";
+import { CAMPAIGN_TEMPLATE_PRESETS, campaignTemplateUrl } from "@/lib/campaign-templates";
 
 export const HERO_HEADLINE = "Grow Your Business With an Entire AI Marketing Team";
 export const SIGNED_OUT_CAMPAIGN_ROUTE = "/signin";
@@ -38,16 +39,6 @@ const publicPlanBenefits = {
   pro: ["Higher monthly capacity", "Priority production", "Campaign history + premium exports"],
   agency: ["More creative production", "Priority production", "Team workflow access"],
 } as const satisfies Record<(typeof PLAN_CATALOG)[number]["slug"], readonly [string, string, string]>;
-
-const campaignTemplates = [
-  ["Product Launch", "Introduce a product with a clear story, launch message, creative direction, and channel plan."],
-  ["Seasonal Sale", "Coordinate a timely offer across social, video, product visuals, and print touchpoints."],
-  ["Local Business Promotion", "Turn a local goal into relevant messaging, creative, and recommended community channels."],
-  ["Social Media Growth", "Build a repeatable social campaign with content themes, hooks, captions, and video direction."],
-  ["New Customer Offer", "Package an introductory offer with persuasive copy, creative concepts, and follow-up content."],
-  ["Print + Social Campaign", "Keep physical and digital marketing aligned with one strategy and consistent message."],
-  ["E-commerce Product Campaign", "Create a product-led campaign for storefront, social, email, and promotional video."],
-] as const;
 
 function Logo() {
   return <span className="flex items-center gap-3 text-white">
@@ -120,7 +111,7 @@ export default function Home() {
 
       <section id="campaign-templates" className="scroll-mt-24 border-y border-white/[.06] bg-[#0d192b] py-20 lg:py-28"><div className="mx-auto max-w-7xl px-4 sm:px-7 lg:px-10">
         <SectionIntro eyebrow="A complete campaign starting point" title="Campaign Templates" copy="Choose a proven campaign goal, then let Quae prepare the strategy, copy, product visuals, captions, video direction, and recommended channels for your review." />
-        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{campaignTemplates.map(([title,copy],index)=><article key={title} className={`group rounded-2xl border border-white/[.08] bg-[#111d31] p-6 ${index===6 ? "lg:col-start-2" : ""}`}><span className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">Campaign Template {String(index+1).padStart(2,"0")}</span><h3 className="mt-4 text-xl font-bold">{title}</h3><p className="mt-3 leading-7 text-slate-400">{copy}</p><p className="mt-5 border-t border-white/[.07] pt-4 text-sm font-semibold text-slate-300">Strategy · Copy · Visuals · Captions · Video direction · Channels</p></article>)}</div>
+        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{CAMPAIGN_TEMPLATE_PRESETS.map((preset, index)=><Link key={preset.slug} href={campaignTemplateUrl(preset.slug, !!token)} className={`group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 ${index===6 ? "lg:col-start-2" : ""}`}><article className="h-full rounded-2xl border border-white/[.08] bg-[#111d31] p-6 transition-colors group-hover:border-violet-300/30"><span className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">Campaign Template {String(index+1).padStart(2,"0")}</span><h3 className="mt-4 text-xl font-bold">{preset.title}</h3><p className="mt-3 leading-7 text-slate-400">{preset.homepageDescription}</p><p className="mt-5 border-t border-white/[.07] pt-4 text-sm font-semibold text-slate-300">Strategy · Copy · Visuals · Captions · Video direction · Channels</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-violet-300">Use this template <ArrowRight className="h-4 w-4" /></span></article></Link>)}</div>
       </div></section>
 
       <PricingSection />

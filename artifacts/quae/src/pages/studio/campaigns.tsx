@@ -15,6 +15,10 @@ import {
 } from "./marketing-shared";
 import { ActionButton, EmptyState } from "@/components/quae-design-system";
 import { useToast } from "@/hooks/use-toast";
+import {
+  campaignFormForTemplate,
+  getCampaignTemplate,
+} from "@/lib/campaign-templates";
 const headers = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${localStorage.getItem("quae_token") || ""}`,
@@ -26,16 +30,14 @@ export default function CampaignsPage() {
     [context, setContext] = useState<any>(),
     [products, setProducts] = useState<any[]>([]),
     [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    productId: "",
-    objective: "",
-    campaignType: "Launch",
-    channel: "Instagram",
-    promotion: "",
-    instructions: "",
-    duration: "30 seconds",
-  });
+  const [selectedTemplate] = useState(() =>
+    getCampaignTemplate(
+      new URLSearchParams(window.location.search).get("template"),
+    ),
+  );
+  const [form, setForm] = useState(() =>
+    campaignFormForTemplate(selectedTemplate),
+  );
   useEffect(() => {
     Promise.all([
       fetch("/api/campaigns", { headers: headers() }).then((r) => r.json()),
@@ -127,6 +129,11 @@ export default function CampaignsPage() {
       </div>
       <div className="grid gap-6 xl:grid-cols-[.9fr_1.1fr]">
         <PremiumCard elevated>
+          {selectedTemplate && (
+            <p className="mb-4 rounded-xl bg-violet-400/10 px-4 py-3 text-sm font-bold text-violet-200">
+              {selectedTemplate.title} selected
+            </p>
+          )}
           <h2 className="text-xl font-extrabold">Brief your marketing team</h2>
           <form onSubmit={create} className="mt-6 grid gap-4 sm:grid-cols-2">
             {[
