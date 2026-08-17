@@ -47,3 +47,9 @@ test("public pricing avoids technical model marketing", () => {
   assert.doesNotMatch(home, /plan\.videos|plan\.features/);
   assert.match(home, /publicPlanBenefits\[plan\.slug\]/);
 });
+
+test("pricing uses the exact four-card breakpoint for compact desktop viewports", () => {
+  const pricing = home.slice(home.indexOf("function PricingSection"));
+  assert.match(pricing, /grid-cols-1 gap-4 min-\[700px\]:grid-cols-4 min-\[700px\]:gap-2/);
+  assert.doesNotMatch(pricing, /min-\[900px\]:grid-cols-4|sm:grid-cols-2/);
+});
