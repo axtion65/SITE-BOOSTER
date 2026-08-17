@@ -1,15 +1,49 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { lockProjectAndPersistGeneration, MockupProjectUnavailableError } from "./mockupGenerationPersistence";
+import { authoritativeMockupProjectId, lockProjectAndPersistGeneration, MockupProjectUnavailableError } from "./mockupGenerationPersistence";
 
 const routeUrl = new URL("../routes/mockups.ts", import.meta.url);
 
 test("route loads and locks the authoritative project on the same transaction client", async () => {
   const source = await readFile(routeUrl, "utf8");
   assert.match(source, /client=await pool\.connect\(\);[\s\S]*project_load[\s\S]*await client\.query[\s\S]*BEGIN[\s\S]*lockProjectAndPersistGeneration/);
-  assert.match(source, /lockProjectAndPersistGeneration\(\{client,projectId:project\.id,userId/);
+  assert.match(source, /lockProjectAndPersistGeneration\(\{client,projectId,userId/);
   assert.match(source, /mockup_version_persistence_failed/);
+});
+
+test("a flattened business id cannot replace the route's mockup-project identity", async () => {
+  const routeMockupId = "mockup-project-17";
+  const flattenedProject = {
+    mockup_project_id: routeMockupId,
+    id: "business-42",
+  };
+
+  assert.notEqual(flattenedProject.id, routeMockupId, "reproduces the mp.id/b.id collision");
+  assert.equal(authoritativeMockupProjectId(flattenedProject, routeMockupId), routeMockupId);
+  assert.throws(
+    () => authoritativeMockupProjectId(flattenedProject, "different-route-project"),
+    /mockup_project_identity_mismatch/,
+  );
+
+  const calls: Array<{ text: string; values?: unknown[] }> = [];
+  const version = { id: "version-1", mockup_project_id: routeMockupId, version_number: 1 };
+  await lockProjectAndPersistGeneration({
+    ...input(clientFor([[{ id: routeMockupId }], [], [], [{ n: 1 }], [version], []], calls)),
+    projectId: authoritativeMockupProjectId(flattenedProject, routeMockupId),
+  });
+  const lock = calls.find(call => call.text.includes("FOR UPDATE"));
+  const insert = calls.find(call => call.text.startsWith("INSERT INTO mockup_versions"));
+  assert.deepEqual(lock?.values, [routeMockupId, "owner-1"]);
+  assert.equal(insert?.values?.[1], routeMockupId);
+  assert.ok(calls.every(call => !call.values?.includes(flattenedProject.id)));
+
+  const source = await readFile(routeUrl, "utf8");
+  assert.match(source, /mp\.id AS mockup_project_id/);
+  assert.doesNotMatch(
+    source.slice(source.indexOf('router.post("/mockups/:id/generate"'), source.indexOf('router.post("/mockups/:id/versions"')),
+    /projectId:project\.id|mockupId:project\.id/,
+  );
 });
 
 function clientFor(rows: any[][], calls: Array<{ text: string; values?: unknown[] }>) {
