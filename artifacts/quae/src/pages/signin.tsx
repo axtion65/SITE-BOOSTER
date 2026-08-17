@@ -12,6 +12,7 @@ import { Copy, Check, KeyRound } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import emailjs from "@emailjs/browser";
+import { authenticationDestination } from "@/lib/campaign-templates";
 
 const EMAILJS_SERVICE_ID = "service_307mtzs";
 const EMAILJS_TEMPLATE_ID = "template_18dhhtk";
@@ -22,6 +23,7 @@ export default function SignIn() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
   const { toast } = useToast();
+  const destination = authenticationDestination(window.location.search);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,7 +52,7 @@ export default function SignIn() {
     try {
       const res = await signInMutation.mutateAsync({ data: { email, password } });
       login(res.token, res.user);
-      setLocation("/studio");
+      setLocation(destination);
     } catch (err: any) {
       toast({
         title: "Sign in failed",
@@ -74,7 +76,7 @@ export default function SignIn() {
           EMAILJS_PUBLIC_KEY
         )
         .catch(() => {/* silently ignore */});
-      setLocation("/studio");
+      setLocation(destination);
     } catch (err: any) {
       toast({
         title: "Sign up failed",
@@ -127,7 +129,7 @@ export default function SignIn() {
       if (!res.ok) throw new Error(data.error || "Failed to set new password");
       login(data.token, data.user);
       setTempPassword(null);
-      setLocation("/studio");
+      setLocation(destination);
     } catch (err: any) {
       toast({ title: "Failed", description: err.message, variant: "destructive" });
     } finally {
