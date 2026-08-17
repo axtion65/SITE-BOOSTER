@@ -10,6 +10,11 @@ export class MockupProjectUnavailableError extends Error {
   }
 }
 
+export function authoritativeMockupProjectId(project: { mockup_project_id?: unknown }, routeMockupId: string) {
+  if (project.mockup_project_id !== routeMockupId) throw new Error("mockup_project_identity_mismatch");
+  return routeMockupId;
+}
+
 type PersistGenerationInput = {
   client: GenerationQueryClient;
   projectId: string;
