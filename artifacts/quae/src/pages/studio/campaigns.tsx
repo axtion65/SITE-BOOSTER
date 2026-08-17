@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Megaphone,
   Plus,
@@ -14,9 +14,18 @@ import {
   fieldClass,
 } from "./marketing-shared";
 import { ActionButton, EmptyState } from "@/components/quae-design-system";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   campaignFormForTemplate,
+  CAMPAIGN_TEMPLATE_PRESETS,
+  type CampaignTemplatePreset,
   getCampaignTemplate,
 } from "@/lib/campaign-templates";
 const headers = () => ({
@@ -25,18 +34,19 @@ const headers = () => ({
 });
 export default function CampaignsPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const initialTemplate = getCampaignTemplate(
+    new URLSearchParams(window.location.search).get("template"),
+  );
   const [loadError, setLoadError] = useState(false);
   const [items, setItems] = useState<any[]>([]),
     [context, setContext] = useState<any>(),
     [products, setProducts] = useState<any[]>([]),
     [creating, setCreating] = useState(false);
-  const [selectedTemplate] = useState(() =>
-    getCampaignTemplate(
-      new URLSearchParams(window.location.search).get("template"),
-    ),
-  );
+  const [selectedTemplate, setSelectedTemplate] = useState(initialTemplate);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [form, setForm] = useState(() =>
-    campaignFormForTemplate(selectedTemplate),
+    campaignFormForTemplate(initialTemplate),
   );
   useEffect(() => {
     Promise.all([
@@ -55,6 +65,12 @@ export default function CampaignsPage() {
       .catch(() => setLoadError(true));
   }, []);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const applyTemplate = (preset: CampaignTemplatePreset) => {
+    setSelectedTemplate(preset);
+    setForm(campaignFormForTemplate(preset));
+    setLocation(`/studio/campaigns?template=${preset.slug}`, { replace: true });
+    setTemplatePickerOpen(false);
+  };
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setCreating(true);
@@ -119,19 +135,45 @@ export default function CampaignsPage() {
             </div>
           </div>
         </div>
-        <Link
-          href="/templates"
+        <button
+          type="button"
+          onClick={() => setTemplatePickerOpen(true)}
           className="flex items-center justify-center gap-2 rounded-xl bg-[#263754] px-5 py-3 text-sm font-bold"
         >
           <LayoutTemplate className="h-4 w-4" />
           Browse Campaign Templates
-        </Link>
+        </button>
       </div>
+      <Dialog open={templatePickerOpen} onOpenChange={setTemplatePickerOpen}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto bg-[#111d31] text-white">
+          <DialogHeader>
+            <DialogTitle>Campaign Templates</DialogTitle>
+            <DialogDescription>
+              Choose a business campaign starting point. You can edit every field before creating anything.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {CAMPAIGN_TEMPLATE_PRESETS.map((preset) => (
+              <button
+                key={preset.slug}
+                type="button"
+                onClick={() => applyTemplate(preset)}
+                className="rounded-xl border border-white/10 bg-white/[.04] p-4 text-left hover:border-violet-300/40 hover:bg-violet-400/10"
+              >
+                <span className="font-bold text-white">{preset.title}</span>
+                <span className="mt-2 block text-sm leading-6 text-[#B9C5D8]">
+                  {preset.homepageDescription}
+                </span>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="grid gap-6 xl:grid-cols-[.9fr_1.1fr]">
         <PremiumCard elevated>
           {selectedTemplate && (
             <p className="mb-4 rounded-xl bg-violet-400/10 px-4 py-3 text-sm font-bold text-violet-200">
-              {selectedTemplate.title} selected
+              {selectedTemplate.title} selected.
             </p>
           )}
           <h2 className="text-xl font-extrabold">Brief your marketing team</h2>

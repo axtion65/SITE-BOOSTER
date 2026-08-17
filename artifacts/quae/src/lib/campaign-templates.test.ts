@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CAMPAIGN_TEMPLATE_PRESETS,
   authenticationDestination,
+  campaignBuilderUrl,
   campaignFormForTemplate,
   campaignTemplateUrl,
   getCampaignTemplate,
@@ -21,6 +22,19 @@ const builder = readFileSync(
   new URL("../pages/studio/campaigns.tsx", import.meta.url),
   "utf8",
 );
+const videoTemplates = readFileSync(
+  new URL("../pages/templates.tsx", import.meta.url),
+  "utf8",
+);
+
+test("every generic homepage campaign CTA shares the safe builder destination", () => {
+  assert.equal(campaignBuilderUrl(true), "/studio/campaigns");
+  assert.equal(campaignBuilderUrl(false), "/signin?campaignBuilder=1");
+  assert.match(home, /const campaignRoute = campaignBuilderUrl\(!!token\)/);
+  assert.equal((home.match(/href=\{campaignRoute\}/g) ?? []).length, 3);
+  assert.match(home, /Build a campaign/);
+  assert.equal((home.match(/Build My First Campaign/g) ?? []).length, 2);
+});
 
 test("preset slugs are unique and form the complete allowlist", () => {
   const expected = [
@@ -80,7 +94,37 @@ test("authentication preserves only valid template intent for every completion p
     authenticationDestination("?redirect=%2Fstudio%2Fbilling"),
     "/studio",
   );
+  assert.equal(
+    authenticationDestination("?campaignBuilder=1"),
+    "/studio/campaigns",
+  );
+  assert.equal(authenticationDestination("?campaignBuilder=true"), "/studio");
+  assert.equal(authenticationDestination("?campaignBuilder=0"), "/studio");
+  assert.equal(
+    authenticationDestination(
+      "?campaignBuilder=1&campaignTemplate=product-launch",
+    ),
+    "/studio/campaigns?template=product-launch",
+  );
+  assert.equal(
+    authenticationDestination(
+      "?campaignBuilder=1&redirect=https%3A%2F%2Fevil.test",
+    ),
+    "/studio/campaigns",
+  );
   assert.equal((signin.match(/setLocation\(destination\)/g) ?? []).length, 3);
+});
+
+test("campaign picker uses all business presets without entering video templates", () => {
+  assert.match(builder, /CAMPAIGN_TEMPLATE_PRESETS\.map\(\(preset\) =>/);
+  assert.doesNotMatch(builder, /href="\/templates"/);
+  assert.match(builder, /onClick=\{\(\) => setTemplatePickerOpen\(true\)\}/);
+  assert.match(builder, /onOpenChange=\{setTemplatePickerOpen\}/);
+  assert.equal(CAMPAIGN_TEMPLATE_PRESETS.length, 7);
+  for (const preset of CAMPAIGN_TEMPLATE_PRESETS) {
+    assert.match(builder, /\{preset\.title\}/);
+    assert.equal(typeof preset.homepageDescription, "string");
+  }
 });
 
 test("builder receives preset fields while customer-owned fields stay blank and editable", () => {
@@ -104,10 +148,13 @@ test("builder receives preset fields while customer-owned fields stay blank and 
     assert.equal(edited.objective, "My own objective");
     assert.equal(edited.promotion, "SAVE20");
   }
+  assert.match(builder, /setSelectedTemplate\(preset\)/);
+  assert.match(builder, /setForm\(campaignFormForTemplate\(preset\)\)/);
   assert.match(
     builder,
-    /useState\(\(\) =>\s*campaignFormForTemplate\(selectedTemplate\)/,
+    /setLocation\(`\/studio\/campaigns\?template=\$\{preset\.slug\}`/,
   );
+  assert.match(builder, /\{selectedTemplate\.title\} selected\./);
   assert.match(
     builder,
     /onChange=\{\(e\) => set\("objective", e\.target\.value\)\}/,
@@ -127,6 +174,32 @@ test("loading a preset only prefills state; POST remains exclusively in form sub
     builder,
     /location\.assign\(`\/studio\/campaigns\/\$\{c\.id\}`\)/,
   );
+});
+
+test("opening and selecting a campaign preset cannot submit or call a provider", () => {
+  const picker = builder.slice(
+    builder.indexOf("<Dialog open={templatePickerOpen}"),
+    builder.indexOf('<div className="grid gap-6'),
+  );
+  assert.doesNotMatch(picker, /fetch\(|method:\s*"POST"|provider|create\(/i);
+  assert.equal((picker.match(/type="button"/g) ?? []).length, 1);
+  assert.match(picker, /onClick=\{\(\) => applyTemplate\(preset\)\}/);
+});
+
+test("creative video templates remain isolated in Creative Studio", () => {
+  for (const category of [
+    "TikTok Ad",
+    "UGC Review",
+    "Before & After",
+    "Shopify Promo",
+    "Amazon Listing",
+    "Trending",
+  ]) {
+    assert.match(videoTemplates, new RegExp(category.replace(/[+]/g, "\\+")));
+  }
+  assert.match(videoTemplates, /Video Templates · Proven Formats/);
+  assert.match(videoTemplates, /setLocation\(`\/studio\?\$\{params\.toString\(\)\}`\)/);
+  assert.doesNotMatch(videoTemplates, /\/studio\/campaigns\?template=/);
 });
 
 test("no preset retains the existing campaign form defaults", () => {

@@ -7,10 +7,10 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { PLAN_CATALOG, formatUsd } from "@workspace/plans";
-import { CAMPAIGN_TEMPLATE_PRESETS, campaignTemplateUrl } from "@/lib/campaign-templates";
+import { CAMPAIGN_TEMPLATE_PRESETS, campaignBuilderUrl, campaignTemplateUrl } from "@/lib/campaign-templates";
 
 export const HERO_HEADLINE = "Grow Your Business With an Entire AI Marketing Team";
-export const SIGNED_OUT_CAMPAIGN_ROUTE = "/signin";
+export const SIGNED_OUT_CAMPAIGN_ROUTE = "/signin?campaignBuilder=1";
 export const SIGNED_IN_CAMPAIGN_ROUTE = "/studio/campaigns";
 
 const outputs = [
@@ -57,7 +57,7 @@ function SectionIntro({ eyebrow, title, copy }: { eyebrow: string; title: string
 
 export default function Home() {
   const { token } = useAuth();
-  const campaignRoute = token ? SIGNED_IN_CAMPAIGN_ROUTE : SIGNED_OUT_CAMPAIGN_ROUTE;
+  const campaignRoute = campaignBuilderUrl(!!token);
   return <div className="min-h-screen overflow-x-hidden bg-[#091322] text-white selection:bg-violet-400/30">
     <header className="sticky top-0 z-50 border-b border-white/[.08] bg-[#091322]/90 backdrop-blur-xl">
       <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-7 lg:px-10">

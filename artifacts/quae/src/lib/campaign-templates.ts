@@ -109,11 +109,16 @@ export function campaignTemplateUrl(
     : `/signin?campaignTemplate=${slug}`;
 }
 
+export function campaignBuilderUrl(signedIn: boolean) {
+  return signedIn ? "/studio/campaigns" : "/signin?campaignBuilder=1";
+}
+
 export function authenticationDestination(search: string) {
-  const preset = getCampaignTemplate(
-    new URLSearchParams(search).get("campaignTemplate"),
-  );
-  return preset ? `/studio/campaigns?template=${preset.slug}` : "/studio";
+  const params = new URLSearchParams(search);
+  const preset = getCampaignTemplate(params.get("campaignTemplate"));
+  if (preset) return `/studio/campaigns?template=${preset.slug}`;
+  if (params.get("campaignBuilder") === "1") return "/studio/campaigns";
+  return "/studio";
 }
 
 export function campaignFormForTemplate(preset?: CampaignTemplatePreset) {
