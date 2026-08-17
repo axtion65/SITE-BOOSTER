@@ -162,7 +162,7 @@ function PricingSection() {
           <button type="button" aria-pressed={annual} onClick={() => setAnnual(true)} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors ${annual ? "bg-violet-600 text-white shadow-lg shadow-violet-950/30" : "text-slate-400 hover:text-white"}`}>Annual <span className="text-[10px] text-emerald-300">Save 20%</span></button>
         </div>
       </div>
-      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-10 grid gap-4 sm:grid-cols-2 min-[900px]:grid-cols-4">
         {PLAN_CATALOG.map(plan => <article key={plan.slug} className={`relative flex min-w-0 flex-col rounded-[1.4rem] border px-5 pb-5 pt-6 transition-transform hover:-translate-y-0.5 ${plan.mostPopular ? "border-violet-400/60 bg-gradient-to-b from-violet-500/[.14] to-[#111d31] shadow-[0_22px_55px_rgba(76,29,149,.22)]" : "border-white/[.09] bg-[#111d31]/95 shadow-[0_18px_45px_rgba(2,8,23,.18)]"}`}>
           {plan.mostPopular && <p className="absolute -top-3 right-4 rounded-full border border-violet-300/30 bg-violet-600 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[.15em] shadow-lg shadow-violet-950/30">Most Popular</p>}
           <div className="border-b border-white/[.07] pb-4">
