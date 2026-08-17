@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight, BadgeCheck, BookOpenCheck, BrainCircuit, Check, CheckCircle2,
@@ -5,6 +6,7 @@ import {
   PenLine, PlaySquare, Search, ShieldCheck, Sparkles, Target, WandSparkles,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { PLAN_CATALOG, formatUsd } from "@workspace/plans";
 
 export const HERO_HEADLINE = "Grow Your Business With an Entire AI Marketing Team";
 export const SIGNED_OUT_CAMPAIGN_ROUTE = "/signin";
@@ -63,7 +65,7 @@ export default function Home() {
       <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-7 lg:px-10">
         <Link href="/" aria-label="Quae.ai home"><Logo /></Link>
         <nav aria-label="Homepage navigation" className="hidden items-center gap-7 text-sm font-semibold text-slate-300 md:flex">
-          <a href="#department" className="hover:text-white">What Quae creates</a><a href="#how" className="hover:text-white">How it works</a><a href="#campaign-templates" className="hover:text-white">Campaign Templates</a>
+          <a href="#department" className="hover:text-white">What Quae creates</a><a href="#how" className="hover:text-white">How it works</a><a href="#campaign-templates" className="hover:text-white">Campaign Templates</a><a href="#pricing" className="hover:text-white">Pricing</a>
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
           <Link href={token ? "/studio/dashboard" : "/signin"} className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-300 hover:text-white sm:block">{token ? "Open workspace" : "Sign in"}</Link>
@@ -114,6 +116,8 @@ export default function Home() {
         <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{campaignTemplates.map(([title,copy],index)=><article key={title} className={`group rounded-2xl border border-white/[.08] bg-[#111d31] p-6 ${index===6 ? "lg:col-start-2" : ""}`}><span className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">Campaign Template {String(index+1).padStart(2,"0")}</span><h3 className="mt-4 text-xl font-bold">{title}</h3><p className="mt-3 leading-7 text-slate-400">{copy}</p><p className="mt-5 border-t border-white/[.07] pt-4 text-sm font-semibold text-slate-300">Strategy · Copy · Visuals · Captions · Video direction · Channels</p></article>)}</div>
       </div></section>
 
+      <PricingSection />
+
       <section className="px-4 py-20 sm:px-7 lg:py-28"><div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] border border-violet-300/20 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,.3),transparent_28rem),linear-gradient(135deg,#172641,#101c30)] px-6 py-14 text-center shadow-2xl shadow-slate-950/30 sm:px-12 sm:py-18"><Sparkles className="mx-auto h-7 w-7 text-violet-300" /><h2 className="mt-5 text-3xl font-bold tracking-[-.04em] sm:text-5xl">Put your next campaign in motion.</h2><p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-300">Start with your business and goal. Quae will help turn them into a coordinated campaign you control.</p><Link href={campaignRoute} className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-violet-600 px-7 py-3 font-bold hover:bg-violet-500">Build My First Campaign <ArrowRight className="h-4 w-4" /></Link></div></section>
     </main>
     <footer className="border-t border-white/[.07]"><div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-7 lg:px-10"><Logo /><p>Quae.ai — Your AI Marketing Department</p></div></footer>
@@ -133,4 +137,32 @@ function HowSection() {
 function ApprovalSection() {
  const states=["DRAFT","AI TEAM","REVIEW","CUSTOMER APPROVAL","FINAL"];
  return <section className="border-y border-white/[.06] bg-[#0d192b] py-20"><div className="mx-auto max-w-7xl px-4 sm:px-7 lg:px-10"><SectionIntro eyebrow="Customer-controlled workflow" title="Nothing is final until you approve it." copy="Quae prepares and reviews the work, while your team controls the decisions, requested changes, and final campaign direction."/><ol aria-label="Campaign approval workflow" className="mt-12 grid gap-3 md:grid-cols-5">{states.map((state,i)=><li key={state} className={`flex min-h-24 items-center justify-center rounded-xl border p-4 text-center text-xs font-extrabold tracking-[.12em] ${i===3?"border-emerald-300/30 bg-emerald-400/10 text-emerald-200":"border-white/[.08] bg-white/[.035] text-slate-200"}`}>{state}</li>)}</ol></div></section>;
+}
+
+
+function PricingSection() {
+  const [annual, setAnnual] = useState(false);
+  return <section id="pricing" className="scroll-mt-24 border-b border-white/[.06] py-20 lg:py-28">
+    <div className="mx-auto max-w-7xl px-4 sm:px-7 lg:px-10">
+      <SectionIntro eyebrow="Pricing" title="Simple, credit-based pricing" copy="Pay for what you use. Credits reset monthly." />
+      <div className="mt-8 flex justify-center">
+        <div className="inline-flex rounded-xl border border-white/[.08] bg-white/[.035] p-1" aria-label="Billing interval">
+          <button type="button" aria-pressed={!annual} onClick={() => setAnnual(false)} className={`rounded-lg px-5 py-2 text-sm font-semibold ${!annual ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"}`}>Monthly</button>
+          <button type="button" aria-pressed={annual} onClick={() => setAnnual(true)} className={`flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold ${annual ? "bg-violet-600 text-white" : "text-slate-400 hover:text-white"}`}>Annual <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] text-emerald-300">Save 20%</span></button>
+        </div>
+      </div>
+      <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {PLAN_CATALOG.map(plan => <article key={plan.slug} className={`relative flex flex-col rounded-2xl border p-6 ${plan.mostPopular ? "border-violet-400/60 bg-violet-500/[.08] shadow-xl shadow-violet-950/25" : "border-white/[.08] bg-[#111d31]"}`}>
+          {plan.mostPopular && <p className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-violet-600 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest">Most Popular</p>}
+          <h3 className="text-xl font-bold">{plan.name}</h3>
+          <p className="mt-1 min-h-10 text-xs text-slate-400">{plan.description}</p>
+          <p className="mt-5"><span className="text-4xl font-extrabold">${formatUsd(plan.monthlyPriceCents)}</span><span className="text-sm text-slate-400">/mo</span></p>
+          {annual && plan.annualPriceCents ? <p className="mt-1 min-h-5 text-xs font-semibold text-emerald-300">${formatUsd(plan.annualPriceCents)}/yr — save ${formatUsd(plan.monthlyPriceCents * 12 - plan.annualPriceCents)}</p> : <div className="mt-1 min-h-5" />}
+          <p className="mt-5 rounded-xl border border-white/[.07] bg-white/[.035] p-3 text-center text-xs text-slate-300"><strong className="text-white">{plan.credits} credits</strong>/mo · {plan.videos}</p>
+          <ul className="mt-6 flex-1 space-y-3">{plan.features.map(feature => <li key={feature} className="flex items-start gap-2 text-xs leading-5 text-slate-400"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300" />{feature}</li>)}</ul>
+          <Link href="/signin" className={`mt-7 flex min-h-10 items-center justify-center rounded-xl text-sm font-bold ${plan.mostPopular ? "bg-violet-600 hover:bg-violet-500" : "border border-white/[.1] bg-white/[.05] hover:bg-white/[.09]"}`}>{plan.cta}</Link>
+        </article>)}
+      </div>
+    </div>
+  </section>;
 }

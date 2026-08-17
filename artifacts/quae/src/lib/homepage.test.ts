@@ -33,3 +33,11 @@ test("campaign templates, AI team, and approval workflow render", () => {
 test("homepage embeds no private object paths or signed production URLs", () => {
   assert.doesNotMatch(home, /private-objects|signedUrl|X-Amz-|storage\/objects|fal\.media|replicate\.delivery/i);
 });
+
+
+test("public pricing remains sourced from the authoritative plan catalog", () => {
+  assert.match(home, /id="pricing"/);
+  assert.match(home, /PLAN_CATALOG\.map/);
+  assert.match(home, /import \{ PLAN_CATALOG, formatUsd \} from "@workspace\/plans"/);
+  assert.match(home, /href="#pricing"/);
+});
