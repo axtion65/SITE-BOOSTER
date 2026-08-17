@@ -1,865 +1,181 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Check, Zap, ShoppingBag, Video, Users, Star, Play, TrendingUp, Clock, DollarSign, Sparkles, ChevronRight, Wand2, Film, ChevronDown } from "lucide-react";
-import { TEMPLATE_NAMES } from "@/lib/template-constants";
+import {
+  ArrowRight, BadgeCheck, BookOpenCheck, BrainCircuit, Check, CheckCircle2,
+  ClipboardCheck, FileText, Image, Lightbulb, Megaphone, MessageSquareText,
+  PenLine, PlaySquare, Search, ShieldCheck, Sparkles, Target, WandSparkles,
+} from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 import { PLAN_CATALOG, formatUsd } from "@workspace/plans";
-// ⚠️  TEMPLATE SYNC RULE
-//     Template names come from the shared catalog in lib/templates/src/index.ts.
-//     Add, rename, or remove a template there — TypeScript errors here will point
-//     to every spot in PRODUCT_PRESETS and HOME_TEMPLATES that needs updating.
-//     See lib/template-constants.ts for the full checklist.
 
-// ─── Hero demo video assets (served from object storage) ─────────────────────
-// Upload script: artifacts/api-server/scripts/upload-hero-assets.ts
-export const HERO_DEMO_VIDEO_URL = "/api/storage/public-objects/hero-demo.mp4";
-export const HERO_DEMO_POSTER_URL = "/api/storage/public-objects/hero-demo-poster.jpg";
+export const HERO_HEADLINE = "Grow Your Business With an Entire AI Marketing Team";
+export const SIGNED_OUT_CAMPAIGN_ROUTE = "/signin";
+export const SIGNED_IN_CAMPAIGN_ROUTE = "/studio/campaigns";
 
-function HeroDemoVideo() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying] = useState(false);
+const outputs = [
+  [Target, "Campaign strategy", "A focused plan built around your business, audience, and goal."],
+  [PenLine, "Marketing copy", "Campaign messages, offers, headlines, and calls to action."],
+  [Image, "Product visuals", "On-brand creative directions and polished product imagery."],
+  [PlaySquare, "Promotional videos", "Video concepts, scripts, scenes, and production direction."],
+  [MessageSquareText, "Social content", "Channel-ready posts, captions, hooks, and content ideas."],
+  [FileText, "Print-ready marketing", "Coordinated messaging and creative for physical campaigns."],
+] as const;
 
-  function handlePlay() {
-    const vid = videoRef.current;
-    if (!vid) return;
-    if (vid.paused) {
-      vid.play();
-      setPlaying(true);
-    } else {
-      vid.pause();
-      setPlaying(false);
-    }
-  }
+const team = [
+  [Lightbulb, "Strategist", "Shapes the campaign around your goal."],
+  [Search, "Research", "Finds useful business and audience context."],
+  [Megaphone, "Hooks", "Develops clear attention-getting angles."],
+  [PenLine, "Writers", "Creates coordinated campaign copy."],
+  [ClipboardCheck, "Judge", "Challenges each idea against the brief."],
+  [WandSparkles, "Rewriter", "Improves clarity, voice, and persuasion."],
+  [ShieldCheck, "Fact Check", "Flags claims that need confirmation."],
+  [BadgeCheck, "Quality Review", "Checks consistency before your review."],
+] as const;
 
-  return (
-    <div className="relative rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl bg-black group cursor-pointer" onClick={handlePlay}>
-      <video
-        ref={videoRef}
-        src={HERO_DEMO_VIDEO_URL}
-        poster={HERO_DEMO_POSTER_URL}
-        muted
-        loop
-        playsInline
-        className="w-full aspect-video object-cover"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-      />
-      {/* Play/pause overlay */}
-      <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${playing ? "opacity-0 group-hover:opacity-100" : "opacity-100"}`}>
-        <div className="h-16 w-16 rounded-full bg-black/60 border border-white/20 backdrop-blur-md flex items-center justify-center shadow-2xl">
-          {playing
-            ? <div className="flex gap-1.5"><div className="w-[3px] h-5 bg-white rounded-full" /><div className="w-[3px] h-5 bg-white rounded-full" /></div>
-            : <Play className="h-6 w-6 text-white fill-white ml-1" />
-          }
-        </div>
-      </div>
-    </div>
-  );
+const publicPlanBenefits = {
+  free: ["Complete campaigns", "Product visuals", "Social + marketing copy"],
+  starter: ["Complete campaigns", "More creative production", "Higher monthly capacity"],
+  pro: ["Higher monthly capacity", "Priority production", "Campaign history + premium exports"],
+  agency: ["More creative production", "Priority production", "Team workflow access"],
+} as const satisfies Record<(typeof PLAN_CATALOG)[number]["slug"], readonly [string, string, string]>;
+
+const campaignTemplates = [
+  ["Product Launch", "Introduce a product with a clear story, launch message, creative direction, and channel plan."],
+  ["Seasonal Sale", "Coordinate a timely offer across social, video, product visuals, and print touchpoints."],
+  ["Local Business Promotion", "Turn a local goal into relevant messaging, creative, and recommended community channels."],
+  ["Social Media Growth", "Build a repeatable social campaign with content themes, hooks, captions, and video direction."],
+  ["New Customer Offer", "Package an introductory offer with persuasive copy, creative concepts, and follow-up content."],
+  ["Print + Social Campaign", "Keep physical and digital marketing aligned with one strategy and consistent message."],
+  ["E-commerce Product Campaign", "Create a product-led campaign for storefront, social, email, and promotional video."],
+] as const;
+
+function Logo() {
+  return <span className="flex items-center gap-3 text-white">
+    <img src="/images/logo-icon.png" alt="" className="h-10 w-10 object-contain" />
+    <span><span className="block text-xl font-extrabold leading-none">Quae<span className="text-violet-400">.ai</span></span><span className="mt-1 block text-[9px] font-bold uppercase tracking-[.2em] text-slate-400">AI Marketing Dept.</span></span>
+  </span>;
+}
+
+function SectionIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; copy?: string }) {
+  return <div className="mx-auto max-w-3xl text-center">
+    <p className="text-xs font-bold uppercase tracking-[.24em] text-violet-300">{eyebrow}</p>
+    <h2 className="mt-4 text-3xl font-bold tracking-[-.035em] text-white sm:text-4xl lg:text-5xl">{title}</h2>
+    {copy && <p className="mt-5 text-base leading-7 text-slate-300 sm:text-lg">{copy}</p>}
+  </div>;
 }
 
 export default function Home() {
-  return (
-    <div className="min-h-screen bg-[#050507] text-white flex flex-col">
-      <Navbar />
-      <main className="flex-1">
-        <HeroSection />
-        <DemoVideoSection />
-        <LogoBar />
-        <TemplatesSection />
-        <HowItWorksSection />
-        <PricingSection />
-        <TestimonialsSection />
-        <CtaSection />
-      </main>
-      <Footer />
-    </div>
-  );
-}
-
-function QuaeLogo({ size = 32 }: { size?: number }) {
-  return (
-    <div className="flex items-center gap-2.5" style={{ fontSize: size * 0.62 }}>
-      <img src="/images/logo-icon.png" alt="Quae.ai" style={{ width: size, height: size, objectFit: "contain" }} />
-      <span className="font-black tracking-tight" style={{ letterSpacing: "-0.02em" }}>
-        Quae<span className="text-violet-400">.ai</span>
-      </span>
-    </div>
-  );
-}
-
-function Navbar() {
-  return (
-    <header className="fixed top-0 w-full border-b border-white/[0.05] bg-[#050507]/90 backdrop-blur-xl z-50">
-      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <QuaeLogo size={32} />
-        <nav className="hidden md:flex items-center gap-8 text-sm">
-          <a href="#templates" className="text-white/50 hover:text-white transition-colors outline-none visited:text-white/50">Templates</a>
-          <a href="#how" className="text-white/50 hover:text-white transition-colors outline-none visited:text-white/50">How It Works</a>
-          <a href="#pricing" className="text-white/50 hover:text-white transition-colors outline-none visited:text-white/50">Pricing</a>
+  const { token } = useAuth();
+  const campaignRoute = token ? SIGNED_IN_CAMPAIGN_ROUTE : SIGNED_OUT_CAMPAIGN_ROUTE;
+  return <div className="min-h-screen overflow-x-hidden bg-[#091322] text-white selection:bg-violet-400/30">
+    <header className="sticky top-0 z-50 border-b border-white/[.08] bg-[#091322]/90 backdrop-blur-xl">
+      <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-7 lg:px-10">
+        <Link href="/" aria-label="Quae.ai home"><Logo /></Link>
+        <nav aria-label="Homepage navigation" className="hidden items-center gap-7 text-sm font-semibold text-slate-300 md:flex">
+          <a href="#department" className="hover:text-white">What Quae creates</a><a href="#how" className="hover:text-white">How it works</a><a href="#campaign-templates" className="hover:text-white">Campaign Templates</a><a href="#pricing" className="hover:text-white">Pricing</a>
         </nav>
-        <div className="flex items-center gap-3">
-          <Link href="/signin" className="text-sm text-white/50 hover:text-white transition-colors outline-none visited:text-white/50">Sign In</Link>
-          <Link href="/signin" className="h-9 px-5 bg-violet-600 hover:bg-violet-500 rounded-lg text-sm font-bold transition-all shadow-lg shadow-violet-600/20 flex items-center gap-1.5">
-            Start Free <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link href={token ? "/studio/dashboard" : "/signin"} className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-300 hover:text-white sm:block">{token ? "Open workspace" : "Sign in"}</Link>
+          <Link href={campaignRoute} className="rounded-xl bg-violet-600 px-3.5 py-2.5 text-sm font-bold shadow-lg shadow-violet-950/40 transition-colors hover:bg-violet-500 sm:px-5">Build a campaign</Link>
         </div>
       </div>
     </header>
-  );
-}
 
-// ─── Animated Studio Mockup ───────────────────────────────────────────────────
-
-// ─── Hero mockup demo data ────────────────────────────────────────────────────
-// The `template` field MUST match a value from TEMPLATE_NAMES (imported above).
-// TypeScript will error here if you use a string that isn't in TEMPLATE_NAMES,
-// reminding you to add the new name there first and keep everything in sync.
-const PRODUCT_PRESETS = [
-  {
-    product: "HydroGlow Face Serum",
-    category: "Skincare · E-Commerce",
-    audience: "Women 25–40 interested in anti-aging",
-    template: TEMPLATE_NAMES.SHOPIFY_PROMO,
-    templateColor: "#4ade80",
-    duration: "15s",
-    scriptLines: [
-      "Your skin is telling you something. Are you listening?",
-      "HydroGlow delivers 10× more hydration in just 7 days —",
-      "clinically proven, dermatologist-approved.",
-      "Tap to claim your starter kit. Free shipping today only.",
-    ],
-    accent: "from-pink-500/20 to-violet-500/20",
-    dot: "#f9a8d4",
-    thumbFrom: "#be185d",
-    thumbTo: "#7c3aed",
-  },
-  {
-    product: "Streamline Pro",
-    category: "SaaS · Productivity",
-    audience: "Startup founders & remote teams",
-    template: TEMPLATE_NAMES.PRODUCT_DEMO,
-    templateColor: "#34d399",
-    duration: "30s",
-    scriptLines: [
-      "Your team has 14 open tabs and still misses deadlines.",
-      "Streamline Pro collapses your entire workflow into one view —",
-      "tasks, docs, and async standups, all in sync.",
-      "Trusted by 4,000+ remote teams. Start free today.",
-    ],
-    accent: "from-emerald-500/20 to-cyan-500/20",
-    dot: "#6ee7b7",
-    thumbFrom: "#065f46",
-    thumbTo: "#0e7490",
-  },
-  {
-    product: "BrewCraft Cold Brew",
-    category: "Food & Beverage",
-    audience: "Coffee lovers & busy professionals",
-    template: TEMPLATE_NAMES.TIKTOK_VIRAL_HOOK,
-    templateColor: "#69C9D0",
-    duration: "15s",
-    scriptLines: [
-      "I switched to cold brew and my 2pm crash disappeared.",
-      "BrewCraft uses 100% single-origin beans, steeped 20 hours.",
-      "Smooth, bold, zero bitterness — every single time.",
-      "Order your first bag. Use code BREW20 for 20% off.",
-    ],
-    accent: "from-amber-500/20 to-orange-500/20",
-    dot: "#fcd34d",
-    thumbFrom: "#92400e",
-    thumbTo: "#c2410c",
-  },
-  {
-    product: "Apex Leather Jacket",
-    category: "Fashion · Apparel",
-    audience: "Fashion-forward men 22–35",
-    template: TEMPLATE_NAMES.UGC_REVIEW,
-    templateColor: "#f0f0f0",
-    duration: "30s",
-    scriptLines: [
-      "I've owned this jacket for 6 months. Here's my honest take.",
-      "Full-grain leather, Italian hardware, built to last a decade.",
-      "It replaced three cheaper jackets I bought in two years.",
-      "Ships in 48 hours. Free returns. Link in bio.",
-    ],
-    accent: "from-slate-500/20 to-zinc-500/20",
-    dot: "#cbd5e1",
-    thumbFrom: "#1e293b",
-    thumbTo: "#374151",
-  },
-] as const;
-
-// How long each phase lasts (ms)
-const PHASE_DURATION = 5000;
-// How many script lines are revealed per preset before cycling
-const LINES_PER_PRESET = PRODUCT_PRESETS[0].scriptLines.length;
-
-function AnimatedStudioMockup() {
-  const [presetIdx, setPresetIdx] = useState(0);
-  const [visibleLines, setVisibleLines] = useState(0);
-  const [transitioning, setTransitioning] = useState(false);
-
-  const preset = PRODUCT_PRESETS[presetIdx];
-
-  // Reveal lines one by one, then cycle to next preset
-  useEffect(() => {
-    setVisibleLines(0);
-
-    let lineTimer: ReturnType<typeof setTimeout>;
-    let cycleTimer: ReturnType<typeof setTimeout>;
-
-    // Stagger each line by 900ms
-    for (let i = 0; i < LINES_PER_PRESET; i++) {
-      lineTimer = setTimeout(() => setVisibleLines(i + 1), 600 + i * 900);
-    }
-
-    // After all lines shown, wait then cycle
-    cycleTimer = setTimeout(() => {
-      setTransitioning(true);
-      setTimeout(() => {
-        setPresetIdx((p) => (p + 1) % PRODUCT_PRESETS.length);
-        setTransitioning(false);
-      }, 500);
-    }, PHASE_DURATION);
-
-    return () => {
-      clearTimeout(lineTimer);
-      clearTimeout(cycleTimer);
-    };
-  }, [presetIdx]);
-
-  return (
-    <div className="relative w-full max-w-[420px] mx-auto lg:mx-0 select-none">
-      {/* Ambient glow — shifts colour with preset */}
-      <motion.div
-        key={presetIdx}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.8 }}
-        className={`absolute -inset-6 bg-gradient-to-br ${preset.accent} rounded-3xl blur-2xl pointer-events-none`}
-      />
-
-      {/* Card shell */}
-      <div className="relative rounded-2xl border border-white/[0.08] bg-[#0c0c10] shadow-2xl overflow-hidden">
-
-        {/* Title bar */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-            <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-            <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-          </div>
-          <span className="text-[11px] text-white/25 font-medium mx-auto pr-6">Quae Studio</span>
-        </div>
-
-        {/* Body */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={presetIdx}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: transitioning ? 0 : 1, y: transitioning ? -8 : 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.45, ease: "easeInOut" }}
-            className="p-5 space-y-4"
-          >
-            {/* Product name field */}
-            <div>
-              <label className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Product</label>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08]">
-                <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: preset.dot }} />
-                <span className="text-sm font-bold text-white">{preset.product}</span>
-                <span className="ml-auto text-[10px] text-white/25">{preset.category}</span>
-              </div>
-            </div>
-
-            {/* Audience field */}
-            <div>
-              <label className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Target Audience</label>
-              <div className="px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08]">
-                <span className="text-xs text-white/60">{preset.audience}</span>
-              </div>
-            </div>
-
-            {/* Template row */}
-            <div className="flex items-center gap-2">
-              <Film className="h-3.5 w-3.5 text-white/25 flex-shrink-0" />
-              <span className="text-[11px] text-white/35">Template:</span>
-              <span
-                className="text-[11px] font-bold px-2 py-0.5 rounded-full border"
-                style={{ color: preset.templateColor, borderColor: `${preset.templateColor}40`, backgroundColor: `${preset.templateColor}15` }}
-              >
-                {preset.template}
-              </span>
-              <span className="ml-auto text-[10px] text-white/25 font-medium">{preset.duration}</span>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-white/[0.06]" />
-
-            {/* AI Script preview + video thumbnail */}
-            <div>
-              <div className="flex items-center gap-1.5 mb-3">
-                <Wand2 className="h-3 w-3 text-violet-400" />
-                <span className="text-[10px] text-violet-400 font-bold uppercase tracking-wider">AI-Generated Script</span>
-              </div>
-              <div className="flex gap-3">
-                {/* Script lines */}
-                <div className="flex-1 space-y-2 min-h-[108px]">
-                  {preset.scriptLines.map((line, i) => (
-                    <AnimatePresence key={`${presetIdx}-${i}`}>
-                      {visibleLines > i && (
-                        <motion.div
-                          initial={{ opacity: 0, x: -6 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.35, ease: "easeOut" }}
-                          className="flex items-start gap-2"
-                        >
-                          <span className="text-[10px] text-violet-400/50 font-bold mt-0.5 flex-shrink-0 w-4">{String(i + 1).padStart(2, "0")}</span>
-                          <span className="text-[11px] text-white/55 leading-relaxed">{line}</span>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  ))}
-                </div>
-
-                {/* Portrait video thumbnail */}
-                <motion.div
-                  key={presetIdx}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
-                  className="flex-shrink-0 w-[72px] self-stretch"
-                >
-                  <div
-                    className="relative w-full h-full min-h-[108px] rounded-xl overflow-hidden border border-white/[0.08] flex items-center justify-center group cursor-default"
-                    style={{
-                      background: `linear-gradient(160deg, ${preset.thumbFrom} 0%, ${preset.thumbTo} 100%)`,
-                    }}
-                  >
-                    {/* Simulated noise/grain overlay */}
-                    <div className="absolute inset-0 opacity-20"
-                      style={{
-                        backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")",
-                        backgroundSize: "80px 80px",
-                      }}
-                    />
-                    {/* Vignette */}
-                    <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.55) 100%)" }} />
-                    {/* Simulated scene lines */}
-                    <div className="absolute inset-x-2 bottom-3 space-y-1 opacity-50">
-                      <div className="h-[2px] rounded-full bg-white/40 w-3/4" />
-                      <div className="h-[2px] rounded-full bg-white/25 w-1/2" />
-                    </div>
-                    {/* Play button */}
-                    <div className="relative z-10 h-7 w-7 rounded-full bg-black/50 border border-white/25 backdrop-blur-sm flex items-center justify-center shadow-lg">
-                      <Play className="h-3 w-3 text-white fill-white ml-0.5" />
-                    </div>
-                    {/* Duration badge */}
-                    <div className="absolute top-1.5 right-1.5 z-10 px-1 py-0.5 rounded bg-black/50 backdrop-blur-sm">
-                      <span className="text-[8px] text-white/70 font-bold tabular-nums">{preset.duration}</span>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            </div>
-
-            {/* Progress dots */}
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex gap-1.5">
-                {PRODUCT_PRESETS.map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-1 rounded-full transition-all duration-500"
-                    style={{
-                      width: i === presetIdx ? 20 : 6,
-                      backgroundColor: i === presetIdx ? preset.dot : "rgba(255,255,255,0.12)",
-                    }}
-                  />
-                ))}
-              </div>
-              <motion.div
-                animate={{ opacity: [0.4, 1, 0.4] }}
-                transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
-                className="flex items-center gap-1 text-[10px] text-violet-400/60 font-semibold"
-              >
-                <div className="h-1.5 w-1.5 rounded-full bg-violet-400/60" />
-                Generating…
-              </motion.div>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-}
-
-function HeroSection() {
-  return (
-    <section className="pt-32 pb-20 px-6 relative overflow-hidden">
-      {/* Multi-layer bg */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_-10%,rgba(124,58,237,0.18),transparent)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_30%_at_80%_20%,rgba(139,92,246,0.08),transparent)]" />
-
-      {/* Subtle grid */}
-      <div className="absolute inset-0 opacity-[0.025]" style={{
-        backgroundImage: "linear-gradient(rgba(255,255,255,0.8) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.8) 1px,transparent 1px)",
-        backgroundSize: "60px 60px"
-      }} />
-
-      <div className="max-w-6xl mx-auto relative z-10">
-        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
-
-          {/* Left: copy */}
-          <motion.div
-            initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: "easeOut" }}
-            className="flex-1 text-center lg:text-left"
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[11px] font-bold mb-8 uppercase tracking-[0.15em]">
-              <Sparkles className="h-3 w-3" /> AI Video Ads — Powered by Kling, Veo 3 & Ovi
-            </div>
-            <h1 className="text-5xl md:text-6xl lg:text-[68px] font-black tracking-tight mb-6 leading-[1.02]">
-              Create TikTok Ads,{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400">
-                Shopify Videos
-              </span>{" "}
-              &{" "}UGC Content{" "}
-              <span className="whitespace-nowrap">in Minutes</span>
-            </h1>
-            <p className="text-lg md:text-xl text-white/40 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-              Describe your product. Pick a template. Get a polished, ready-to-post video ad — without a camera, editor, or agency.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-              <Link href="/signin" className="h-14 px-8 bg-violet-600 hover:bg-violet-500 rounded-2xl font-black text-base transition-all shadow-2xl shadow-violet-600/30 hover:shadow-violet-500/40 flex items-center gap-2.5 group">
-                Start Free — 3 Videos Included
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-              </Link>
-              <Link href="/templates" className="h-14 px-8 border border-white/10 hover:border-white/20 rounded-2xl font-semibold text-base text-white/60 hover:text-white transition-all flex items-center gap-2">
-                View Templates <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <div className="mt-5 flex items-center justify-center lg:justify-start gap-1.5 text-sm text-white/25">
-              <Check className="h-3.5 w-3.5 text-violet-400/60" /> No credit card required · Cancel anytime
-            </div>
-
-            {/* Platform pills */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="mt-12 flex flex-wrap items-center justify-center lg:justify-start gap-5 text-sm text-white/25"
-            >
-              {[
-                { icon: ShoppingBag, label: "Shopify Ads" },
-                { icon: TrendingUp, label: "TikTok Hooks" },
-                { icon: Video, label: "UGC Style" },
-                { icon: Users, label: "Instagram Reels" },
-                { icon: Star, label: "Product Demos" },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <item.icon className="h-3.5 w-3.5 text-violet-400/50" />
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </motion.div>
-          </motion.div>
-
-          {/* Right: animated studio mockup */}
-          <motion.div
-            initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
-            className="w-full lg:w-auto lg:flex-shrink-0 lg:w-[420px]"
-          >
-            <AnimatedStudioMockup />
-          </motion.div>
-
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DemoVideoSection() {
-  return (
-    <section className="pb-16 px-6">
-      <div className="max-w-4xl mx-auto">
-        <p className="text-center text-[11px] uppercase tracking-[0.2em] text-white/25 font-semibold mb-6">
-          See what a finished ad looks like
-        </p>
-        <HeroDemoVideo />
-      </div>
-    </section>
-  );
-}
-
-function LogoBar() {
-  const brands = ["Shopify", "TikTok", "Amazon", "Instagram", "YouTube", "Meta Ads"];
-  return (
-    <div className="py-8 border-y border-white/[0.05] bg-white/[0.01]">
-      <div className="max-w-4xl mx-auto px-6">
-        <p className="text-center text-[11px] uppercase tracking-[0.2em] text-white/20 font-semibold mb-6">Video ads for every platform</p>
-        <div className="flex flex-wrap items-center justify-center gap-8">
-          {brands.map(b => (
-            <span key={b} className="text-white/20 font-black text-sm tracking-tight hover:text-white/40 transition-colors cursor-default">{b}</span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Templates marketing grid ─────────────────────────────────────────────────
-// The `name` field MUST match a value from TEMPLATE_NAMES (imported above).
-// TypeScript will error here if you use a string that isn't in TEMPLATE_NAMES,
-// reminding you to add the new name there first and keep everything in sync.
-const HOME_TEMPLATES = [
-  {
-    name: TEMPLATE_NAMES.SHOPIFY_PROMO,
-    desc: "Drive purchases with a polished product showcase",
-    platform: "Instagram · TikTok",
-    duration: "15s",
-    image: "/images/home-shopify.jpg",
-    accent: "#4ade80",
-  },
-  {
-    name: TEMPLATE_NAMES.TIKTOK_VIRAL_HOOK,
-    desc: "Stop-the-scroll opening that keeps viewers watching",
-    platform: "TikTok",
-    duration: "15s",
-    image: "/images/home-tiktok.jpg",
-    accent: "#69C9D0",
-  },
-  {
-    name: TEMPLATE_NAMES.UGC_REVIEW,
-    desc: "Authentic, organic-feeling testimonial video",
-    platform: "TikTok · Reels",
-    duration: "30s",
-    image: "/images/home-ugc.jpg",
-    accent: "#f0f0f0",
-  },
-  {
-    name: TEMPLATE_NAMES.BEFORE_AND_AFTER,
-    desc: "Show the transformation your product delivers",
-    platform: "All platforms",
-    duration: "30s",
-    image: "/images/home-beforeafter.jpg",
-    accent: "#a78bfa",
-  },
-  {
-    name: TEMPLATE_NAMES.FLASH_SALE,
-    desc: "Agitate the pain, then introduce your fix",
-    platform: "YouTube Shorts",
-    duration: "30s",
-    image: "/images/home-problem.jpg",
-    accent: "#f87171",
-  },
-  {
-    name: TEMPLATE_NAMES.PRODUCT_DEMO,
-    desc: "Walk through features and benefits clearly",
-    platform: "YouTube · Amazon",
-    duration: "60s",
-    image: "/images/home-demo.jpg",
-    accent: "#34d399",
-  },
-];
-
-function TemplatesSection() {
-  return (
-    <section id="templates" className="py-28 px-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-end justify-between mb-14">
+    <main>
+      <section className="relative isolate border-b border-white/[.06]">
+        <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_20%,rgba(124,58,237,.22),transparent_35rem),radial-gradient(circle_at_90%_45%,rgba(91,124,250,.13),transparent_30rem)]" />
+        <div className="mx-auto grid max-w-7xl items-center gap-14 px-4 py-20 sm:px-7 sm:py-28 lg:grid-cols-[1.02fr_.98fr] lg:px-10 lg:py-32">
           <div>
-            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">Formats</p>
-            <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">Start with a<br />proven template</h2>
+            <p className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.18em] text-violet-200"><Sparkles className="h-3.5 w-3.5" />Your AI Marketing Department</p>
+            <h1 className="mt-7 max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-[-.05em] sm:text-6xl lg:text-7xl">{HERO_HEADLINE}</h1>
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">Quae learns your business, builds your campaign, and creates the strategy, copy, product visuals, videos, social content, and print-ready marketing you need.</p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Link href={campaignRoute} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-3 font-bold shadow-xl shadow-violet-950/40 hover:bg-violet-500">Build My First Campaign <ArrowRight className="h-4 w-4" /></Link>
+              <a href="#how" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 bg-white/[.05] px-6 py-3 font-bold hover:bg-white/[.09]">See How Quae Works</a>
+            </div>
+            <p className="mt-5 flex items-center gap-2 text-sm text-slate-400"><CheckCircle2 className="h-4 w-4 text-emerald-300" />You stay in control and approve the campaign before final assets.</p>
           </div>
-          <Link href="/templates" className="hidden md:flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/20 px-4 py-2 rounded-lg">
-            View all 12 <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          <WorkflowVisual />
         </div>
+      </section>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {HOME_TEMPLATES.map((t, i) => (
-            <Link
-              key={i}
-              href="/signin"
-              className="group rounded-2xl border border-white/[0.06] hover:border-white/15 transition-all duration-500 overflow-hidden block bg-[#0c0c0f] hover:shadow-[0_8px_40px_rgba(0,0,0,0.5)] hover:-translate-y-0.5"
-            >
-              <div className="relative h-52 overflow-hidden">
-                <img
-                  src={t.image}
-                  alt={t.name}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c0f] via-[#0c0c0f]/30 to-transparent" />
-                <span className="absolute top-3 right-3 text-[10px] text-white/70 bg-black/50 backdrop-blur-sm rounded-full px-2.5 py-1 border border-white/10 font-semibold">
-                  {t.duration}
-                </span>
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-                  <div className="h-12 w-12 rounded-full bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center shadow-xl">
-                    <Play className="h-4 w-4 text-white fill-white ml-0.5" />
-                  </div>
-                </div>
-              </div>
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <h3 className="font-bold text-white text-sm leading-snug group-hover:text-violet-300 transition-colors">{t.name}</h3>
-                  <div className="h-1.5 w-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: t.accent }} />
-                </div>
-                <p className="text-xs text-white/35 leading-relaxed mb-3">{t.desc}</p>
-                <div className="flex items-center gap-1.5 text-[10px] text-white/25 font-medium uppercase tracking-wide">
-                  <span>{t.platform}</span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+      <section id="department" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-20 sm:px-7 lg:px-10 lg:py-28">
+        <SectionIntro eyebrow="One coordinated department" title="Everything Your Marketing Department Creates" copy="Strategy and production work together, so every deliverable supports the same campaign rather than becoming another disconnected asset." />
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{outputs.map(([Icon,title,copy]) => <article key={title} className="rounded-2xl border border-white/[.08] bg-[#111d31] p-6 shadow-xl shadow-slate-950/15"><Icon className="h-6 w-6 text-violet-300" /><h3 className="mt-5 text-lg font-bold">{title}</h3><p className="mt-2 leading-6 text-slate-400">{copy}</p></article>)}</div>
+      </section>
 
-        <div className="mt-8 text-center md:hidden">
-          <Link href="/templates" className="inline-flex items-center gap-1.5 text-sm text-violet-400 hover:text-violet-300 transition-colors font-semibold">
-            View all 12 templates <ArrowRight className="h-4 w-4" />
-          </Link>
+      <section className="border-y border-white/[.06] bg-[#0d192b] py-20 lg:py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-7 lg:px-10"><SectionIntro eyebrow="Specialists working together" title="Your AI Marketing Team" copy="Quae organizes distinct marketing roles into one reviewable workflow. Each role strengthens the campaign before it reaches you." />
+          <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{team.map(([Icon,title,copy]) => <article key={title} className="rounded-2xl border border-white/[.07] bg-white/[.035] p-5"><Icon className="h-5 w-5 text-violet-300" /><h3 className="mt-4 font-bold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{copy}</p></article>)}</div>
         </div>
-      </div>
-    </section>
-  );
+      </section>
+
+      <HowSection />
+      <ApprovalSection />
+
+      <section className="mx-auto grid max-w-7xl gap-10 px-4 py-20 sm:px-7 lg:grid-cols-2 lg:px-10 lg:py-28">
+        <div><p className="text-xs font-bold uppercase tracking-[.24em] text-violet-300">Built around your brand</p><h2 className="mt-4 text-4xl font-bold tracking-[-.04em] sm:text-5xl">Quae already knows your business.</h2><p className="mt-6 text-lg leading-8 text-slate-300">Your approved business profile, products, audience, voice, and brand direction give each new campaign a consistent starting point. You can review the work, refine the brief, and keep every asset aligned.</p></div>
+        <div className="rounded-3xl border border-violet-300/15 bg-gradient-to-br from-violet-500/15 to-[#172641] p-7 sm:p-9"><BookOpenCheck className="h-8 w-8 text-violet-300" /><h3 className="mt-6 text-xl font-bold">One business context. Every campaign.</h3><ul className="mt-6 space-y-4 text-slate-300">{["Business goals and audience", "Brand voice and campaign message", "Approved products and visual direction", "Consistent review and customer approval"].map(x=><li key={x} className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />{x}</li>)}</ul></div>
+      </section>
+
+      <section id="campaign-templates" className="scroll-mt-24 border-y border-white/[.06] bg-[#0d192b] py-20 lg:py-28"><div className="mx-auto max-w-7xl px-4 sm:px-7 lg:px-10">
+        <SectionIntro eyebrow="A complete campaign starting point" title="Campaign Templates" copy="Choose a proven campaign goal, then let Quae prepare the strategy, copy, product visuals, captions, video direction, and recommended channels for your review." />
+        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{campaignTemplates.map(([title,copy],index)=><article key={title} className={`group rounded-2xl border border-white/[.08] bg-[#111d31] p-6 ${index===6 ? "lg:col-start-2" : ""}`}><span className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">Campaign Template {String(index+1).padStart(2,"0")}</span><h3 className="mt-4 text-xl font-bold">{title}</h3><p className="mt-3 leading-7 text-slate-400">{copy}</p><p className="mt-5 border-t border-white/[.07] pt-4 text-sm font-semibold text-slate-300">Strategy · Copy · Visuals · Captions · Video direction · Channels</p></article>)}</div>
+      </div></section>
+
+      <PricingSection />
+
+      <section className="px-4 py-20 sm:px-7 lg:py-28"><div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] border border-violet-300/20 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,.3),transparent_28rem),linear-gradient(135deg,#172641,#101c30)] px-6 py-14 text-center shadow-2xl shadow-slate-950/30 sm:px-12 sm:py-18"><Sparkles className="mx-auto h-7 w-7 text-violet-300" /><h2 className="mt-5 text-3xl font-bold tracking-[-.04em] sm:text-5xl">Put your next campaign in motion.</h2><p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-300">Start with your business and goal. Quae will help turn them into a coordinated campaign you control.</p><Link href={campaignRoute} className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-violet-600 px-7 py-3 font-bold hover:bg-violet-500">Build My First Campaign <ArrowRight className="h-4 w-4" /></Link></div></section>
+    </main>
+    <footer className="border-t border-white/[.07]"><div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-7 lg:px-10"><Logo /><p>Quae.ai — Your AI Marketing Department</p></div></footer>
+  </div>;
 }
 
-function HowItWorksSection() {
-  const steps = [
-    { n: "01", title: "Describe your product", desc: "Name, benefits, audience. 30 seconds to fill out." },
-    { n: "02", title: "AI writes the script", desc: "Claude generates a scroll-stopping hook, scenes, and full voiceover." },
-    { n: "03", title: "Choose your model", desc: "Ovi for speed. Kling for cinematic. Veo 3 for agency-grade output." },
-    { n: "04", title: "Download your video", desc: "Ready-to-post MP4. No editing. No camera. No waiting for a freelancer." },
-  ];
-  return (
-    <section id="how" className="py-28 px-6 border-t border-white/[0.05]">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-20">
-          <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">Process</p>
-          <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4">From idea to video<br />in 4 steps</h2>
-          <p className="text-white/35 text-lg">No studio. No editor. No agency retainer.</p>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {steps.map((s, i) => (
-            <div key={i} className="relative group">
-              <div className="text-7xl font-black text-white/[0.04] mb-4 leading-none select-none group-hover:text-white/[0.07] transition-colors duration-500">{s.n}</div>
-              <div className="w-8 h-[2px] bg-violet-500/50 mb-4 group-hover:w-12 group-hover:bg-violet-400 transition-all duration-500" />
-              <h3 className="font-bold text-white mb-2 text-sm">{s.title}</h3>
-              <p className="text-xs text-white/35 leading-relaxed">{s.desc}</p>
-              {i < steps.length - 1 && (
-                <div className="hidden lg:block absolute top-10 -right-3 text-white/[0.08] text-xl select-none">→</div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-16 grid grid-cols-3 gap-4 max-w-md mx-auto">
-          {[
-            { icon: Clock, label: "Avg render time", value: "~2 min" },
-            { icon: DollarSign, label: "vs Agency cost", value: "97% less" },
-            { icon: TrendingUp, label: "Platforms", value: "5+" },
-          ].map((stat, i) => (
-            <div key={i} className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-center hover:border-violet-500/20 transition-colors">
-              <stat.icon className="h-4 w-4 text-violet-400 mx-auto mb-3 opacity-70" />
-              <div className="font-black text-white text-lg">{stat.value}</div>
-              <div className="text-[10px] text-white/25 mt-1 uppercase tracking-wide">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+function WorkflowVisual() {
+  const steps = ["Business", "Campaign Strategy", "Customer Approval", "Product Visual", "Video & Marketing Assets"];
+  return <div className="relative rounded-[2rem] border border-white/[.1] bg-[#111d31]/95 p-5 shadow-2xl shadow-slate-950/40 sm:p-7"><div className="flex items-center justify-between border-b border-white/[.07] pb-5"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-violet-300">Campaign workspace</p><p className="mt-1 text-sm text-slate-400">From business context to approved assets</p></div><BrainCircuit className="h-7 w-7 text-violet-300" /></div><ol className="mt-6 space-y-3">{steps.map((step,i)=><li key={step} className="flex items-center gap-4 rounded-xl border border-white/[.07] bg-white/[.035] p-4"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${i===2 ? "bg-emerald-400/15 text-emerald-300" : "bg-violet-400/15 text-violet-200"}`}>{i===2 ? <Check className="h-4 w-4"/> : i+1}</span><div className="min-w-0 flex-1"><p className="font-semibold">{step}</p><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.06]"><div className={`h-full rounded-full ${i<=2 ? "w-full bg-violet-400" : "w-2/3 bg-indigo-400/60"}`} /></div></div></li>)}</ol></div>;
 }
+
+function HowSection() {
+  const steps = [["01","Tell Quae about your business","Give Quae the context it needs to understand your brand, products, and audience."],["02","Choose a goal or Campaign Template","Start from the outcome you want, not from a disconnected piece of content."],["03","Review and approve the campaign","Inspect the strategy and direction, request changes, and decide when it is ready."],["04","Create and launch marketing assets","Produce the coordinated visuals, video, social, copy, and print marketing you need."]];
+  return <section id="how" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-20 sm:px-7 lg:px-10 lg:py-28"><SectionIntro eyebrow="Simple, guided, accountable" title="How Quae Works" /><ol className="mt-12 grid gap-5 lg:grid-cols-4">{steps.map(([n,title,copy])=><li key={n} className="relative rounded-2xl border border-white/[.08] bg-[#111d31] p-6"><span className="text-sm font-bold text-violet-300">{n}</span><h3 className="mt-8 text-xl font-bold">{title}</h3><p className="mt-3 leading-7 text-slate-400">{copy}</p></li>)}</ol></section>;
+}
+
+function ApprovalSection() {
+ const states=["DRAFT","AI TEAM","REVIEW","CUSTOMER APPROVAL","FINAL"];
+ return <section className="border-y border-white/[.06] bg-[#0d192b] py-20"><div className="mx-auto max-w-7xl px-4 sm:px-7 lg:px-10"><SectionIntro eyebrow="Customer-controlled workflow" title="Nothing is final until you approve it." copy="Quae prepares and reviews the work, while your team controls the decisions, requested changes, and final campaign direction."/><ol aria-label="Campaign approval workflow" className="mt-12 grid gap-3 md:grid-cols-5">{states.map((state,i)=><li key={state} className={`flex min-h-24 items-center justify-center rounded-xl border p-4 text-center text-xs font-extrabold tracking-[.12em] ${i===3?"border-emerald-300/30 bg-emerald-400/10 text-emerald-200":"border-white/[.08] bg-white/[.035] text-slate-200"}`}>{state}</li>)}</ol></div></section>;
+}
+
 
 function PricingSection() {
   const [annual, setAnnual] = useState(false);
-  return (
-    <section id="pricing" className="py-28 px-6 border-t border-white/[0.05]">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-14">
-          <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">Pricing</p>
-          <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4">Simple, credit-based pricing</h2>
-          <p className="text-white/35 text-lg mb-8">Pay for what you use. Credits reset monthly.</p>
-          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.08]">
-            <button onClick={() => setAnnual(false)} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${!annual ? "bg-white/10 text-white" : "text-white/30 hover:text-white/50"}`}>
-              Monthly
-            </button>
-            <button onClick={() => setAnnual(true)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${annual ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-white/30 hover:text-white/50"}`}>
-              Annual <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full font-bold">Save 20%</span>
-            </button>
+  return <section id="pricing" className="scroll-mt-24 border-b border-white/[.06] bg-[radial-gradient(circle_at_50%_0%,rgba(124,58,237,.12),transparent_28rem)] py-18 lg:py-24">
+    <div className="mx-auto max-w-7xl px-4 sm:px-7 lg:px-10">
+      <div className="flex flex-col items-center justify-between gap-7 lg:flex-row lg:items-end">
+        <div className="max-w-2xl text-center lg:text-left">
+          <p className="text-xs font-bold uppercase tracking-[.24em] text-violet-300">Pricing</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-[-.04em] sm:text-4xl">Choose your marketing capacity</h2>
+          <p className="mt-3 text-base leading-7 text-slate-300">Start with the plan that fits your business. Every plan gives you a coordinated AI Marketing Department.</p>
+        </div>
+        <div className="inline-flex shrink-0 rounded-xl border border-white/[.1] bg-[#111d31]/90 p-1 shadow-lg shadow-slate-950/20" aria-label="Billing interval">
+          <button type="button" aria-pressed={!annual} onClick={() => setAnnual(false)} className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${!annual ? "bg-white/10 text-white shadow-sm" : "text-slate-400 hover:text-white"}`}>Monthly</button>
+          <button type="button" aria-pressed={annual} onClick={() => setAnnual(true)} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors ${annual ? "bg-violet-600 text-white shadow-lg shadow-violet-950/30" : "text-slate-400 hover:text-white"}`}>Annual <span className="text-[10px] text-emerald-300">Save 20%</span></button>
+        </div>
+      </div>
+      <div className="mt-10 grid grid-cols-1 gap-4 min-[700px]:grid-cols-4 min-[700px]:gap-2">
+        {PLAN_CATALOG.map(plan => <article key={plan.slug} className={`relative flex min-w-0 flex-col rounded-[1.4rem] border px-5 pb-5 pt-6 transition-transform min-[700px]:px-3 min-[700px]:pb-4 min-[700px]:pt-5 min-[1100px]:px-5 min-[1100px]:pb-5 min-[1100px]:pt-6 hover:-translate-y-0.5 ${plan.mostPopular ? "border-violet-400/60 bg-gradient-to-b from-violet-500/[.14] to-[#111d31] shadow-[0_22px_55px_rgba(76,29,149,.22)]" : "border-white/[.09] bg-[#111d31]/95 shadow-[0_18px_45px_rgba(2,8,23,.18)]"}`}>
+          {plan.mostPopular && <p className="absolute -top-3 right-4 rounded-full border border-violet-300/30 bg-violet-600 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[.15em] shadow-lg shadow-violet-950/30">Most Popular</p>}
+          <div className="border-b border-white/[.07] pb-4">
+            <h3 className="text-lg font-extrabold tracking-tight">{plan.name}</h3>
+            <p className="mt-1 min-h-8 text-xs leading-4 text-slate-400">{plan.description}</p>
+            <p className="mt-3"><span className="text-3xl font-extrabold tracking-[-.04em]">${formatUsd(plan.monthlyPriceCents)}</span><span className="text-xs text-slate-400">/mo</span></p>
+            {annual && plan.annualPriceCents ? <p className="mt-1 text-[11px] font-semibold text-emerald-300">${formatUsd(plan.annualPriceCents)}/yr · save ${formatUsd(plan.monthlyPriceCents * 12 - plan.annualPriceCents)}</p> : <p className="mt-1 text-[11px] text-slate-500">Monthly billing</p>}
           </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {PLAN_CATALOG.map((plan, i) => (
-            <div key={i} className={`relative rounded-2xl p-6 border transition-all hover:-translate-y-0.5 hover:shadow-xl ${
-              plan.mostPopular
-                ? "border-violet-500/60 bg-violet-500/[0.06] shadow-lg shadow-violet-500/10"
-                : "border-white/[0.06] bg-white/[0.02] hover:border-white/15"
-            }`}>
-              {plan.mostPopular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-violet-500 text-white text-[10px] font-black rounded-full uppercase tracking-widest whitespace-nowrap shadow-lg shadow-violet-500/30">
-                  Most Popular
-                </div>
-              )}
-              <div className="mb-5">
-                <h3 className="font-black text-white text-lg mb-0.5">{plan.name}</h3>
-                <p className="text-[11px] text-white/30 h-8">{plan.description}</p>
-              </div>
-              <div className="mb-1">
-                <span className="text-4xl font-black text-white">
-                  ${formatUsd(plan.monthlyPriceCents)}
-                </span>
-                <span className="text-white/30 text-sm">/mo</span>
-              </div>
-              {annual && plan.annualPriceCents ? (
-                <div className="text-xs text-green-400 mb-5 font-semibold">${formatUsd(plan.annualPriceCents)}/yr — save ${formatUsd(plan.monthlyPriceCents * 12 - plan.annualPriceCents)}</div>
-              ) : (
-                <div className="mb-5 h-4" />
-              )}
-              <div className="p-3 rounded-xl bg-white/[0.04] text-[11px] text-white/50 mb-5 text-center border border-white/[0.06]">
-                <span className="text-white font-black">{plan.credits} credits</span>/mo · {plan.videos}
-              </div>
-              <ul className="space-y-2.5 mb-6">
-                {plan.features.map((f, fi) => (
-                  <li key={fi} className="flex items-start gap-2 text-xs text-white/40">
-                    <Check className="h-3.5 w-3.5 text-violet-400 mt-0.5 shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/signin"
-                className={`w-full flex items-center justify-center h-10 rounded-xl text-sm font-bold transition-all ${
-                  plan.mostPopular
-                    ? "bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20"
-                    : "bg-white/[0.05] hover:bg-white/10 text-white border border-white/[0.08] hover:border-white/15"
-                }`}
-              >
-                {plan.cta}
-              </Link>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-10 max-w-2xl mx-auto p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-          <h4 className="text-[10px] font-black text-white/30 mb-5 text-center uppercase tracking-[0.2em]">Credit costs per video</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { model: "Ovi", cost: "30", desc: "Video + audio", color: "#818cf8" },
-              { model: "Wan 2.5", cost: "200", desc: "Cinematic", color: "#a78bfa" },
-              { model: "Kling 2.5", cost: "300", desc: "Ultra-realistic", color: "#c084fc" },
-              { model: "Veo 3", cost: "1,500", desc: "Agency grade", color: "#e879f9" },
-            ].map((m, i) => (
-              <div key={i} className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.05] hover:border-violet-500/20 transition-colors">
-                <div className="text-xs font-bold text-white mb-1">{m.model}</div>
-                <div className="font-black text-xl mb-0.5" style={{ color: m.color }}>{m.cost}</div>
-                <div className="text-[10px] text-white/25 uppercase tracking-wide">{m.desc}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+          <p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-violet-200">{plan.credits.toLocaleString()} credits / month</p>
+          <ul className="mt-4 flex-1 space-y-2.5">{publicPlanBenefits[plan.slug].map(benefit => <li key={benefit} className="flex items-start gap-2 text-xs leading-5 text-slate-300"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300" />{benefit}</li>)}</ul>
+          <Link href="/signin" className={`mt-5 flex min-h-10 items-center justify-center rounded-xl text-sm font-bold transition-colors ${plan.mostPopular ? "bg-violet-600 shadow-lg shadow-violet-950/30 hover:bg-violet-500" : "border border-white/[.1] bg-white/[.05] hover:border-violet-300/30 hover:bg-white/[.09]"}`}>{plan.cta}</Link>
+        </article>)}
       </div>
-    </section>
-  );
-}
-
-const TESTIMONIALS = [
-  {
-    name: "Marcus T.",
-    role: "Shopify Store Owner",
-    text: "I used to spend $800/month on video editors. Now I spend $49 and get better content in minutes. This changed my whole ad strategy.",
-    stars: 5,
-    metric: "16× cheaper",
-  },
-  {
-    name: "Priya K.",
-    role: "TikTok Creator",
-    text: "My hook rate went from 18% to 34% after using Quae's scripts. The AI actually understands what stops the scroll.",
-    stars: 5,
-    metric: "+89% hook rate",
-  },
-  {
-    name: "Derek N.",
-    role: "eCommerce Agency",
-    text: "We produce 40+ client videos per week with the Agency plan. The Kling model output is indistinguishable from human-shot content.",
-    stars: 5,
-    metric: "40 videos/week",
-  },
-];
-
-function TestimonialsSection() {
-  return (
-    <section className="py-28 px-6 border-t border-white/[0.05]">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-16">
-          <p className="text-[11px] font-black tracking-[0.2em] uppercase text-violet-400/70 mb-3">Social Proof</p>
-          <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-3">Brands growing with Quae.ai</h2>
-          <p className="text-white/30">Real results from real businesses</p>
-        </div>
-        <div className="grid md:grid-cols-3 gap-5">
-          {TESTIMONIALS.map((t, i) => (
-            <div key={i} className="p-7 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-violet-500/20 transition-all duration-300 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-violet-500/5">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex gap-0.5">
-                  {Array.from({ length: t.stars }).map((_, si) => (
-                    <Star key={si} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                <span className="text-[11px] font-black text-violet-400 bg-violet-400/10 px-2.5 py-1 rounded-full border border-violet-400/20">
-                  {t.metric}
-                </span>
-              </div>
-              <p className="text-sm text-white/50 leading-relaxed mb-6">"{t.text}"</p>
-              <div>
-                <div className="font-bold text-white text-sm">{t.name}</div>
-                <div className="text-[11px] text-white/25 mt-0.5">{t.role}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CtaSection() {
-  return (
-    <section className="py-28 px-6 border-t border-white/[0.05]">
-      <div className="max-w-2xl mx-auto text-center">
-        <div className="text-5xl md:text-6xl font-black tracking-tight mb-5 leading-tight">
-          Ready to cut your<br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">video costs by 97%?</span>
-        </div>
-        <p className="text-white/35 mb-10 text-lg leading-relaxed">Start free. No credit card. 3 videos included.<br />Upgrade when you need more.</p>
-        <Link
-          href="/signin"
-          className="inline-flex items-center gap-2.5 h-14 px-10 bg-violet-600 hover:bg-violet-500 rounded-2xl font-black text-base transition-all shadow-2xl shadow-violet-600/30 hover:shadow-violet-500/40 group"
-        >
-          Start Creating Free <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-        </Link>
-        <div className="mt-5 flex items-center justify-center gap-4 text-xs text-white/20">
-          <span className="flex items-center gap-1"><Check className="h-3 w-3 text-violet-400/50" /> No credit card</span>
-          <span className="flex items-center gap-1"><Check className="h-3 w-3 text-violet-400/50" /> 3 free videos</span>
-          <span className="flex items-center gap-1"><Check className="h-3 w-3 text-violet-400/50" /> Cancel anytime</span>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="py-10 border-t border-white/[0.05] px-6">
-      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-        <QuaeLogo size={28} />
-        <div className="flex gap-8 text-xs text-white/25">
-          <a href="#templates" className="hover:text-white transition-colors visited:text-white/25 outline-none">Templates</a>
-          <a href="#pricing" className="hover:text-white transition-colors visited:text-white/25 outline-none">Pricing</a>
-          <Link href="/signin" className="hover:text-white transition-colors visited:text-white/25">Sign In</Link>
-        </div>
-        <p className="text-xs text-white/15">© {new Date().getFullYear()} Quae.ai. All rights reserved.</p>
-      </div>
-    </footer>
-  );
+    </div>
+  </section>;
 }
