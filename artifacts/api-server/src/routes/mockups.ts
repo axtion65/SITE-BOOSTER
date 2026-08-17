@@ -7,6 +7,7 @@ import { ObjectPermission } from "../lib/objectAcl";
 import { buildGenerationBrief, buildVideoHandoff, chooseAspectRatio, chooseImageOperation, customerMockupVersion, CUSTOMER_SAFE_GENERATION_ERROR, deriveBrandModelBrief, FalMockupImageProvider, hasAuthoritativeBrandModel, normalizePersistedObjectPath, selectProductReferences, visualQa } from "../lib/mockupProduction";
 import { logger } from "../lib/logger";
 import {mockupCreateSchema,mockupCreateValidationError,sceneDirectionSchema} from "../lib/mockupCreateRequest";
+import { lockProjectAndPersistGeneration, MockupProjectUnavailableError } from "../lib/mockupGenerationPersistence";
 const router=Router();
 async function owner(req:any,res:any){const id=await resolveUserIdFromToken(req.headers.authorization);if(!id)res.status(401).json({error:"Not authenticated"});return id}
 async function business(userId:string){return (await pool.query("SELECT * FROM businesses WHERE user_id=$1",[userId])).rows[0]}
@@ -39,20 +40,24 @@ router.post("/mockups/:id/generate",async(req,res):Promise<any>=>{
     if(!parsed.success){logger.warn({event:"mockup_generation_validation_failed",...context(),error:"invalid_request_body"});return fail(400,"Tell Quae what you would like changed");}
     const idempotencyKey=parsed.data.idempotencyKey||String(req.header("idempotency-key")||"").trim()||crypto.randomUUID();
 
+    // Keep the authoritative load and the later lock on one database session. A
+    // pooled query followed by pool.connect() can cross database endpoints.
+    client=await pool.connect();
+    const abort=async(status:number,message:string)=>{client.release();client=undefined;return fail(status,message)};
     stage="project_load";
-    const project=(await pool.query(`SELECT mp.*,p.name product_name,p.category,p.description product_description,p.target_customer,p.regular_price,p.sale_price,b.*,bk.personality,bm.display_name brand_model_name,bm.reference_object_paths brand_model_refs,c.brief campaign_brief,c.brief->>'channel' campaign_channel,COALESCE(json_agg(pi ORDER BY CASE WHEN pi.role='primary' THEN 0 ELSE 1 END,pi.sort_order) FILTER(WHERE pi.id IS NOT NULL),'[]') product_images FROM mockup_projects mp JOIN products p ON p.id=mp.product_id JOIN businesses b ON b.id=mp.business_id LEFT JOIN brand_kits bk ON bk.business_id=b.id LEFT JOIN brand_models bm ON bm.id=mp.brand_model_id AND bm.business_id=mp.business_id LEFT JOIN campaigns c ON c.id=mp.campaign_id AND c.user_id=mp.user_id LEFT JOIN product_images pi ON pi.product_id=p.id WHERE mp.id=$1 AND mp.user_id=$2 GROUP BY mp.id,p.id,b.id,bk.id,bm.id,c.id`,[mockupId,userId])).rows[0];
-    if(!project){logger.warn({event:"mockup_generation_project_missing",...context(),error:"project_not_found"});return fail(404,"Mockup project not found");}
+    const project=(await client.query(`SELECT mp.*,p.name product_name,p.category,p.description product_description,p.target_customer,p.regular_price,p.sale_price,b.*,bk.personality,bm.display_name brand_model_name,bm.reference_object_paths brand_model_refs,c.brief campaign_brief,c.brief->>'channel' campaign_channel,COALESCE(json_agg(pi ORDER BY CASE WHEN pi.role='primary' THEN 0 ELSE 1 END,pi.sort_order) FILTER(WHERE pi.id IS NOT NULL),'[]') product_images FROM mockup_projects mp JOIN products p ON p.id=mp.product_id JOIN businesses b ON b.id=mp.business_id LEFT JOIN brand_kits bk ON bk.business_id=b.id LEFT JOIN brand_models bm ON bm.id=mp.brand_model_id AND bm.business_id=mp.business_id LEFT JOIN campaigns c ON c.id=mp.campaign_id AND c.user_id=mp.user_id LEFT JOIN product_images pi ON pi.product_id=p.id WHERE mp.id=$1 AND mp.user_id=$2 GROUP BY mp.id,p.id,b.id,bk.id,bm.id,c.id`,[mockupId,userId])).rows[0];
+    if(!project){logger.warn({event:"mockup_generation_project_missing",...context(),error:"project_not_found"});return abort(404,"Mockup project not found");}
     logger.info({event:"mockup_generation_project_loaded",...context()});
 
-    if(parsed.data.sceneDirection){project.creative_direction={...(project.creative_direction||{}),sceneDirection:parsed.data.sceneDirection};await pool.query("UPDATE mockup_projects SET creative_direction=$2,updated_at=NOW() WHERE id=$1 AND user_id=$3",[project.id,JSON.stringify(project.creative_direction),userId]);}
-    const existing=(await pool.query("SELECT * FROM mockup_versions WHERE mockup_project_id=$1 AND idempotency_key=$2",[project.id,idempotencyKey])).rows[0];
-    if(existing){const active=["queued","provider_submitting","provider_processing","saving_asset"].includes(existing.status);if(active&&project.status!==existing.status)await pool.query("UPDATE mockup_projects SET status=$2,updated_at=NOW() WHERE id=$1",[project.id,existing.status]);logger.info({event:"mockup_generation_idempotent_replay",...context(),versionId:existing.id});return res.status(active?202:200).json(customerMockupVersion(existing));}
-    if(!hasAuthoritativeBrandModel(project.creation_path,project.brand_model_id,project.brand_model_refs)){logger.warn({event:"mockup_generation_preflight_failed",...context(),error:"brand_model_required"});return fail(409,"Choose a Brand Model before creating this visual");}
+    if(parsed.data.sceneDirection){project.creative_direction={...(project.creative_direction||{}),sceneDirection:parsed.data.sceneDirection};await client.query("UPDATE mockup_projects SET creative_direction=$2,updated_at=NOW() WHERE id=$1 AND user_id=$3",[project.id,JSON.stringify(project.creative_direction),userId]);}
+    const existing=(await client.query("SELECT * FROM mockup_versions WHERE mockup_project_id=$1 AND idempotency_key=$2",[project.id,idempotencyKey])).rows[0];
+    if(existing){const active=["queued","provider_submitting","provider_processing","saving_asset"].includes(existing.status);if(active&&project.status!==existing.status)await client.query("UPDATE mockup_projects SET status=$2,updated_at=NOW() WHERE id=$1",[project.id,existing.status]);logger.info({event:"mockup_generation_idempotent_replay",...context(),versionId:existing.id});client.release();client=undefined;return res.status(active?202:200).json(customerMockupVersion(existing));}
+    if(!hasAuthoritativeBrandModel(project.creation_path,project.brand_model_id,project.brand_model_refs)){logger.warn({event:"mockup_generation_preflight_failed",...context(),error:"brand_model_required"});return abort(409,"Choose a Brand Model before creating this visual");}
 
     stage="product_reference_selection";
     const refs=selectProductReferences(project.product_images||[],project.category);
     logger.info({event:"mockup_generation_product_references_selected",...context(),referenceCount:refs.length});
-    if(!refs.length)return fail(409,"Add a product image before creating this visual");
+    if(!refs.length)return abort(409,"Add a product image before creating this visual");
 
     stage="ownership_validation";
     logger.info({event:"mockup_generation_ownership_validation_started",...context(),referenceCount:refs.length+(project.brand_model_refs||[]).length});
@@ -61,30 +66,18 @@ router.post("/mockups/:id/generate",async(req,res):Promise<any>=>{
     // usable when legacy S3 objects predate ACL metadata.
     const normalizedRefs=refs.map(normalizePersistedObjectPath);
     const normalizedBrandRefs=(project.brand_model_refs||[]).map(normalizePersistedObjectPath);
-    if([...normalizedRefs,...normalizedBrandRefs].some(path=>!path)){logger.warn({event:"mockup_generation_ownership_validation_failed",...context(),error:"invalid_owned_object_path"});return fail(403,"A reference image is not owned by this account");}
+    if([...normalizedRefs,...normalizedBrandRefs].some(path=>!path)){logger.warn({event:"mockup_generation_ownership_validation_failed",...context(),error:"invalid_owned_object_path"});return abort(403,"A reference image is not owned by this account");}
     const persistedRefs=normalizedRefs as string[];
     logger.info({event:"mockup_generation_ownership_validation_completed",...context()});
 
-    stage="transaction_start";
-    client=await pool.connect();await client.query("BEGIN");
+    stage="transaction_start";await client.query("BEGIN");
     logger.info({event:"mockup_generation_transaction_started",...context()});
     stage="project_lock";
-    const lockedProject=(await client.query("SELECT id FROM mockup_projects WHERE id=$1 AND user_id=$2 FOR UPDATE",[project.id,userId])).rows[0];
-    if(!lockedProject)throw new Error("mockup_project_missing_during_generation");
+    logger.info({event:"mockup_generation_version_insert_attempted",...context()});
+    const persisted=await lockProjectAndPersistGeneration({client,projectId:project.id,userId,idempotencyKey,revisionRequest:parsed.data.revisionRequest,creationPath:project.creation_path,productReferencePaths:persistedRefs,brandModelId:project.brand_model_id,createVersionId:()=>crypto.randomUUID()});
     logger.info({event:"mockup_generation_project_locked",...context()});
-
-    let version=(await client.query("SELECT * FROM mockup_versions WHERE mockup_project_id=$1 AND idempotency_key=$2",[project.id,idempotencyKey])).rows[0];
-    if(!version){
-      const active=(await client.query("SELECT * FROM mockup_versions WHERE mockup_project_id=$1 AND status IN ('queued','provider_submitting','provider_processing','saving_asset') ORDER BY version_number DESC LIMIT 1",[project.id])).rows[0];
-      if(active){await client.query("COMMIT");client.release();client=undefined;logger.info({event:"mockup_generation_idempotent_replay",...context(),versionId:active.id});return res.status(202).json(customerMockupVersion(active));}
-      const versionId=crypto.randomUUID();
-      const versionNo=Number((await client.query("SELECT COALESCE(MAX(version_number),0)+1 n FROM mockup_versions WHERE mockup_project_id=$1",[project.id])).rows[0].n);
-      stage="version_insert";logger.info({event:"mockup_generation_version_insert_attempted",...context(),versionId});
-      version=(await client.query("INSERT INTO mockup_versions(id,mockup_project_id,version_number,status,job_stage,queued_at,revision_request,idempotency_key,creation_path,product_reference_paths,brand_model_id) SELECT $1,mp.id,$3,'queued','queued',NOW(),$4,$5,$6,$7::jsonb,$8 FROM mockup_projects mp WHERE mp.id=$2 AND mp.user_id=$9 RETURNING *",[versionId,project.id,versionNo,parsed.data.revisionRequest||null,idempotencyKey,project.creation_path,JSON.stringify(persistedRefs),project.brand_model_id,userId])).rows[0];
-      if(!version)throw new Error("mockup_project_missing_during_version_insert");
-      logger.info({event:"mockup_generation_version_insert_completed",...context(),versionId});
-      await client.query("UPDATE mockup_projects SET status='queued',updated_at=NOW() WHERE id=$1 AND user_id=$2",[project.id,userId]);
-    }
+    const version=persisted.version;
+    logger.info({event:persisted.created?"mockup_generation_version_insert_completed":"mockup_generation_idempotent_replay",...context(),versionId:version.id});
     await client.query("COMMIT");client.release();client=undefined;
     stage="job_queued";
     logger.info({event:"mockup_generation_job_queued",...context(),versionId:version.id});
@@ -92,7 +85,7 @@ router.post("/mockups/:id/generate",async(req,res):Promise<any>=>{
     return res.status(202).json(customerMockupVersion(version));
   }catch(error){
     if(client){await client.query("ROLLBACK").catch(()=>{});client.release();}
-    logger.error({event:"mockup_generation_prequeue_failed",legacyEvent:"mockup_version_persistence_failed",...context(),...databaseDetails(error)});
+    logger.error({event:"mockup_generation_prequeue_failed",legacyEvent:"mockup_version_persistence_failed",...context(),lookupTable:"mockup_projects",errorCategory:error instanceof MockupProjectUnavailableError?error.category:"database_query_failure",lookupStage:error instanceof MockupProjectUnavailableError?error.lookupStage:stage,...databaseDetails(error)});
     return fail(500,"We couldn’t start this visual. Your project is safe. Contact support with request code "+requestId+".");
   }
 });

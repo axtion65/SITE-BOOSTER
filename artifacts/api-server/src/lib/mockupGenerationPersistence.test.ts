@@ -1,22 +1,55 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
+import { lockProjectAndPersistGeneration, MockupProjectUnavailableError } from "./mockupGenerationPersistence";
 
 const routeUrl = new URL("../routes/mockups.ts", import.meta.url);
 
-test("generation persists a version only from the locked owned project", async () => {
+test("route loads and locks the authoritative project on the same transaction client", async () => {
   const source = await readFile(routeUrl, "utf8");
-
-  assert.match(
-    source,
-    /SELECT id FROM mockup_projects WHERE id=\$1 AND user_id=\$2 FOR UPDATE/,
-  );
-  assert.match(
-    source,
-    /INSERT INTO mockup_versions[\s\S]*SELECT \$1,mp\.id[\s\S]*FROM mockup_projects mp WHERE mp\.id=\$2 AND mp\.user_id=\$9 RETURNING \*/,
-  );
-  assert.match(source, /mockup_project_missing_during_generation/);
+  assert.match(source, /client=await pool\.connect\(\);[\s\S]*project_load[\s\S]*await client\.query[\s\S]*BEGIN[\s\S]*lockProjectAndPersistGeneration/);
+  assert.match(source, /lockProjectAndPersistGeneration\(\{client,projectId:project\.id,userId/);
   assert.match(source, /mockup_version_persistence_failed/);
+});
+
+function clientFor(rows: any[][], calls: Array<{ text: string; values?: unknown[] }>) {
+  return { query: async (text: string, values?: unknown[]) => { calls.push({ text, values }); return { rows: rows.shift() ?? [] }; } };
+}
+
+const input = (client: any) => ({ client, projectId: "project-1", userId: "owner-1", idempotencyKey: "retry-1", creationPath: "studio", productReferencePaths: ["/objects/ref"], brandModelId: null, createVersionId: () => "version-1" });
+
+test("an existing owned project locks and creates its first version with one identity", async () => {
+  const calls: Array<{ text: string; values?: unknown[] }> = [];
+  const version = { id: "version-1", mockup_project_id: "project-1", version_number: 1 };
+  const result = await lockProjectAndPersistGeneration(input(clientFor([[{ id: "project-1" }], [], [], [{ n: 1 }], [version], []], calls)));
+  assert.equal(result.created, true);
+  assert.equal(result.version, version);
+  const identityCalls = calls.filter(call => /mockup_projects|mockup_project_id/.test(call.text));
+  assert.ok(identityCalls.every(call => call.values?.includes("project-1")));
+  assert.deepEqual(calls[0]!.values, ["project-1", "owner-1"]);
+  assert.equal(calls.filter(call => call.text.startsWith("INSERT INTO mockup_versions")).length, 1);
+});
+
+test("a genuinely missing or concurrently deleted project is rejected before insert", async () => {
+  for (const label of ["missing", "concurrently deleted"]) {
+    const calls: Array<{ text: string }> = [];
+    await assert.rejects(lockProjectAndPersistGeneration(input(clientFor([[]], calls))), (error: unknown) => error instanceof MockupProjectUnavailableError && error.lookupStage === "project_lock", label);
+    assert.equal(calls.some(call => call.text.startsWith("INSERT")), false);
+  }
+});
+
+test("database failures remain query failures rather than missing-project errors", async () => {
+  const client = { query: async () => { const error = new Error("connection reset"); (error as any).code = "08006"; throw error; } };
+  await assert.rejects(lockProjectAndPersistGeneration(input(client)), error => !(error instanceof MockupProjectUnavailableError) && (error as any).code === "08006");
+});
+
+test("idempotent retry returns its version without another insert or provider work", async () => {
+  const calls: Array<{ text: string }> = [];
+  const existing = { id: "version-existing", mockup_project_id: "project-1" };
+  const result = await lockProjectAndPersistGeneration(input(clientFor([[{ id: "project-1" }], [existing]], calls)));
+  assert.equal(result.created, false);
+  assert.equal(result.version, existing);
+  assert.equal(calls.some(call => call.text.startsWith("INSERT")), false);
 });
 
 test("paid provider execution exists only in the background worker", async () => {
