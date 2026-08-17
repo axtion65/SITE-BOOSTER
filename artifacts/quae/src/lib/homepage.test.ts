@@ -41,3 +41,9 @@ test("public pricing remains sourced from the authoritative plan catalog", () =>
   assert.match(home, /import \{ PLAN_CATALOG, formatUsd \} from "@workspace\/plans"/);
   assert.match(home, /href="#pricing"/);
 });
+
+test("public pricing avoids technical model marketing", () => {
+  assert.doesNotMatch(home, /\b(?:Ovi|Wan|Kling|Veo)\b/);
+  assert.doesNotMatch(home, /plan\.videos|plan\.features/);
+  assert.match(home, /publicPlanBenefits\[plan\.slug\]/);
+});

@@ -32,6 +32,13 @@ const team = [
   [BadgeCheck, "Quality Review", "Checks consistency before your review."],
 ] as const;
 
+const publicPlanBenefits = {
+  free: ["Complete campaign creation", "Product visuals and promotional content", "Social and marketing copy"],
+  starter: ["Complete campaign creation", "More product visuals and promotional content", "Higher monthly production capacity"],
+  pro: ["Higher monthly production capacity", "Priority production", "Campaign history and premium exports"],
+  agency: ["Maximum monthly production capacity", "Priority production", "Team collaboration and workflow access"],
+} as const satisfies Record<(typeof PLAN_CATALOG)[number]["slug"], readonly [string, string, string]>;
+
 const campaignTemplates = [
   ["Product Launch", "Introduce a product with a clear story, launch message, creative direction, and channel plan."],
   ["Seasonal Sale", "Coordinate a timely offer across social, video, product visuals, and print touchpoints."],
@@ -142,25 +149,31 @@ function ApprovalSection() {
 
 function PricingSection() {
   const [annual, setAnnual] = useState(false);
-  return <section id="pricing" className="scroll-mt-24 border-b border-white/[.06] py-20 lg:py-28">
+  return <section id="pricing" className="scroll-mt-24 border-b border-white/[.06] bg-[radial-gradient(circle_at_50%_0%,rgba(124,58,237,.12),transparent_28rem)] py-18 lg:py-24">
     <div className="mx-auto max-w-7xl px-4 sm:px-7 lg:px-10">
-      <SectionIntro eyebrow="Pricing" title="Simple, credit-based pricing" copy="Pay for what you use. Credits reset monthly." />
-      <div className="mt-8 flex justify-center">
-        <div className="inline-flex rounded-xl border border-white/[.08] bg-white/[.035] p-1" aria-label="Billing interval">
-          <button type="button" aria-pressed={!annual} onClick={() => setAnnual(false)} className={`rounded-lg px-5 py-2 text-sm font-semibold ${!annual ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"}`}>Monthly</button>
-          <button type="button" aria-pressed={annual} onClick={() => setAnnual(true)} className={`flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold ${annual ? "bg-violet-600 text-white" : "text-slate-400 hover:text-white"}`}>Annual <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] text-emerald-300">Save 20%</span></button>
+      <div className="flex flex-col items-center justify-between gap-7 lg:flex-row lg:items-end">
+        <div className="max-w-2xl text-center lg:text-left">
+          <p className="text-xs font-bold uppercase tracking-[.24em] text-violet-300">Pricing</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-[-.04em] sm:text-4xl">Choose your marketing capacity</h2>
+          <p className="mt-3 text-base leading-7 text-slate-300">Start with the plan that fits your business. Every plan gives you a coordinated AI Marketing Department.</p>
+        </div>
+        <div className="inline-flex shrink-0 rounded-xl border border-white/[.1] bg-[#111d31]/90 p-1 shadow-lg shadow-slate-950/20" aria-label="Billing interval">
+          <button type="button" aria-pressed={!annual} onClick={() => setAnnual(false)} className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${!annual ? "bg-white/10 text-white shadow-sm" : "text-slate-400 hover:text-white"}`}>Monthly</button>
+          <button type="button" aria-pressed={annual} onClick={() => setAnnual(true)} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors ${annual ? "bg-violet-600 text-white shadow-lg shadow-violet-950/30" : "text-slate-400 hover:text-white"}`}>Annual <span className="text-[10px] text-emerald-300">Save 20%</span></button>
         </div>
       </div>
-      <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {PLAN_CATALOG.map(plan => <article key={plan.slug} className={`relative flex flex-col rounded-2xl border p-6 ${plan.mostPopular ? "border-violet-400/60 bg-violet-500/[.08] shadow-xl shadow-violet-950/25" : "border-white/[.08] bg-[#111d31]"}`}>
-          {plan.mostPopular && <p className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-violet-600 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest">Most Popular</p>}
-          <h3 className="text-xl font-bold">{plan.name}</h3>
-          <p className="mt-1 min-h-10 text-xs text-slate-400">{plan.description}</p>
-          <p className="mt-5"><span className="text-4xl font-extrabold">${formatUsd(plan.monthlyPriceCents)}</span><span className="text-sm text-slate-400">/mo</span></p>
-          {annual && plan.annualPriceCents ? <p className="mt-1 min-h-5 text-xs font-semibold text-emerald-300">${formatUsd(plan.annualPriceCents)}/yr — save ${formatUsd(plan.monthlyPriceCents * 12 - plan.annualPriceCents)}</p> : <div className="mt-1 min-h-5" />}
-          <p className="mt-5 rounded-xl border border-white/[.07] bg-white/[.035] p-3 text-center text-xs text-slate-300"><strong className="text-white">{plan.credits} credits</strong>/mo · {plan.videos}</p>
-          <ul className="mt-6 flex-1 space-y-3">{plan.features.map(feature => <li key={feature} className="flex items-start gap-2 text-xs leading-5 text-slate-400"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300" />{feature}</li>)}</ul>
-          <Link href="/signin" className={`mt-7 flex min-h-10 items-center justify-center rounded-xl text-sm font-bold ${plan.mostPopular ? "bg-violet-600 hover:bg-violet-500" : "border border-white/[.1] bg-white/[.05] hover:bg-white/[.09]"}`}>{plan.cta}</Link>
+      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {PLAN_CATALOG.map(plan => <article key={plan.slug} className={`relative flex min-w-0 flex-col rounded-[1.4rem] border px-5 pb-5 pt-6 transition-transform hover:-translate-y-0.5 ${plan.mostPopular ? "border-violet-400/60 bg-gradient-to-b from-violet-500/[.14] to-[#111d31] shadow-[0_22px_55px_rgba(76,29,149,.22)]" : "border-white/[.09] bg-[#111d31]/95 shadow-[0_18px_45px_rgba(2,8,23,.18)]"}`}>
+          {plan.mostPopular && <p className="absolute -top-3 right-4 rounded-full border border-violet-300/30 bg-violet-600 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[.15em] shadow-lg shadow-violet-950/30">Most Popular</p>}
+          <div className="border-b border-white/[.07] pb-4">
+            <h3 className="text-lg font-extrabold tracking-tight">{plan.name}</h3>
+            <p className="mt-1 min-h-8 text-xs leading-4 text-slate-400">{plan.description}</p>
+            <p className="mt-3"><span className="text-3xl font-extrabold tracking-[-.04em]">${formatUsd(plan.monthlyPriceCents)}</span><span className="text-xs text-slate-400">/mo</span></p>
+            {annual && plan.annualPriceCents ? <p className="mt-1 text-[11px] font-semibold text-emerald-300">${formatUsd(plan.annualPriceCents)}/yr · save ${formatUsd(plan.monthlyPriceCents * 12 - plan.annualPriceCents)}</p> : <p className="mt-1 text-[11px] text-slate-500">Monthly billing</p>}
+          </div>
+          <p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-violet-200">{plan.credits.toLocaleString()} credits / month</p>
+          <ul className="mt-4 flex-1 space-y-2.5">{publicPlanBenefits[plan.slug].map(benefit => <li key={benefit} className="flex items-start gap-2 text-xs leading-5 text-slate-300"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300" />{benefit}</li>)}</ul>
+          <Link href="/signin" className={`mt-5 flex min-h-10 items-center justify-center rounded-xl text-sm font-bold transition-colors ${plan.mostPopular ? "bg-violet-600 shadow-lg shadow-violet-950/30 hover:bg-violet-500" : "border border-white/[.1] bg-white/[.05] hover:border-violet-300/30 hover:bg-white/[.09]"}`}>{plan.cta}</Link>
         </article>)}
       </div>
     </div>
