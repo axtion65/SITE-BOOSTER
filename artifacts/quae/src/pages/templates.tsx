@@ -206,7 +206,7 @@ export default function Templates({ embedded = false }: { embedded?: boolean }) 
       <main className="flex-1 max-w-[1600px] mx-auto w-full px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
         {/* Hero */}
         <div className="mb-14">
-          <p className="text-[11px] font-black tracking-[0.25em] uppercase text-violet-400/70 mb-4">Proven Formats</p>
+          <p className="text-[11px] font-black tracking-[0.25em] uppercase text-violet-400/70 mb-4">Video Templates · Proven Formats</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.02] mb-5 max-w-xl">
             Start with a format<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-purple-300">that converts.</span>

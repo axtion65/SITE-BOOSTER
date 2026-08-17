@@ -20,7 +20,10 @@ test("homepage presents Quae as an AI marketing department", () => {
 test("homepage CTAs use verified authentication and campaign routes", () => {
   assert.match(home, /Build My First Campaign/);
   assert.match(home, /See How Quae Works/);
-  assert.match(home, /SIGNED_OUT_CAMPAIGN_ROUTE = "\/signin"/);
+  assert.match(
+    home,
+    /SIGNED_OUT_CAMPAIGN_ROUTE = "\/signin\?campaignBuilder=1"/,
+  );
   assert.match(home, /SIGNED_IN_CAMPAIGN_ROUTE = "\/studio\/campaigns"/);
   assert.match(app, /path="\/signin"/);
   assert.match(app, /path="\/studio\/campaigns"/);
