@@ -6,6 +6,7 @@ import {
   ArrowRight,
   LayoutTemplate,
   Brain,
+  Globe2,
 } from "lucide-react";
 import {
   MarketingPage,
@@ -144,6 +145,11 @@ export default function CampaignsPage() {
           Browse Campaign Templates
         </button>
       </div>
+      <Link href="/studio/import-website" className="mb-6 flex items-center gap-3 rounded-2xl border border-violet-300/20 bg-violet-400/10 p-5 hover:bg-violet-400/15">
+        <Globe2 className="h-5 w-5 text-violet-300" />
+        <span><b>Import your website</b><span className="mt-1 block text-sm text-[#B9C5D8]">Scan public business and product details, review every field, then approve what Quae should use.</span></span>
+        <ArrowRight className="ml-auto h-5 w-5" />
+      </Link>
       <Dialog open={templatePickerOpen} onOpenChange={setTemplatePickerOpen}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto bg-[#111d31] text-white">
           <DialogHeader>

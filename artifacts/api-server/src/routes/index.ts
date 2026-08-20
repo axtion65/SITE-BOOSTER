@@ -13,6 +13,7 @@ import debugFalRouter from "./debugFal";
 import marketingRouter from "./marketing";
 import campaignsRouter from "./campaigns";
 import mockupsRouter from "./mockups";
+import websiteImportsRouter from "./websiteImports";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(debugFalRouter);
 router.use(marketingRouter);
 router.use(campaignsRouter);
 router.use(mockupsRouter);
+router.use(websiteImportsRouter);
 
 export default router;
