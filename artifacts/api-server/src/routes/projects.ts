@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, usersTable, projectsTable } from "@workspace/db";
+import { db, pool, usersTable, projectsTable } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
 import { PLAN_BY_SLUG, isPlanSlug } from "@workspace/plans";
@@ -276,6 +276,7 @@ router.post("/projects", async (req, res) => {
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
 
   const parsed = CreateProjectBody.safeParse(req.body);
+  const campaignId = typeof req.body?.campaignId === "string" ? req.body.campaignId : null;
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
 
   // Reject base64 data URLs and oversized image strings — product images must be
@@ -293,6 +294,11 @@ router.post("/projects", async (req, res) => {
       res.status(400).json({ error: "productImageUrl is too long. Expected a short object path or URL (max 2048 chars)." });
       return;
     }
+  }
+
+  if (campaignId) {
+    const campaign = await pool.query("SELECT 1 FROM campaigns WHERE id=$1 AND user_id=$2 AND status='approved'", [campaignId, userId]);
+    if (!campaign.rows[0]) { res.status(404).json({ error: "Approved campaign not found" }); return; }
   }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
@@ -320,6 +326,7 @@ router.post("/projects", async (req, res) => {
 
   const [project] = await db.insert(projectsTable).values({
     userId,
+    campaignId,
     title: parsed.data.title,
     description: parsed.data.description ?? null,
     renderingModelId: parsed.data.renderingModelId,

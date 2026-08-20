@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, useRoute } from "wouter";
-import { Check, RefreshCw, Sparkles, ArrowRight } from "lucide-react";
+import {
+  Check,
+  RefreshCw,
+  Sparkles,
+  ArrowRight,
+  Image,
+  Video,
+  FileText,
+} from "lucide-react";
 import { MarketingPage, PremiumCard, fieldClass } from "./marketing-shared";
 import { ActionButton, StatusPill } from "@/components/quae-design-system";
 import { statusLabel } from "./campaigns";
@@ -31,7 +39,7 @@ export default function CampaignDetail() {
     [notes, setNotes] = useState("");
   const load = async () => {
     try {
-      const response = await fetch(`/api/campaigns/${params?.id}`, {
+      const response = await fetch(`/api/campaigns/${params?.id}/workspace`, {
         headers: headers(),
       });
       if (!response.ok) throw new Error("load");
@@ -128,6 +136,20 @@ export default function CampaignDetail() {
     if (run?.status === "needs_revision") return "Needs revision";
     return "Waiting";
   };
+  const continueHref =
+    data.nextAction === "create_visual"
+      ? `/studio/mockups?campaignId=${encodeURIComponent(data.id)}${data.product_id ? `&productId=${encodeURIComponent(data.product_id)}` : ""}`
+      : data.nextAction === "create_video"
+        ? `/studio?campaignId=${encodeURIComponent(data.id)}`
+        : "#campaign-work";
+  const continueLabel =
+    data.nextAction === "review_campaign"
+      ? "Review Campaign"
+      : data.nextAction === "create_strategy"
+        ? "Start Strategy"
+        : data.nextAction === "review_assets"
+          ? "Review Completed Assets"
+          : "Continue Campaign";
   return (
     <MarketingPage
       eyebrow="Campaign workspace"
@@ -135,6 +157,170 @@ export default function CampaignDetail() {
       description={data.brief.objective}
     >
       <div className="space-y-6">
+        <PremiumCard elevated>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="quae-eyebrow">Your campaign</p>
+              <h2 className="text-2xl font-black">
+                {data.product_name || "Business-wide offer"}
+              </h2>
+              <p className="mt-2 text-sm text-[#B9C5D8]">
+                {data.brief?.campaignType} · {data.brief?.channel} ·{" "}
+                {data.product_audience ||
+                  data.business_audience ||
+                  "Your saved audience"}
+              </p>
+            </div>
+            <Link
+              href={continueHref}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
+            >
+              {continueLabel}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-6 grid grid-cols-3 gap-2 lg:grid-cols-6">
+            {data.progress?.map((stage: any) => (
+              <div
+                key={stage.name}
+                className={`rounded-xl p-3 text-center text-xs font-bold ${stage.complete ? "bg-emerald-400/15 text-emerald-200" : "bg-white/5 text-slate-400"}`}
+              >
+                <span className="block">{stage.complete ? "✓" : "○"}</span>
+                {stage.name}
+              </div>
+            ))}
+          </div>
+        </PremiumCard>
+        <div id="campaign-work" className="grid gap-6 lg:grid-cols-3">
+          <PremiumCard>
+            <Image className="h-5 w-5 text-violet-300" />
+            <h2 className="mt-3 text-lg font-bold">Product Visuals</h2>
+            {data.visuals?.length ? (
+              <div className="mt-4 space-y-3">
+                {data.visuals.map((v: any) => (
+                  <div key={v.id} className="rounded-xl bg-white/5 p-3">
+                    <b>{v.product_name}</b>
+                    <p className="text-xs text-slate-400">
+                      {v.versions?.length || 0} version
+                      {v.versions?.length === 1 ? "" : "s"}
+                    </p>
+                    <Link
+                      href={`/studio/mockups?projectId=${v.id}&campaignId=${data.id}`}
+                      className="mt-2 inline-flex text-sm font-bold text-violet-200"
+                    >
+                      Preview · Open in Studio
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <p className="mt-3 text-sm text-slate-400">
+                  No visuals have been created for this campaign yet.
+                </p>
+                <Link
+                  href={`/studio/mockups?campaignId=${data.id}${data.product_id ? `&productId=${data.product_id}` : ""}`}
+                  className="mt-4 inline-flex font-bold text-violet-200"
+                >
+                  Create a visual
+                </Link>
+              </>
+            )}
+          </PremiumCard>
+          <PremiumCard>
+            <Video className="h-5 w-5 text-violet-300" />
+            <h2 className="mt-3 text-lg font-bold">Videos</h2>
+            {data.videos?.length ? (
+              <div className="mt-4 space-y-3">
+                {data.videos.map((v: any) => (
+                  <div key={v.id} className="rounded-xl bg-white/5 p-3">
+                    <b>{v.title}</b>
+                    <p className="text-xs text-slate-400">{v.status}</p>
+                    <Link
+                      href={`/studio/projects/${v.id}`}
+                      className="mt-2 inline-flex text-sm font-bold text-violet-200"
+                    >
+                      Preview · Open in Studio
+                    </Link>
+                    {v.status === "completed" && (
+                      <a
+                        href={`/api/projects/${v.id}/video/download`}
+                        className="ml-3 text-sm font-bold text-violet-200"
+                      >
+                        Download
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <p className="mt-3 text-sm text-slate-400">
+                  No videos have been created for this campaign yet.
+                </p>
+                {data.status === "approved" && (
+                  <Link
+                    href={`/studio?campaignId=${data.id}`}
+                    className="mt-4 inline-flex font-bold text-violet-200"
+                  >
+                    Create a video
+                  </Link>
+                )}
+              </>
+            )}
+          </PremiumCard>
+          <PremiumCard>
+            <FileText className="h-5 w-5 text-violet-300" />
+            <h2 className="mt-3 text-lg font-bold">Marketing Copy</h2>
+            {data.strategy?.finalScript?.script ? (
+              <>
+                <p className="mt-3 line-clamp-5 whitespace-pre-wrap text-sm text-slate-300">
+                  {data.strategy.finalScript.script}
+                </p>
+                <a
+                  href="#campaign-copy"
+                  className="mt-4 inline-flex font-bold text-violet-200"
+                >
+                  Review saved copy
+                </a>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-slate-400">
+                Approved campaign copy will be stored here when it is ready.
+              </p>
+            )}
+          </PremiumCard>
+        </div>
+        {data.status === "approved" && (
+          <PremiumCard>
+            <h2 className="text-xl font-bold">Create Next Asset</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Your campaign, offer, Brand Model, and approved strategy stay
+              connected.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                className="rounded-xl bg-[#263754] px-4 py-2 font-bold"
+                href={`/studio/mockups?campaignId=${data.id}${data.product_id ? `&productId=${data.product_id}` : ""}`}
+              >
+                Product Visual
+              </Link>
+              <Link
+                className="rounded-xl bg-[#263754] px-4 py-2 font-bold"
+                href={`/studio?campaignId=${data.id}`}
+              >
+                Video
+              </Link>
+              <a
+                className="rounded-xl bg-[#263754] px-4 py-2 font-bold"
+                href="#campaign-copy"
+              >
+                Marketing Copy
+              </a>
+            </div>
+          </PremiumCard>
+        )}
+        <div id="campaign-copy"></div>
         <PremiumCard elevated>
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-extrabold">Your AI marketing team</h2>

@@ -8,6 +8,10 @@ import {
   approveLatestCampaignRun,
   validateLatestRevisionSource,
 } from "../lib/campaignState";
+import {
+  campaignWorkspaceNextAction,
+  campaignWorkspaceProgress,
+} from "../lib/campaignWorkspace";
 const router = Router();
 async function owner(req: any, res: any) {
   const id = await resolveUserIdFromToken(req.headers.authorization);
@@ -81,6 +85,81 @@ router.post("/campaigns", async (req, res) => {
   );
   res.status(201).json(row.rows[0]);
 });
+router.get("/campaigns/:id/workspace", async (req, res) => {
+  const userId = await owner(req, res);
+  if (!userId) return;
+  const campaign = (
+    await pool.query(
+      `SELECT c.*, p.name product_name, p.description product_description,
+      p.offer_notes product_offer, p.target_customer product_audience,
+      b.name business_name, b.products_services business_offer, b.target_customer business_audience,
+      bk.personality brand_personality
+     FROM campaigns c JOIN businesses b ON b.id=c.business_id
+     LEFT JOIN products p ON p.id=c.product_id AND p.business_id=c.business_id
+     LEFT JOIN brand_kits bk ON bk.business_id=c.business_id
+     WHERE c.id=$1 AND c.user_id=$2`,
+      [req.params.id, userId],
+    )
+  ).rows[0];
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+  const runs = (
+    await pool.query(
+      "SELECT * FROM campaign_runs WHERE campaign_id=$1 ORDER BY run_number DESC",
+      [campaign.id],
+    )
+  ).rows;
+  const visuals = (
+    await pool.query(
+      `SELECT mp.*, p.name product_name, bm.display_name brand_model_name,
+      COALESCE(json_agg(mv ORDER BY mv.version_number DESC) FILTER (WHERE mv.id IS NOT NULL),'[]') versions
+     FROM mockup_projects mp JOIN products p ON p.id=mp.product_id
+     LEFT JOIN brand_models bm ON bm.id=mp.brand_model_id AND bm.business_id=mp.business_id
+     LEFT JOIN mockup_versions mv ON mv.mockup_project_id=mp.id
+     WHERE mp.campaign_id=$1 AND mp.user_id=$2 GROUP BY mp.id,p.id,bm.id ORDER BY mp.updated_at DESC`,
+      [campaign.id, userId],
+    )
+  ).rows;
+  const videos = (
+    await pool.query(
+      `SELECT id,title,status,video_url,thumbnail_url,platform,duration,created_at,updated_at
+     FROM projects WHERE campaign_id=$1 AND user_id=$2 ORDER BY created_at DESC`,
+      [campaign.id, userId],
+    )
+  ).rows;
+  const latest = runs[0];
+  const agents = latest
+    ? (
+        await pool.query(
+          "SELECT role,prompt_version,sequence,status,error_code,completed_at FROM agent_runs WHERE campaign_run_id=$1 ORDER BY sequence",
+          [latest.id],
+        )
+      ).rows
+    : [];
+  const facts = {
+    hasBrief: Boolean(campaign.brief?.objective),
+    hasStrategy: Boolean(latest?.final_result),
+    approved:
+      campaign.status === "approved" && Boolean(campaign.approved_run_id),
+    visualCount: visuals.length,
+    videoCount: videos.length,
+  };
+  res.json({
+    ...campaign,
+    campaign,
+    runs,
+    latestRun: latest ?? null,
+    agents,
+    strategy: latest?.final_result ?? null,
+    visuals,
+    videos,
+    progress: campaignWorkspaceProgress(facts),
+    nextAction: campaignWorkspaceNextAction(facts),
+  });
+});
+
 router.get("/campaigns/:id", async (req, res) => {
   const userId = await owner(req, res);
   if (!userId) return;
