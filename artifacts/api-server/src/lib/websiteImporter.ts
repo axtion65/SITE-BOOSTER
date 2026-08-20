@@ -7,6 +7,7 @@ export class WebsiteImportError extends Error { constructor(public code: string)
 type Lookup = (host: string) => Promise<{ address: string }[]>;
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 const MAX_HTML = 2_000_000, MAX_REDIRECTS = 4, TIMEOUT_MS = 8_000;
+export const MAX_WEBSITE_IMAGE_BYTES = 25 * 1024 * 1024;
 
 function publicAddress(address: string) {
   const normalized = address.toLowerCase().replace(/^::ffff:/, "");
@@ -48,5 +49,22 @@ export async function importWebsite(raw:string, deps:{fetch?:Fetch;lookup?:Looku
   while(true){ const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),TIMEOUT_MS); let response:Response; try{response=await fetcher(url.href,{redirect:'manual',signal:controller.signal,headers:{Accept:'text/html,application/xhtml+xml','User-Agent':'QuaeWebsiteImporter/1.0'}});}catch{throw new WebsiteImportError('target_unavailable');}finally{clearTimeout(timer);}
     if(response.status>=300&&response.status<400){if(++redirects>MAX_REDIRECTS)throw new WebsiteImportError('redirect_limit');const location=response.headers.get('location');if(!location)throw new WebsiteImportError('target_unavailable');url=await validatePublicUrl(new URL(location,url).href,deps.lookup);continue;}
     if(!response.ok)throw new WebsiteImportError('target_unavailable'); const type=(response.headers.get('content-type')||'').split(';')[0];if(!['text/html','application/xhtml+xml'].includes(type))throw new WebsiteImportError('unsupported_content');const declared=Number(response.headers.get('content-length')||0);if(declared>MAX_HTML)throw new WebsiteImportError('response_too_large');const bytes=new Uint8Array(await response.arrayBuffer());if(bytes.byteLength>MAX_HTML)throw new WebsiteImportError('response_too_large');return extractWebsite(new TextDecoder().decode(bytes),url);
+  }
+}
+
+export async function downloadWebsiteImage(raw:string,deps:{fetch?:Fetch;lookup?:Lookup}={}):Promise<{buffer:Buffer;contentType:string}>{
+  let url=await validatePublicUrl(raw,deps.lookup),redirects=0;const fetcher=deps.fetch||globalThis.fetch;
+  while(true){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),TIMEOUT_MS);let response:Response;
+    try{response=await fetcher(url.href,{redirect:'manual',signal:controller.signal,headers:{Accept:'image/png,image/jpeg,image/webp','User-Agent':'QuaeWebsiteImporter/1.0'}});}catch{throw new WebsiteImportError('target_unavailable');}finally{clearTimeout(timer);}
+    if(response.status>=300&&response.status<400){if(++redirects>MAX_REDIRECTS)throw new WebsiteImportError('redirect_limit');const location=response.headers.get('location');if(!location)throw new WebsiteImportError('target_unavailable');url=await validatePublicUrl(new URL(location,url).href,deps.lookup);continue;}
+    if(!response.ok)throw new WebsiteImportError('target_unavailable');
+    const contentType=(response.headers.get('content-type')||'').split(';',1)[0].trim().toLowerCase();
+    if(!['image/png','image/jpeg','image/webp'].includes(contentType))throw new WebsiteImportError('unsupported_content');
+    const declared=Number(response.headers.get('content-length')||0);if(declared>MAX_WEBSITE_IMAGE_BYTES)throw new WebsiteImportError('response_too_large');
+    const reader=response.body?.getReader();const chunks:Buffer[]=[];let size=0;
+    while(reader){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>MAX_WEBSITE_IMAGE_BYTES){await reader.cancel();throw new WebsiteImportError('response_too_large');}chunks.push(Buffer.from(value));}
+    const buffer=Buffer.concat(chunks,size);if(!buffer.length)throw new WebsiteImportError('unsupported_content');
+    return {buffer,contentType};
   }
 }
