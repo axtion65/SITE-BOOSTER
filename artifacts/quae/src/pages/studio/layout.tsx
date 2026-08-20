@@ -31,6 +31,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
           <NavLink href="/studio/dashboard" label="Dashboard" />
           <NavLink href="/studio/campaigns" label="Campaigns" />
           <NavLink href="/studio" label="Creative" exact />
+          <NavLink href="/studio/visuals" label="My Visuals" />
           <NavLink href="/studio/projects" label="My Videos" />
           <NavLink href="/studio/business" label="Business" />
           <NavLink href="/studio/brand-kit" label="Brand Kit" />
