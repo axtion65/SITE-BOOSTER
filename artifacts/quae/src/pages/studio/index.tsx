@@ -498,6 +498,7 @@ function Wizard() {
     try {
       const res = await createMutation.mutateAsync({
         data: {
+          campaignId,
           title: `${productName} Ad`,
           description,
           renderingModelId: modelId,
@@ -507,7 +508,7 @@ function Wizard() {
           templateId: templateId ?? null,
           productImageUrl: productImageUrl ?? null,
           voiceId: voiceId ?? "alloy",
-        }
+        } as any
       });
       // Clear the saved draft — render has started, work is done
       clearDraft();
