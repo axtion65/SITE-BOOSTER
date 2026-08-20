@@ -1,4 +1,4 @@
-import { apiHeaders } from "./marketing-api";
+import { apiHeaders, privateImageUrl } from "./marketing-api";
 
 export type MockupVersion = {
   id: string;
@@ -21,18 +21,44 @@ export function studioMockupUrl(projectId: string) {
   return `/studio/mockups?projectId=${encodeURIComponent(projectId)}`;
 }
 
-export async function downloadMockupVersion(version: MockupVersion, productName: string) {
+type DownloadLink = {
+  href: string;
+  download: string;
+  click(): void;
+};
+
+export type MockupDownloadRuntime = {
+  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+  headers(): HeadersInit;
+  createObjectUrl(blob: Blob): string;
+  revokeObjectUrl(url: string): void;
+  createLink(): DownloadLink;
+};
+
+function browserDownloadRuntime(): MockupDownloadRuntime {
+  return {
+    fetch: globalThis.fetch.bind(globalThis),
+    headers: () => apiHeaders(false),
+    createObjectUrl: blob => URL.createObjectURL(blob),
+    revokeObjectUrl: url => URL.revokeObjectURL(url),
+    createLink: () => document.createElement("a"),
+  };
+}
+
+export async function downloadMockupVersion(
+  version: MockupVersion,
+  productName: string,
+  runtime: MockupDownloadRuntime = browserDownloadRuntime(),
+) {
   if (!version.object_path) throw new Error("This version does not have a saved image");
-  const key = version.object_path.replace(/^\/api\/storage\/objects\//, "").replace(/^\/objects\//, "");
-  const signed = await fetch(`/api/storage/object-signed-url/${key}`, { headers: apiHeaders(false) });
-  if (!signed.ok) throw new Error("The secure download could not be prepared");
-  const { url } = await signed.json() as { url: string };
-  const image = await fetch(url);
+  const image = await runtime.fetch(privateImageUrl(version.object_path), {
+    headers: runtime.headers(),
+  });
   if (!image.ok) throw new Error("The image could not be downloaded");
-  const blobUrl = URL.createObjectURL(await image.blob());
-  const link = document.createElement("a");
+  const blobUrl = runtime.createObjectUrl(await image.blob());
+  const link = runtime.createLink();
   link.href = blobUrl;
   link.download = `${productName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "mockup"}-v${version.version_number}`;
   link.click();
-  URL.revokeObjectURL(blobUrl);
+  runtime.revokeObjectUrl(blobUrl);
 }
