@@ -130,6 +130,14 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
     )
   ).rows;
   const latest = runs[0];
+  const agents = latest
+    ? (
+        await pool.query(
+          "SELECT role,prompt_version,sequence,status,error_code,completed_at FROM agent_runs WHERE campaign_run_id=$1 ORDER BY sequence",
+          [latest.id],
+        )
+      ).rows
+    : [];
   const facts = {
     hasBrief: Boolean(campaign.brief?.objective),
     hasStrategy: Boolean(latest?.final_result),
@@ -143,6 +151,7 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
     campaign,
     runs,
     latestRun: latest ?? null,
+    agents,
     strategy: latest?.final_result ?? null,
     visuals,
     videos,

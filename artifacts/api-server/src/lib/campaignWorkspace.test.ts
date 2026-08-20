@@ -60,4 +60,6 @@ test("aggregate workspace scopes campaign and every asset query to its owner", a
   assert.match(route, /c\.id=\$1 AND c\.user_id=\$2/);
   assert.match(route, /mp\.campaign_id=\$1 AND mp\.user_id=\$2/);
   assert.match(route, /campaign_id=\$1 AND user_id=\$2/);
+  assert.match(route, /FROM agent_runs WHERE campaign_run_id=\$1/);
+  assert.match(route, /agents,/);
 });
