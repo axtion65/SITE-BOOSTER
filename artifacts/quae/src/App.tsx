@@ -23,6 +23,7 @@ import CampaignDetail from '@/pages/studio/campaign-detail';
 import MockupsPage from '@/pages/studio/mockups';
 import VisualsPage from '@/pages/studio/visuals';
 import Templates from '@/pages/templates';
+import WebsiteImportPage from '@/pages/studio/website-import';
 import Admin from '@/pages/admin';
 import FeedbackWidget from '@/components/feedback-widget';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -39,6 +40,7 @@ function Router() {
       {/* Studio App */}
       <Route path="/studio/campaigns/:id" component={() => <StudioLayout><CampaignDetail /></StudioLayout>} />
       <Route path="/studio/campaigns" component={() => <StudioLayout><CampaignsPage /></StudioLayout>} />
+      <Route path="/studio/import-website" component={() => <StudioLayout><WebsiteImportPage /></StudioLayout>} />
       <Route path="/studio/dashboard" component={() => <StudioLayout><StudioDashboard /></StudioLayout>} />
       <Route path="/studio" component={() => <StudioLayout><StudioIndex /></StudioLayout>} />
       <Route path="/studio/projects" component={() => <StudioLayout><StudioProjects /></StudioLayout>} />

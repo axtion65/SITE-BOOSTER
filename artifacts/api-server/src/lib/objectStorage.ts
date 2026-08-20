@@ -281,6 +281,8 @@ export const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 
 export interface ImageStorageIdentity { userId:string; businessId:string; mockupId:string; versionId:string }
 export function mockupImageObjectName(i:ImageStorageIdentity,extension="png"){return `mockups/${safePathSegment(i.userId)}/${safePathSegment(i.businessId)}/${safePathSegment(i.mockupId)}/${safePathSegment(i.versionId)}.${extension}`;}
+export interface WebsiteImportImageStorageIdentity { userId:string; importId:string; assetKey:string }
+export function websiteImportImageObjectName(i:WebsiteImportImageStorageIdentity,extension="png"){return `website-imports/${safePathSegment(i.userId)}/${safePathSegment(i.importId)}/${safePathSegment(i.assetKey)}.${extension}`;}
 export function validateImagePayload(buffer:Buffer,contentType?:string|null){
   if(!buffer.length)throw new Error("Provider returned an empty image");
   if(buffer.length>MAX_IMAGE_BYTES)throw new Error("Provider image exceeds the storage limit");
@@ -629,6 +631,20 @@ export class ObjectStorageService {
     const buffer=Buffer.concat(chunks);const contentType=(response.headers.get("content-type")||declaredContentType||"").split(";",1)[0];validateImagePayload(buffer,contentType);
     const extension=contentType==="image/jpeg"?"jpg":contentType==="image/webp"?"webp":"png";const objectName=mockupImageObjectName(identity,extension);const objectFile=new S3ObjectFile(storageConfig.bucket,objectName);const [exists]=await objectFile.exists();
     if(!exists){await objectFile.save(buffer,{contentType,cacheControl:"private, max-age=31536000"});await setObjectAclPolicy(objectFile as any,{owner:identity.userId,visibility:"private"});}
+    return {objectPath:internalObjectPath(objectName),contentType,bytes:buffer.length};
+  }
+
+  /** Idempotently stores a reviewed website-import image in private customer-owned storage. */
+  async uploadWebsiteImportImage(buffer:Buffer,identity:WebsiteImportImageStorageIdentity,contentType:string):Promise<{objectPath:string;contentType:string;bytes:number}>{
+    validateImagePayload(buffer,contentType);
+    const extension=contentType==="image/jpeg"?"jpg":contentType==="image/webp"?"webp":"png";
+    const objectName=websiteImportImageObjectName(identity,extension);
+    const objectFile=new S3ObjectFile(storageConfig.bucket,objectName);
+    const [exists]=await objectFile.exists();
+    if(!exists){
+      await objectFile.save(buffer,{contentType,cacheControl:"private, max-age=31536000"});
+      await setObjectAclPolicy(objectFile as any,{owner:identity.userId,visibility:"private"});
+    }
     return {objectPath:internalObjectPath(objectName),contentType,bytes:buffer.length};
   }
 
