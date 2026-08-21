@@ -9,41 +9,28 @@ import {
   Video,
   FileText,
 } from "lucide-react";
-import { MarketingPage, PremiumCard, fieldClass } from "./marketing-shared";
+import { MarketingImage, MarketingPage, PremiumCard, fieldClass } from "./marketing-shared";
 import { ActionButton, StatusPill } from "@/components/quae-design-system";
 import { statusLabel } from "./campaigns";
 import { useToast } from "@/hooks/use-toast";
-import { formatScore } from "@/lib/format-score";
 const headers = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${localStorage.getItem("quae_token") || ""}`,
 });
-const specialists = [
-  ["research.v1", "Research"],
-  ["strategist.v1", "Strategist"],
-  ["hooks.v1", "Hook Specialist"],
-  ["writer-direct-response.v1", "Direct Response Writer"],
-  ["writer-story.v1", "Story Writer"],
-  ["writer-social.v1", "Native Social Writer"],
-  ["judge.v1", "Judge"],
-  ["rewrite.v1", "Rewriter"],
-  ["factcheck.v1", "Fact Check"],
-  ["qa.v1", "Final QA"],
-];
 export default function CampaignDetail() {
   const { toast } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [, params] = useRoute("/studio/campaigns/:id");
   const [data, setData] = useState<any>(),
-    [notes, setNotes] = useState("");
+    [notes, setNotes] = useState(""),[rescue,setRescue]=useState<any>(null);
   const load = async () => {
     try {
       const response = await fetch(`/api/campaigns/${params?.id}/workspace`, {
         headers: headers(),
       });
       if (!response.ok) throw new Error("load");
-      setData(await response.json());
+      const next=await response.json();setData(next);setRescue((current:any)=>current??next.rescue?.prefill);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -57,6 +44,7 @@ export default function CampaignDetail() {
   const run = data?.runs?.[0],
     result = run?.final_result,
     active = ["queued", "running"].includes(run?.status);
+  async function saveRescue(){setBusy("rescue");try{const response=await fetch(`/api/campaigns/${data.id}/rescue`,{method:"PUT",headers:headers(),body:JSON.stringify(rescue)});if(!response.ok)throw new Error("save");toast({title:"Campaign details saved"});await load();}catch{toast({title:"We couldn’t save those details. Your draft is still here.",variant:"destructive"});}finally{setBusy(null)}}
   async function post(path: string, body: Record<string, unknown>) {
     if (busy) return;
     setBusy(path);
@@ -110,32 +98,6 @@ export default function CampaignDetail() {
       </div>
     );
   if (!data) return <div className="quae-page p-10">Loading campaign…</div>;
-  const statusFor = (version: string) => {
-    const repairActive =
-      ["repairing", "fact_checking", "quality_checking"].includes(
-        run?.current_stage,
-      ) &&
-      data.agents?.some(
-        (agent: { prompt_version: string }) =>
-          agent.prompt_version === "rewrite-qa-repair.v1",
-      );
-    if (repairActive && version === "rewrite.v1")
-      return run.current_stage === "repairing" ? "Working" : "Complete";
-    if (repairActive && version === "factcheck.v1")
-      return run.current_stage === "fact_checking"
-        ? "Working"
-        : run.current_stage === "quality_checking"
-          ? "Complete"
-          : "Waiting";
-    if (repairActive && version === "qa.v1")
-      return run.current_stage === "quality_checking" ? "Working" : "Waiting";
-    const a = data.agents?.find((x: any) => x.prompt_version === version);
-    if (a?.status === "completed") return "Complete";
-    if (a?.status === "running") return "Working";
-    if (a?.status === "failed") return "Failed";
-    if (run?.status === "needs_revision") return "Needs revision";
-    return "Waiting";
-  };
   const continueHref =
     data.nextAction === "create_visual"
       ? `/studio/mockups?campaignId=${encodeURIComponent(data.id)}${data.product_id ? `&productId=${encodeURIComponent(data.product_id)}` : ""}`
@@ -157,6 +119,7 @@ export default function CampaignDetail() {
       description={data.brief.objective}
     >
       <div className="space-y-6">
+        {data.rescue?.required&&<PremiumCard elevated><p className="quae-eyebrow">Campaign Rescue</p><h2 className="text-2xl font-black">A few campaign details need your confirmation</h2><p className="mt-2 text-sm text-[#B9C5D8]">We preserved the website evidence and stopped before creating generic copy. Confirm these details to continue.</p><div className="mt-5 grid gap-4 md:grid-cols-2">{[["identity","Business/campaign identity"],["productsServices","Products or services"],["targetAudience","Target audience"],["offerPromotion","Offer or promotion (optional)"],["callToAction","Call to action"]].map(([key,label])=><label key={key} className="text-sm font-bold">{label}<textarea className={`${fieldClass} mt-2`} value={rescue?.[key]||""} onChange={e=>setRescue({...rescue,[key]:e.target.value})}/></label>)}</div><button disabled={busy==="rescue"} onClick={saveRescue} className="mt-5 rounded-xl bg-violet-600 px-5 py-3 font-bold">{busy==="rescue"?"Saving…":"Save and continue"}</button></PremiumCard>}
         <PremiumCard elevated>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -226,6 +189,7 @@ export default function CampaignDetail() {
                 </Link>
               </>
             )}
+            {data.attachedVisuals?.length>0&&<div className="mt-5"><p className="quae-eyebrow">Attached from My Visuals</p><div className="mt-3 grid grid-cols-2 gap-3">{data.attachedVisuals.map((v:any)=><div key={v.version_id} className="overflow-hidden rounded-xl border border-white/10"><MarketingImage objectPath={v.object_path} alt={v.name} className="aspect-video w-full object-cover"/><p className="p-2 text-xs font-bold">{v.name} · Version {v.version_number}{v.is_primary?" · Primary":""}</p></div>)}</div></div>}
           </PremiumCard>
           <PremiumCard>
             <Video className="h-5 w-5 text-violet-300" />
@@ -323,24 +287,10 @@ export default function CampaignDetail() {
         <div id="campaign-copy"></div>
         <PremiumCard elevated>
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-extrabold">Your AI marketing team</h2>
+            <h2 className="text-xl font-extrabold">Campaign preparation</h2>
             <StatusPill>{statusLabel(run?.status || data.status)}</StatusPill>
           </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {specialists.map(([v, n]) => {
-              const s = statusFor(v);
-              return (
-                <div key={v} className="rounded-xl bg-[#1B2940] p-3">
-                  <p className="text-xs font-bold">{n}</p>
-                  <p
-                    className={`mt-2 text-xs ${s === "Complete" ? "text-emerald-300" : s === "Working" ? "text-violet-300" : "text-[#8494AC]"}`}
-                  >
-                    {s}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+          <p className="mt-4 text-sm text-[#B9C5D8]">Quae uses only this campaign’s confirmed brief and evidence, then checks the result for clarity and supported claims. Your saved draft remains available if preparation stops.</p>
           {!run && (
             <ActionButton
               disabled={busy !== null}
@@ -414,31 +364,12 @@ export default function CampaignDetail() {
                   ))}
                 </div>
               </PremiumCard>
-              <PremiumCard>
-                <p className="quae-eyebrow">Blind Judge Scores</p>
-                {result.judge?.candidates?.map((c: any) => (
-                  <div className="mb-3 flex items-center justify-between rounded-xl bg-[#263754] p-4">
-                    <div>
-                      <b>{c.label}</b>
-                      <p className="text-xs text-[#B9C5D8]">
-                        {c.strengths?.[0]}
-                      </p>
-                    </div>
-                    <span className="text-xl font-black">
-                      {formatScore(c.total)}/100
-                    </span>
-                  </div>
-                ))}
-                <p className="mt-4 font-bold text-violet-200">
-                  Winner: {result.judge?.winner} ·{" "}
-                  {formatScore(result.judge?.winningScore)}/100
-                </p>
-              </PremiumCard>
+              <PremiumCard><p className="quae-eyebrow">Quality review</p><h3 className="text-xl font-bold">Your strongest campaign draft</h3><p className="mt-3 text-[#B9C5D8]">Quae checked the drafts for relevance, clarity, supported claims, and consistency with your confirmed campaign details.</p></PremiumCard>
             </div>
             <PremiumCard>
               <p className="quae-eyebrow">Winning Draft</p>
               <p className="text-sm text-[#B9C5D8]">
-                Selected by Quae’s blind review
+                Selected after a campaign quality review
               </p>
               <h2 className="mt-4 text-xl font-black">
                 {result.winningScript?.title}

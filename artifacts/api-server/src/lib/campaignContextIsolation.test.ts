@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { campaignGenerationContext, missingCampaignEvidence } from "./campaignContext";
+import { readFile } from "node:fs/promises";
+
+const quae={brief:{objective:"Launch Quae"},context_snapshot:{source:"website_import",sourceUrl:"https://quae.ai",websiteSnapshot:{business:{name:"Quae"}},generationContext:{identity:{name:"Quae"},products:[{name:"Campaign software"}],audienceEvidence:"Small businesses",offerEvidence:"",ctaEvidence:"Start a campaign"}}};
+test("website campaign generation uses only its durable snapshot",()=>{const context=campaignGenerationContext(quae);assert.equal(context.identity.name,"Quae");assert.equal(JSON.stringify(context).includes("Big Al"),false);assert.equal(context.sourceUrl,"https://quae.ai");});
+test("separate website snapshots cannot leak into one another",()=>{const other={...quae,context_snapshot:{...quae.context_snapshot,sourceUrl:"https://other.example",generationContext:{...quae.context_snapshot.generationContext,identity:{name:"Other"}}}};assert.notEqual(campaignGenerationContext(quae).identity.name,campaignGenerationContext(other).identity.name);});
+test("missing website evidence stops for rescue while legacy campaigns remain intact",()=>{assert.deepEqual(missingCampaignEvidence({...quae,context_snapshot:{...quae.context_snapshot,generationContext:{identity:{name:"Quae"},products:[],audienceEvidence:"",ctaEvidence:""}}}),["products","audience","cta"]);assert.deepEqual(missingCampaignEvidence({brief:{objective:"Legacy"},context_snapshot:{}}),[]);});
+test("routes enforce identity choice, owner-scoped visuals, and no provider invocation",async()=>{const website=await readFile(new URL("../routes/websiteImports.ts",import.meta.url),"utf8"),campaigns=await readFile(new URL("../routes/campaigns.ts",import.meta.url),"utf8");assert.match(website,/identity_conflict/);assert.match(website,/identityChoice/);assert.match(campaigns,/mp\.user_id=\$2/);assert.match(campaigns,/campaign_visual_attachments/);assert.doesNotMatch(campaigns,/Fal|OpenAI|createImage|createVideo/);});

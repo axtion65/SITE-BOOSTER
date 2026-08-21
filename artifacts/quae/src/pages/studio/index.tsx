@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { approvedCampaignToStudio, shouldRestoreStudioDraft, type ApprovedCampaignHandoff } from "@/lib/campaign-handoff";
 import { compilePreviewRenderBrief } from "@/lib/render-brief";
 import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
+import { MarketingImage } from "./marketing-shared";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -180,6 +181,7 @@ function Wizard() {
   const [campaignHandoff, setCampaignHandoff] = useState<ApprovedCampaignHandoff | null>(null);
   const [campaignLoading, setCampaignLoading] = useState(!!campaignId);
   const [campaignMessage, setCampaignMessage] = useState<string | null>(null);
+  const [visualOptions,setVisualOptions]=useState<any[]>([]),[selectedVisualIds,setSelectedVisualIds]=useState<string[]>([]);
 
   const updateHook = (value: string) => {
     setScriptEdited(true);
@@ -321,9 +323,14 @@ function Wizard() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) throw new Error("missing");
-        const handoff = approvedCampaignToStudio(await response.json());
+        const campaign=await response.json();
+        const optionsResponse=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/visual-options`,{headers:{Authorization:`Bearer ${token}`}});
+        if(optionsResponse.ok)setVisualOptions(await optionsResponse.json());
+        const attached=campaign.attachedVisuals||[];setSelectedVisualIds(attached.map((v:any)=>v.version_id));
+        const handoff = approvedCampaignToStudio(campaign);
         if (!handoff) {
-          if (!cancelled) setCampaignMessage("This campaign is not approved for Creative Studio. You can start a new creative below.");
+          const context=campaign.context_snapshot?.generationContext??campaign.context_snapshot??{};
+          if(!cancelled){setProductName(context.products?.[0]?.name||context.identity?.name||campaign.name);setDescription(context.products?.[0]?.description||context.identity?.description||campaign.brief?.objective||"");setTargetAudience(context.audienceEvidence||"");const primary=attached.find((v:any)=>v.is_primary);if(primary){setProductImageUrl(`/api/storage${primary.object_path}`);setProductImageFileName(`${primary.name} · Version ${primary.version_number}`);}setCampaignMessage("This campaign’s brief, website evidence, and visuals are loaded. Complete the Describe step to continue.");}
           return;
         }
         if (cancelled) return;
@@ -345,6 +352,8 @@ function Wizard() {
     void loadCampaign();
     return () => { cancelled = true; };
   }, [campaignId]);
+
+  async function saveVisualSelection(ids:string[]){if(!campaignId||!ids.length)return;const token=localStorage.getItem("quae_token")||"";const response=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/visuals`,{method:"PUT",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({primaryVersionId:ids[0],additionalVersionIds:ids.slice(1)})});if(!response.ok){toast({title:"That visual could not be attached",variant:"destructive"});return;}setSelectedVisualIds(ids);const selected=visualOptions.find(v=>v.version_id===ids[0]);if(selected){setProductImageUrl(`/api/storage${selected.object_path}`);setProductImageFileName(`${selected.name} · Version ${selected.version_number}`);}}
 
   // Pre-fill from template URL params (only when navigating from template picker)
   const templateApplied = useRef(false);
@@ -723,7 +732,7 @@ function Wizard() {
                   />
                 </div>
 
-                {/* Product image upload */}
+                  {/* Product image upload and owned My Visuals selection */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>
@@ -783,11 +792,12 @@ function Wizard() {
                         <ImagePlus className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">Upload product image</p>
+                        <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">Upload new visual</p>
                         <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to 10 MB. Enables image-to-video conditioning on Wan &amp; Kling.</p>
                       </div>
                     </button>
                   )}
+                  {campaignId&&<div className="mt-4 rounded-xl border border-white/10 p-4"><p className="text-sm font-bold">Choose from My Visuals</p><p className="mt-1 text-xs text-muted-foreground">Choose one primary visual and optional additional campaign visuals. Originals stay in My Visuals.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{visualOptions.map((visual:any)=>{const selected=selectedVisualIds.includes(visual.version_id);return <button type="button" key={visual.version_id} onClick={()=>{const ids=selected?selectedVisualIds.filter(id=>id!==visual.version_id):[...selectedVisualIds,visual.version_id];if(ids.length)void saveVisualSelection(ids)}} className={`overflow-hidden rounded-lg border text-left text-xs ${selected?"border-violet-400 bg-violet-500/10":"border-white/10"}`}><MarketingImage objectPath={visual.object_path} alt={visual.name} className="aspect-video w-full object-cover"/><div className="p-3"><b className="block text-sm">{visual.name}</b><span>Status: {String(visual.status).replaceAll("_"," ")} · Version {visual.version_number}</span><span className="block mt-1">Created {new Date(visual.created_at).toLocaleDateString()}</span><span className="mt-2 block font-bold text-violet-200">{selected?(selectedVisualIds[0]===visual.version_id?"Primary visual":"Additional visual"):"Attach visual"}</span></div></button>})}{visualOptions.length===0&&<p className="text-xs text-muted-foreground">No selectable saved visuals yet.</p>}</div></div>}
 
                   <input
                     ref={imageInputRef}
