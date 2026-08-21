@@ -16,7 +16,7 @@ import { ExpandedScript } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { approvedCampaignToStudio, shouldRestoreStudioDraft, type ApprovedCampaignHandoff } from "@/lib/campaign-handoff";
+import { approvedCampaignToStudio, preparedVideoBriefToStudio, shouldRestoreStudioDraft, type ApprovedCampaignHandoff } from "@/lib/campaign-handoff";
 import { compilePreviewRenderBrief } from "@/lib/render-brief";
 import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
@@ -140,8 +140,10 @@ export default function StudioIndex() {
 
 function Wizard() {
   const search = useSearch();
-  const campaignId = new URLSearchParams(search).get("campaignId")?.trim() || null;
-  const approvedMockup = new URLSearchParams(search).get("source") === "approved-mockup" ? loadMockupVideoHandoff() : null;
+  const searchParams = new URLSearchParams(search);
+  const campaignId = searchParams.get("campaignId")?.trim() || null;
+  const briefId = searchParams.get("briefId")?.trim() || null;
+  const approvedMockup = searchParams.get("source") === "approved-mockup" ? loadMockupVideoHandoff() : null;
 
   // Load saved draft once (before state initialisation)
   const savedDraft = approvedMockup ? null : shouldRestoreStudioDraft(search) ? loadDraft() : null;
@@ -186,7 +188,7 @@ function Wizard() {
   const [campaignHandoff, setCampaignHandoff] = useState<ApprovedCampaignHandoff | null>(null);
   const [campaignLoading, setCampaignLoading] = useState(!!campaignId);
   const [campaignMessage, setCampaignMessage] = useState<string | null>(null);
-  const [visualOptions,setVisualOptions]=useState<any[]>([]),[selectedVisualIds,setSelectedVisualIds]=useState<string[]>([]);
+  const [visualOptions,setVisualOptions]=useState<any[]>([]),[selectedVisualIds,setSelectedVisualIds]=useState<string[]>([]),[approvedRunId,setApprovedRunId]=useState<string>("");
 
   const updateHook = (value: string) => {
     setScriptEdited(true);
@@ -331,11 +333,20 @@ function Wizard() {
         const campaign=await response.json();
         const optionsResponse=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/visual-options`,{headers:{Authorization:`Bearer ${token}`}});
         if(optionsResponse.ok)setVisualOptions(await optionsResponse.json());
-        const attached=campaign.attachedVisuals||[];setSelectedVisualIds(attached.map((v:any)=>v.version_id));
-        const handoff = approvedCampaignToStudio(campaign);
+        const attached=campaign.attachedVisuals||[];setSelectedVisualIds(attached.map((v:any)=>v.version_id));setApprovedRunId(campaign.approved_run_id||"");const primary=attached.find((v:any)=>v.is_primary);if(primary){setProductImageUrl(`/api/storage${primary.object_path}`);setProductImageFileName(`${primary.name} · Version ${primary.version_number}`);setRenderIntent("animate");setCampaignMessage("Animate Existing · Confirmed campaign visual loaded. No generation starts until you explicitly continue.");}
+        let handoff: ApprovedCampaignHandoff | null = null;
+        if (briefId) {
+          const briefResponse = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/video-brief?briefId=${encodeURIComponent(briefId)}`,{headers:{Authorization:`Bearer ${token}`}});
+          if (!briefResponse.ok) throw new Error("stale-video-brief");
+          const preparedBrief = await briefResponse.json();
+          handoff = preparedVideoBriefToStudio(preparedBrief,{briefId,campaignId,approvedRunId:String(campaign.approved_run_id||""),selectedVisualProjectId:String(primary?.project_id||""),selectedVisualVersionId:String(primary?.version_id||"")});
+          if (!handoff) throw new Error("stale-video-brief");
+        } else {
+          handoff = approvedCampaignToStudio(campaign);
+        }
         if (!handoff) {
           const context=campaign.context_snapshot?.generationContext??campaign.context_snapshot??{};
-          if(!cancelled){setProductName(context.products?.[0]?.name||context.identity?.name||campaign.name);setDescription(context.products?.[0]?.description||context.identity?.description||campaign.brief?.objective||"");setTargetAudience(context.audienceEvidence||"");const primary=attached.find((v:any)=>v.is_primary);if(primary){setProductImageUrl(`/api/storage${primary.object_path}`);setProductImageFileName(`${primary.name} · Version ${primary.version_number}`);}setCampaignMessage("This campaign’s brief, website evidence, and visuals are loaded. Complete the Describe step to continue.");}
+          if(!cancelled){setProductName(context.products?.[0]?.name||context.identity?.name||campaign.name);setDescription(context.products?.[0]?.description||context.identity?.description||campaign.brief?.objective||"");setTargetAudience(context.audienceEvidence||"");setCampaignMessage("This campaign’s brief, website evidence, and visuals are loaded. Complete the Describe step to continue.");}
           return;
         }
         if (cancelled) return;
@@ -356,9 +367,9 @@ function Wizard() {
     };
     void loadCampaign();
     return () => { cancelled = true; };
-  }, [campaignId]);
+  }, [campaignId, briefId]);
 
-  async function saveVisualSelection(ids:string[]){if(!campaignId||!ids.length)return;const token=localStorage.getItem("quae_token")||"";const response=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/visuals`,{method:"PUT",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({primaryVersionId:ids[0],additionalVersionIds:ids.slice(1)})});if(!response.ok){toast({title:"That visual could not be attached",variant:"destructive"});return;}setSelectedVisualIds(ids);const selected=visualOptions.find(v=>v.version_id===ids[0]);if(selected){setProductImageUrl(`/api/storage${selected.object_path}`);setProductImageFileName(`${selected.name} · Version ${selected.version_number}`);}}
+  async function saveVisualSelection(ids:string[]){if(!campaignId||!approvedRunId||!ids.length)return;const token=localStorage.getItem("quae_token")||"";const response=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/asset-selection`,{method:"PUT",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`,"Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({approvedRunId,versionId:ids[0]})});if(!response.ok){toast({title:"That visual could not be attached",variant:"destructive"});return;}setSelectedVisualIds([ids[0]]);const selected=visualOptions.find(v=>v.version_id===ids[0]);if(selected){setProductImageUrl(`/api/storage${selected.object_path}`);setProductImageFileName(`${selected.name} · Version ${selected.version_number}`);setRenderIntent("animate");}}
 
   // Pre-fill from template URL params (only when navigating from template picker)
   const templateApplied = useRef(false);

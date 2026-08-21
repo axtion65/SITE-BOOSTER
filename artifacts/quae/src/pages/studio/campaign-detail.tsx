@@ -24,7 +24,7 @@ export default function CampaignDetail() {
   const [loadError, setLoadError] = useState(false);
   const [, params] = useRoute("/studio/campaigns/:id");
   const [data, setData] = useState<any>(),
-    [notes, setNotes] = useState(""),[rescue,setRescue]=useState<any>(null);
+    [notes, setNotes] = useState(""),[rescue,setRescue]=useState<any>(null),[visualOptions,setVisualOptions]=useState<any[]>([]),[choosingVisual,setChoosingVisual]=useState(false);
   const load = async () => {
     try {
       const response = await fetch(`/api/campaigns/${params?.id}/workspace`, {
@@ -47,6 +47,9 @@ export default function CampaignDetail() {
     copy = customerCopy(result),
     active = ["queued", "running"].includes(run?.status);
   async function saveRescue(){setBusy("rescue");try{const response=await fetch(`/api/campaigns/${data.id}/rescue`,{method:"PUT",headers:headers(),body:JSON.stringify(rescue)});if(!response.ok)throw new Error("save");toast({title:"Campaign details saved"});await load();}catch{toast({title:"We couldn’t save those details. Your draft is still here.",variant:"destructive"});}finally{setBusy(null)}}
+  async function openVisuals(){setBusy("visuals");try{const response=await fetch(`/api/campaigns/${data.id}/visual-options`,{headers:headers()});const body=await response.json();if(!response.ok)throw new Error(body.error);setVisualOptions(body);setChoosingVisual(true);}catch(error){toast({title:(error as Error).message,variant:"destructive"});}finally{setBusy(null)}}
+  async function attachVisual(visual:any){if(!window.confirm(`Use ${visual.name}, version ${visual.version_number}, in this approved campaign?`))return;setBusy("attach");try{const response=await fetch(`/api/campaigns/${data.id}/asset-selection`,{method:"PUT",headers:{...headers(),"Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({approvedRunId:data.approved_run_id,versionId:visual.version_id})});const body=await response.json();if(!response.ok)throw new Error(body.error);setChoosingVisual(false);toast({title:"Visual confirmed for campaign"});await load();}catch(error){toast({title:(error as Error).message,variant:"destructive"});}finally{setBusy(null)}}
+  async function prepareVideo(){setBusy("video");try{const response=await fetch(`/api/campaigns/${data.id}/video-brief`,{method:"POST",headers:headers()});const body=await response.json();if(!response.ok)throw new Error(body.error);window.location.assign(`/studio?campaignId=${encodeURIComponent(data.id)}&briefId=${encodeURIComponent(body.id)}`);}catch(error){toast({title:(error as Error).message,variant:"destructive"});}finally{setBusy(null)}}
   async function post(path: string, body: Record<string, unknown>) {
     if (busy) return;
     setBusy(path);
@@ -160,6 +163,8 @@ export default function CampaignDetail() {
           <PremiumCard>
             <Image className="h-5 w-5 text-violet-300" />
             <h2 className="mt-3 text-lg font-bold">Product Visuals</h2>
+            {data.approved_run_id&&<div className="mt-4 grid gap-2"><button onClick={openVisuals} className="rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold">Choose from My Visuals</button><Link href={`/studio/mockups?campaignId=${encodeURIComponent(data.id)}&approvedRunId=${encodeURIComponent(data.approved_run_id)}${data.product_id?`&productId=${encodeURIComponent(data.product_id)}`:""}`} className="rounded-xl border border-violet-400 px-4 py-3 text-center text-sm font-bold text-violet-200">Create a New Visual</Link></div>}
+            {choosingVisual&&<div className="mt-4 rounded-xl border border-white/10 p-3"><p className="text-sm font-bold">Confirm one owned visual version</p><div className="mt-3 grid gap-3">{visualOptions.map((v:any)=><button key={v.version_id} disabled={busy==="attach"} onClick={()=>attachVisual(v)} className="overflow-hidden rounded-xl border border-white/10 text-left"><MarketingImage objectPath={v.object_path} alt={v.name} className="aspect-video w-full object-cover"/><span className="block p-3 text-xs font-bold">{v.name} · Version {v.version_number} · {String(v.status).replaceAll("_"," ")}</span></button>)}{!visualOptions.length&&<p className="text-xs text-slate-400">No approved visuals are available for this business.</p>}</div></div>}
             {data.visuals?.length ? (
               <div className="mt-4 space-y-3">
                 {data.visuals.map((v: any) => (
@@ -196,6 +201,7 @@ export default function CampaignDetail() {
           <PremiumCard>
             <Video className="h-5 w-5 text-violet-300" />
             <h2 className="mt-3 text-lg font-bold">Videos</h2>
+            {data.approved_run_id&&data.attachedVisuals?.length>0&&!data.videos?.some((v:any)=>v.video_url)&&<button onClick={prepareVideo} disabled={busy==="video"} className="mt-4 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold">Prepare Campaign Video</button>}
             {data.videos?.length ? (
               <div className="mt-4 space-y-3">
                 {data.videos.map((v: any) => (

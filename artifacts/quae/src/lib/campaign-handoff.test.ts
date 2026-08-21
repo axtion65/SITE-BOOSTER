@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   approvedCampaignToStudio,
+  preparedVideoBriefToStudio,
   shouldRestoreStudioDraft,
 } from "./campaign-handoff";
 
@@ -126,4 +127,18 @@ test("standalone Creative restores drafts while template flow starts clean", () 
     shouldRestoreStudioDraft("?templateName=Product%20Demo&platform=tiktok"),
     false,
   );
+});
+
+
+test("prepared video handoff requires the exact brief, approved run, and selected visual", () => {
+  const prepared = {id:"brief-1",campaign_id:"campaign-1",campaign_run_id:"run-2",mockup_project_id:"project-1",mockup_version_id:"version-1",render_intent:"animate",brief:{campaignId:"campaign-1",approvedCampaignRunId:"run-2",selectedVisualProjectId:"project-1",selectedVisualVersionId:"version-1",campaignName:"Summer launch",productName:"Big Al T-Shirt",productDescription:"A heavyweight cotton tee.",approvedCopy:"Meet your new favorite tee. Shop the drop.",hook:"Meet your new favorite tee.",targetAudience:"Streetwear fans",offer:"Summer drop",cta:"Shop the drop",platform:"Instagram Reels",duration:"30 seconds",renderIntent:"animate"}};
+  const expected = {briefId:"brief-1",campaignId:"campaign-1",approvedRunId:"run-2",selectedVisualProjectId:"project-1",selectedVisualVersionId:"version-1"};
+  const handoff = preparedVideoBriefToStudio(prepared, expected);
+  assert.ok(handoff);
+  assert.equal(handoff.productName, "Big Al T-Shirt");
+  assert.equal(handoff.platform, "instagram");
+  assert.equal(handoff.duration, "30s");
+  assert.equal(handoff.expandedScript.voiceoverText, prepared.brief.approvedCopy);
+  assert.equal(preparedVideoBriefToStudio({...prepared,mockup_version_id:"version-stale"},expected),null);
+  assert.equal(preparedVideoBriefToStudio({...prepared,campaign_run_id:"run-stale"},expected),null);
 });
