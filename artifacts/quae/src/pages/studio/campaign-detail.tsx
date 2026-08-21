@@ -9,7 +9,12 @@ import {
   Video,
   FileText,
 } from "lucide-react";
-import { MarketingImage, MarketingPage, PremiumCard, fieldClass } from "./marketing-shared";
+import {
+  MarketingImage,
+  MarketingPage,
+  PremiumCard,
+  fieldClass,
+} from "./marketing-shared";
 import { ActionButton, StatusPill } from "@/components/quae-design-system";
 import { statusLabel } from "./campaigns";
 import { useToast } from "@/hooks/use-toast";
@@ -24,14 +29,19 @@ export default function CampaignDetail() {
   const [loadError, setLoadError] = useState(false);
   const [, params] = useRoute("/studio/campaigns/:id");
   const [data, setData] = useState<any>(),
-    [notes, setNotes] = useState(""),[rescue,setRescue]=useState<any>(null),[visualOptions,setVisualOptions]=useState<any[]>([]),[choosingVisual,setChoosingVisual]=useState(false);
+    [notes, setNotes] = useState(""),
+    [rescue, setRescue] = useState<any>(null),
+    [visualOptions, setVisualOptions] = useState<any[]>([]),
+    [choosingVisual, setChoosingVisual] = useState(false);
   const load = async () => {
     try {
       const response = await fetch(`/api/campaigns/${params?.id}/workspace`, {
         headers: headers(),
       });
       if (!response.ok) throw new Error("load");
-      const next=await response.json();setData(next);setRescue((current:any)=>current??next.rescue?.prefill);
+      const next = await response.json();
+      setData(next);
+      setRescue((current: any) => current ?? next.rescue?.prefill);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -46,10 +56,96 @@ export default function CampaignDetail() {
     result = run?.final_result,
     copy = customerCopy(result),
     active = ["queued", "running"].includes(run?.status);
-  async function saveRescue(){setBusy("rescue");try{const response=await fetch(`/api/campaigns/${data.id}/rescue`,{method:"PUT",headers:headers(),body:JSON.stringify(rescue)});if(!response.ok)throw new Error("save");toast({title:"Campaign details saved"});await load();}catch{toast({title:"We couldn’t save those details. Your draft is still here.",variant:"destructive"});}finally{setBusy(null)}}
-  async function openVisuals(){setBusy("visuals");try{const response=await fetch(`/api/campaigns/${data.id}/visual-options`,{headers:headers()});const body=await response.json();if(!response.ok)throw new Error(body.error);setVisualOptions(body);setChoosingVisual(true);}catch(error){toast({title:(error as Error).message,variant:"destructive"});}finally{setBusy(null)}}
-  async function attachVisual(visual:any){if(!window.confirm(`Use ${visual.name}, version ${visual.version_number}, in this approved campaign?`))return;setBusy("attach");try{const response=await fetch(`/api/campaigns/${data.id}/asset-selection`,{method:"PUT",headers:{...headers(),"Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({approvedRunId:data.approved_run_id,versionId:visual.version_id})});const body=await response.json();if(!response.ok)throw new Error(body.error);setChoosingVisual(false);toast({title:"Visual confirmed for campaign"});await load();}catch(error){toast({title:(error as Error).message,variant:"destructive"});}finally{setBusy(null)}}
-  async function prepareVideo(){setBusy("video");try{const response=await fetch(`/api/campaigns/${data.id}/video-brief`,{method:"POST",headers:headers()});const body=await response.json();if(!response.ok)throw new Error(body.error);window.location.assign(`/studio?campaignId=${encodeURIComponent(data.id)}&briefId=${encodeURIComponent(body.id)}`);}catch(error){toast({title:(error as Error).message,variant:"destructive"});}finally{setBusy(null)}}
+  function openReview() {
+    const section = document.getElementById("campaign-review");
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+    section?.focus({ preventScroll: true });
+  }
+  async function saveRescue() {
+    setBusy("rescue");
+    try {
+      const response = await fetch(`/api/campaigns/${data.id}/rescue`, {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify(rescue),
+      });
+      if (!response.ok) throw new Error("save");
+      toast({ title: "Campaign details saved" });
+      await load();
+    } catch {
+      toast({
+        title: "We couldn’t save those details. Your draft is still here.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function openVisuals() {
+    setBusy("visuals");
+    try {
+      const response = await fetch(`/api/campaigns/${data.id}/visual-options`, {
+        headers: headers(),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setVisualOptions(body);
+      setChoosingVisual(true);
+    } catch (error) {
+      toast({ title: (error as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function attachVisual(visual: any) {
+    if (
+      !window.confirm(
+        `Use ${visual.name}, version ${visual.version_number}, in this approved campaign?`,
+      )
+    )
+      return;
+    setBusy("attach");
+    try {
+      const response = await fetch(
+        `/api/campaigns/${data.id}/asset-selection`,
+        {
+          method: "PUT",
+          headers: { ...headers(), "Idempotency-Key": crypto.randomUUID() },
+          body: JSON.stringify({
+            approvedRunId: data.approved_run_id,
+            versionId: visual.version_id,
+          }),
+        },
+      );
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setChoosingVisual(false);
+      toast({ title: "Visual confirmed for campaign" });
+      await load();
+    } catch (error) {
+      toast({ title: (error as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function prepareVideo() {
+    setBusy("video");
+    try {
+      const response = await fetch(`/api/campaigns/${data.id}/video-brief`, {
+        method: "POST",
+        headers: headers(),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      window.location.assign(
+        `/studio?campaignId=${encodeURIComponent(data.id)}&briefId=${encodeURIComponent(body.id)}`,
+      );
+    } catch (error) {
+      toast({ title: (error as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  }
   async function post(path: string, body: Record<string, unknown>) {
     if (busy) return;
     setBusy(path);
@@ -110,7 +206,9 @@ export default function CampaignDetail() {
         ? `/studio?campaignId=${encodeURIComponent(data.id)}`
         : "#campaign-work";
   const continueLabel =
-    data.nextAction === "review_campaign"
+    data.reviewState === "needs_rebuild"
+      ? "Fix Campaign"
+      : data.nextAction === "review_campaign"
       ? "Review Campaign"
       : data.nextAction === "create_strategy"
         ? "Start Strategy"
@@ -124,7 +222,45 @@ export default function CampaignDetail() {
       description={data.brief.objective}
     >
       <div className="space-y-6">
-        {data.rescue?.required&&<PremiumCard elevated><p className="quae-eyebrow">Campaign Rescue</p><h2 className="text-2xl font-black">A few campaign details need your confirmation</h2><p className="mt-2 text-sm text-[#B9C5D8]">We preserved the website evidence and stopped before creating generic copy. Confirm these details to continue.</p><div className="mt-5 grid gap-4 md:grid-cols-2">{[["identity","Business/campaign identity"],["productsServices","Products or services"],["targetAudience","Target audience"],["offerPromotion","Offer or promotion (optional)"],["callToAction","Call to action"]].map(([key,label])=><label key={key} className="text-sm font-bold">{label}<textarea className={`${fieldClass} mt-2`} value={rescue?.[key]||""} onChange={e=>setRescue({...rescue,[key]:e.target.value})}/></label>)}</div><button disabled={busy==="rescue"} onClick={saveRescue} className="mt-5 rounded-xl bg-violet-600 px-5 py-3 font-bold">{busy==="rescue"?"Saving…":"Save and continue"}</button></PremiumCard>}
+        {data.rescue?.required && (
+          <PremiumCard elevated>
+            <p className="quae-eyebrow">Campaign Rescue</p>
+            <h2 className="text-2xl font-black">
+              A few campaign details need your confirmation
+            </h2>
+            <p className="mt-2 text-sm text-[#B9C5D8]">
+              We preserved the website evidence and stopped before creating
+              generic copy. Confirm these details to continue.
+            </p>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              {[
+                ["identity", "Business/campaign identity"],
+                ["productsServices", "Products or services"],
+                ["targetAudience", "Target audience"],
+                ["offerPromotion", "Offer or promotion (optional)"],
+                ["callToAction", "Call to action"],
+              ].map(([key, label]) => (
+                <label key={key} className="text-sm font-bold">
+                  {label}
+                  <textarea
+                    className={`${fieldClass} mt-2`}
+                    value={rescue?.[key] || ""}
+                    onChange={(e) =>
+                      setRescue({ ...rescue, [key]: e.target.value })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <button
+              disabled={busy === "rescue"}
+              onClick={saveRescue}
+              className="mt-5 rounded-xl bg-violet-600 px-5 py-3 font-bold"
+            >
+              {busy === "rescue" ? "Saving…" : "Save and continue"}
+            </button>
+          </PremiumCard>
+        )}
         <PremiumCard elevated>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -139,6 +275,16 @@ export default function CampaignDetail() {
                   "Your saved audience"}
               </p>
             </div>
+            {data.nextAction === "review_campaign" ||
+            data.reviewState === "needs_rebuild" ? (
+              <button
+                onClick={openReview}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
+              >
+                {continueLabel}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
             <Link
               href={continueHref}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
@@ -146,6 +292,7 @@ export default function CampaignDetail() {
               {continueLabel}
               <ArrowRight className="h-4 w-4" />
             </Link>
+            )}
           </div>
           <div className="mt-6 grid grid-cols-3 gap-2 lg:grid-cols-6">
             {data.progress?.map((stage: any) => (
@@ -163,8 +310,54 @@ export default function CampaignDetail() {
           <PremiumCard>
             <Image className="h-5 w-5 text-violet-300" />
             <h2 className="mt-3 text-lg font-bold">Product Visuals</h2>
-            {data.approved_run_id&&<div className="mt-4 grid gap-2"><button onClick={openVisuals} className="rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold">Choose from My Visuals</button><Link href={`/studio/mockups?campaignId=${encodeURIComponent(data.id)}&approvedRunId=${encodeURIComponent(data.approved_run_id)}${data.product_id?`&productId=${encodeURIComponent(data.product_id)}`:""}`} className="rounded-xl border border-violet-400 px-4 py-3 text-center text-sm font-bold text-violet-200">Create a New Visual</Link></div>}
-            {choosingVisual&&<div className="mt-4 rounded-xl border border-white/10 p-3"><p className="text-sm font-bold">Confirm one owned visual version</p><div className="mt-3 grid gap-3">{visualOptions.map((v:any)=><button key={v.version_id} disabled={busy==="attach"} onClick={()=>attachVisual(v)} className="overflow-hidden rounded-xl border border-white/10 text-left"><MarketingImage objectPath={v.object_path} alt={v.name} className="aspect-video w-full object-cover"/><span className="block p-3 text-xs font-bold">{v.name} · Version {v.version_number} · {String(v.status).replaceAll("_"," ")}</span></button>)}{!visualOptions.length&&<p className="text-xs text-slate-400">No approved visuals are available for this business.</p>}</div></div>}
+            {data.approved_run_id && (
+              <div className="mt-4 grid gap-2">
+                <button
+                  onClick={openVisuals}
+                  className="rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold"
+                >
+                  Choose from My Visuals
+                </button>
+                <Link
+                  href={`/studio/mockups?campaignId=${encodeURIComponent(data.id)}&approvedRunId=${encodeURIComponent(data.approved_run_id)}${data.product_id ? `&productId=${encodeURIComponent(data.product_id)}` : ""}`}
+                  className="rounded-xl border border-violet-400 px-4 py-3 text-center text-sm font-bold text-violet-200"
+                >
+                  Create a New Visual
+                </Link>
+              </div>
+            )}
+            {choosingVisual && (
+              <div className="mt-4 rounded-xl border border-white/10 p-3">
+                <p className="text-sm font-bold">
+                  Confirm one owned visual version
+                </p>
+                <div className="mt-3 grid gap-3">
+                  {visualOptions.map((v: any) => (
+                    <button
+                      key={v.version_id}
+                      disabled={busy === "attach"}
+                      onClick={() => attachVisual(v)}
+                      className="overflow-hidden rounded-xl border border-white/10 text-left"
+                    >
+                      <MarketingImage
+                        objectPath={v.object_path}
+                        alt={v.name}
+                        className="aspect-video w-full object-cover"
+                      />
+                      <span className="block p-3 text-xs font-bold">
+                        {v.name} · Version {v.version_number} ·{" "}
+                        {String(v.status).replaceAll("_", " ")}
+                      </span>
+                    </button>
+                  ))}
+                  {!visualOptions.length && (
+                    <p className="text-xs text-slate-400">
+                      No approved visuals are available for this business.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
             {data.visuals?.length ? (
               <div className="mt-4 space-y-3">
                 {data.visuals.map((v: any) => (
@@ -196,12 +389,44 @@ export default function CampaignDetail() {
                 </Link>
               </>
             )}
-            {data.attachedVisuals?.length>0&&<div className="mt-5"><p className="quae-eyebrow">Attached from My Visuals</p><div className="mt-3 grid grid-cols-2 gap-3">{data.attachedVisuals.map((v:any)=><div key={v.version_id} className="overflow-hidden rounded-xl border border-white/10"><MarketingImage objectPath={v.object_path} alt={v.name} className="aspect-video w-full object-cover"/><p className="p-2 text-xs font-bold">{v.name} · Version {v.version_number}{v.is_primary?" · Primary":""}</p></div>)}</div></div>}
+            {data.attachedVisuals?.length > 0 && (
+              <div className="mt-5">
+                <p className="quae-eyebrow">Attached from My Visuals</p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {data.attachedVisuals.map((v: any) => (
+                    <div
+                      key={v.version_id}
+                      className="overflow-hidden rounded-xl border border-white/10"
+                    >
+                      <MarketingImage
+                        objectPath={v.object_path}
+                        alt={v.name}
+                        className="aspect-video w-full object-cover"
+                      />
+                      <p className="p-2 text-xs font-bold">
+                        {v.name} · Version {v.version_number}
+                        {v.is_primary ? " · Primary" : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </PremiumCard>
           <PremiumCard>
             <Video className="h-5 w-5 text-violet-300" />
             <h2 className="mt-3 text-lg font-bold">Videos</h2>
-            {data.approved_run_id&&data.attachedVisuals?.length>0&&!data.videos?.some((v:any)=>v.video_url)&&<button onClick={prepareVideo} disabled={busy==="video"} className="mt-4 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold">Prepare Campaign Video</button>}
+            {data.approved_run_id &&
+              data.attachedVisuals?.length > 0 &&
+              !data.videos?.some((v: any) => v.video_url) && (
+                <button
+                  onClick={prepareVideo}
+                  disabled={busy === "video"}
+                  className="mt-4 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold"
+                >
+                  Prepare Campaign Video
+                </button>
+              )}
             {data.videos?.length ? (
               <div className="mt-4 space-y-3">
                 {data.videos.map((v: any) => (
@@ -293,12 +518,42 @@ export default function CampaignDetail() {
           </PremiumCard>
         )}
         <div id="campaign-copy"></div>
+        <div
+          id="campaign-review"
+          tabIndex={-1}
+          className="scroll-mt-6 outline-none"
+        >
+          {data.reviewState === "needs_rebuild" && (
+            <PremiumCard elevated>
+              <p className="quae-eyebrow">Campaign review</p>
+              <h2 className="text-2xl font-black text-amber-200">
+                Campaign information needs to be refreshed
+              </h2>
+              <p className="mt-3 leading-7 text-[#B9C5D8]">
+                {data.reviewExplanation}
+              </p>
+              <ActionButton
+                disabled={busy !== null}
+                onClick={() => post("rebuild", {})}
+                className="mt-6"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${busy === "rebuild" ? "animate-spin" : ""}`}
+                />
+                Rebuild from Quae.ai information
+              </ActionButton>
+            </PremiumCard>
+          )}
         <PremiumCard elevated>
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-extrabold">Campaign preparation</h2>
             <StatusPill>{statusLabel(run?.status || data.status)}</StatusPill>
           </div>
-          <p className="mt-4 text-sm text-[#B9C5D8]">Quae uses only this campaign’s confirmed brief and evidence, then checks the result for clarity and supported claims. Your saved draft remains available if preparation stops.</p>
+            <p className="mt-4 text-sm text-[#B9C5D8]">
+              Quae uses only this campaign’s confirmed brief and evidence, then
+              checks the result for clarity and supported claims. Your saved
+              draft remains available if preparation stops.
+            </p>
           {!run && (
             <ActionButton
               disabled={busy !== null}
@@ -357,7 +612,9 @@ export default function CampaignDetail() {
             <div className="grid gap-6 lg:grid-cols-2">
               <PremiumCard>
                 <p className="quae-eyebrow">Campaign Strategy</p>
-                <h3 className="text-xl font-bold">{result.strategy?.angle}</h3>
+                  <h3 className="text-xl font-bold">
+                    {result.strategy?.angle}
+                  </h3>
                 <p className="mt-3 text-[#B9C5D8]">
                   <b>Audience:</b> {result.strategy?.audience}
                 </p>
@@ -372,7 +629,17 @@ export default function CampaignDetail() {
                   ))}
                 </div>
               </PremiumCard>
-              <PremiumCard><p className="quae-eyebrow">Quality review</p><h3 className="text-xl font-bold">Your strongest campaign draft</h3><p className="mt-3 text-[#B9C5D8]">Quae checked the drafts for relevance, clarity, supported claims, and consistency with your confirmed campaign details.</p></PremiumCard>
+                <PremiumCard>
+                  <p className="quae-eyebrow">Quality review</p>
+                  <h3 className="text-xl font-bold">
+                    Your strongest campaign draft
+                  </h3>
+                  <p className="mt-3 text-[#B9C5D8]">
+                    Quae checked the drafts for relevance, clarity, supported
+                    claims, and consistency with your confirmed campaign
+                    details.
+                  </p>
+                </PremiumCard>
             </div>
             <PremiumCard>
               <p className="quae-eyebrow">Winning Draft</p>
@@ -391,9 +658,7 @@ export default function CampaignDetail() {
               <p className="text-sm text-[#B9C5D8]">
                 Refined and quality-checked by Quae
               </p>
-              <h2 className="text-2xl font-black">
-                {copy?.title}
-              </h2>
+                <h2 className="text-2xl font-black">{copy?.title}</h2>
               <p className="mt-4 text-lg font-semibold text-violet-200">
                 {copy?.hook}
               </p>
@@ -402,14 +667,13 @@ export default function CampaignDetail() {
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <StatusPill>
-                  Fact Check: {result.factcheck?.pass ? "Pass" : "Needs review"}
+                    Fact Check:{" "}
+                    {result.factcheck?.pass ? "Pass" : "Needs review"}
                 </StatusPill>
                 <StatusPill>
                   Quality: {result.qa?.pass ? "Pass" : "Needs revision"}
                 </StatusPill>
-                <div className="font-bold">
-                  CTA: {copy?.callToAction}
-                </div>
+                  <div className="font-bold">CTA: {copy?.callToAction}</div>
               </div>
               {result.factcheck?.unsupportedClaims?.length > 0 && (
                 <div className="mt-4 rounded-xl bg-amber-400/10 p-4 text-amber-200">
@@ -419,7 +683,8 @@ export default function CampaignDetail() {
             </PremiumCard>
           </>
         )}
-        {run?.status === "ready_for_review" && (
+          {data.reviewState !== "needs_rebuild" &&
+            run?.status === "ready_for_review" && (
           <PremiumCard elevated>
             <div className="grid gap-4 md:grid-cols-2">
               <ActionButton
@@ -427,7 +692,7 @@ export default function CampaignDetail() {
                 onClick={() => post("approve", { runId: run.id })}
               >
                 <Check className="h-4 w-4" />
-                APPROVE CAMPAIGN
+                    Approve Campaign
               </ActionButton>
               <div>
                 <textarea
@@ -482,6 +747,7 @@ export default function CampaignDetail() {
             </p>
           </PremiumCard>
         )}
+      </div>
       </div>
     </MarketingPage>
   );
