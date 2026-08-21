@@ -10,7 +10,7 @@ import {
 import { compileVideoRenderBrief } from "../lib/videoRenderBrief";
 import { TEMPLATES } from "./templates";
 import { logger } from "../lib/logger";
-import { RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
+import { isNativeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 import { ObjectPermission } from "../lib/objectAcl";
 
 /** Log every field PostgreSQL/Drizzle exposes on a DB error. */
@@ -271,6 +271,9 @@ router.post("/projects", async (req, res) => {
   const renderIntent = parsed.data.renderIntent as RenderIntent;
   const model = RENDERING_MODEL_BY_ID[parsed.data.renderingModelId];
   if (!model?.supports.textToVideo) { res.status(400).json({ error: "Unsupported rendering model" }); return; }
+  if (!isNativeClipLength(parsed.data.renderingModelId, parsed.data.duration)) {
+    res.status(400).json({ error: `Clip length must be ${model.nativeDurationSeconds}s for ${model.name}` }); return;
+  }
   if (renderIntent === "create_new" && (parsed.data.sourceAssetId || parsed.data.productImageUrl)) {
     res.status(400).json({ error: "Create New cannot include a source asset" }); return;
   }
