@@ -19,7 +19,11 @@ async function withLockedCampaign<T>(
     await client.query("BEGIN");
     const campaign = (
       await client.query(
-        "SELECT * FROM campaigns WHERE id=$1 AND user_id=$2 FOR UPDATE",
+        `SELECT c.*,b.user_id business_owner_id,wi.id import_id,wi.user_id import_user_id,
+         wi.business_id import_business_id,wi.source_url import_source_url,wi.content import_content
+         FROM campaigns c JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id
+         LEFT JOIN website_import_drafts wi ON wi.id=c.website_import_id
+         WHERE c.id=$1 AND c.user_id=$2 FOR UPDATE OF c`,
         [campaignId, userId],
       )
     ).rows[0];
@@ -47,8 +51,6 @@ export function approveLatestCampaignRun(
     args.campaignId,
     args.userId,
     async (client, lockedCampaign) => {
-      if (lockedCampaign.approved_run_id === args.runId)
-        return { kind: "approved" as const, campaign: lockedCampaign };
       const latest = (
         await client.query(
           "SELECT * FROM campaign_runs WHERE campaign_id=$1 ORDER BY run_number DESC LIMIT 1 FOR UPDATE",
@@ -58,9 +60,12 @@ export function approveLatestCampaignRun(
       if (
         !latest ||
         latest.id !== args.runId ||
-        latest.status !== "ready_for_review"
+        latest.status !== "ready_for_review" ||
+        !validateRunSource(lockedCampaign, latest).valid
       )
         return { kind: "superseded" as const };
+      if (lockedCampaign.approved_run_id === args.runId)
+        return { kind: "approved" as const, campaign: lockedCampaign };
       const campaign = (
         await client.query(
           "UPDATE campaigns SET approved_run_id=$2,status='approved',updated_at=NOW() WHERE id=$1 RETURNING *",
@@ -97,3 +102,4 @@ export function validateLatestRevisionSource(
     },
   );
 }
+import { validateRunSource } from "./campaignReview";
