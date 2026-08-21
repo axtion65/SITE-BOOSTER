@@ -21,6 +21,21 @@ export const RENDERING_MODELS = [
 ] as const satisfies readonly RenderingModelDefinition[];
 export const RENDERING_MODEL_BY_ID = Object.fromEntries(RENDERING_MODELS.map(model => [model.id, model])) as Record<string, RenderingModelDefinition>;
 
+/** The only duration a single render may request for a catalogue model. */
+export function nativeClipLength(modelId: string): string | null {
+  const model = RENDERING_MODEL_BY_ID[modelId];
+  return model ? `${model.nativeDurationSeconds}s` : null;
+}
+
+/** Migrate legacy draft choices while leaving every other draft field untouched. */
+export function normalizeClipLength(modelId: string, _legacyDuration?: string | null): string {
+  return nativeClipLength(modelId) ?? nativeClipLength("ltx-fast")!;
+}
+
+export function isNativeClipLength(modelId: string, duration?: string | null): boolean {
+  return duration === nativeClipLength(modelId);
+}
+
 export interface PlanDefinition {
   slug: PlanSlug;
   name: string;

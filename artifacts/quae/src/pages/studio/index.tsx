@@ -20,7 +20,7 @@ import { approvedCampaignToStudio, shouldRestoreStudioDraft, type ApprovedCampai
 import { compilePreviewRenderBrief } from "@/lib/render-brief";
 import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
-import type { RenderIntent } from "@workspace/plans";
+import { normalizeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -61,6 +61,7 @@ function loadDraft(): StudioDraft | null {
         : null;
       delete parsed.productImageObjectPath;
     }
+    parsed.duration = normalizeClipLength(parsed.modelId ?? "ltx-fast", parsed.duration);
     return parsed as StudioDraft;
   } catch {
     return null;
@@ -154,7 +155,7 @@ function Wizard() {
   const [description, setDescription] = useState(approvedMockup?.product?.description ?? savedDraft?.description ?? "");
   const [targetAudience, setTargetAudience] = useState(savedDraft?.targetAudience ?? "");
   const [platform, setPlatform] = useState(savedDraft?.platform ?? "tiktok");
-  const [duration, setDuration] = useState(savedDraft?.duration ?? "10s");
+  const [duration, setDuration] = useState(() => normalizeClipLength(approvedMockup?.renderingModelId ?? savedDraft?.modelId ?? "ltx-fast", savedDraft?.duration));
 
   // Product image state
   // productImageUrl: GCS serving URL stored in DB and draft (short path, no bloat)
@@ -343,7 +344,7 @@ function Wizard() {
         setDescription(handoff.description);
         setTargetAudience(handoff.targetAudience);
         setPlatform(handoff.platform);
-        setDuration(handoff.duration);
+        setDuration(normalizeClipLength(modelId, handoff.duration));
         setExpandedScript(handoff.expandedScript);
         setStep(2);
         setDraftRestored(false);
@@ -376,7 +377,7 @@ function Wizard() {
       templateApplied.current = true;
       if (tDesc) setDescription(tDesc.startsWith("http") ? "" : "");  // don't pre-fill desc with template desc
       if (tPlatform) setPlatform(tPlatform.toLowerCase().replace(" ", ""));
-      if (tDuration) setDuration(tDuration);
+      if (tDuration) setDuration(normalizeClipLength(modelId, tDuration));
       if (tId) setTemplateId(tId);
       if (tType) setTemplateType(tType);
       if (tName) setTemplateName(tName);
@@ -423,7 +424,7 @@ function Wizard() {
     setDescription("");
     setTargetAudience("");
     setPlatform("tiktok");
-    setDuration("15s");
+    setDuration(normalizeClipLength("wan"));
     setProductImageUrl(null);
     setImagePreviewUrl(null);
     setProductImageFileName(null);
@@ -545,11 +546,6 @@ function Wizard() {
   const userPlan = (user as any)?.plan ?? "free";
   const isAdminUser = (user as any)?.isAdmin === true;
 
-  // Canonical model clip limits — must match MODEL_MAX_SECONDS in api-server/src/lib/falvideo.ts
-  const MODEL_MAX_SECONDS: Record<string, number> = {
-    "ltx-fast": 5, ltx: 5, ovi: 10, wan: 10, kling: 10, "kling-1.6": 10, veo3: 8,
-  };
-
   // Parse "15s" → 15, "30s" → 30, "1m" → 60
   function parseDurationSec(d: string): number {
     const s = d.toLowerCase().trim();
@@ -558,13 +554,8 @@ function Wizard() {
     return parseInt(s) || 10;
   }
 
-  // Actual output clip length = min(requested duration, model hard limit)
-  function actualClipSec(mId: string, dur: string): number {
-    return Math.min(parseDurationSec(dur), (models?.find(model => model.id === mId) as any)?.nativeDurationSeconds ?? MODEL_MAX_SECONDS[mId] ?? 10);
-  }
-
-  function clipLabel(mId: string, dur: string): string {
-    return `~${actualClipSec(mId, dur)} sec`;
+  function clipLabel(mId: string): string {
+    return `~${RENDERING_MODEL_BY_ID[mId]?.nativeDurationSeconds ?? 10} sec`;
   }
 
   const planTierOrder = { free: 0, starter: 1, pro: 2, agency: 3 };
@@ -579,7 +570,7 @@ function Wizard() {
   // Whether the selected model supports image conditioning
   const selectedModelSupportsImage = Boolean((selectedModel as any)?.supports?.imageToVideo);
 
-  const nativeDurationSeconds = (selectedModel as any)?.nativeDurationSeconds ?? MODEL_MAX_SECONDS[modelId] ?? 10;
+  const nativeDurationSeconds = RENDERING_MODEL_BY_ID[modelId]?.nativeDurationSeconds ?? 10;
   const previewRenderBrief = expandedScript
     ? compilePreviewRenderBrief(expandedScript, parseDurationSec(duration), nativeDurationSeconds)
     : null;
@@ -836,21 +827,14 @@ function Wizard() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Duration</Label>
+                    <Label>Clip length</Label>
                     <Select value={duration} onValueChange={setDuration}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5s">5 Seconds</SelectItem>
-                        <SelectItem value="10s">10 Seconds</SelectItem>
-                        <SelectItem value="15s">15 Seconds</SelectItem>
-                        <SelectItem value="30s">30 Seconds</SelectItem>
-                        <SelectItem value="45s">45 Seconds</SelectItem>
-                        <SelectItem value="60s">60 Seconds</SelectItem>
-                        <SelectItem value="90s">90 Seconds</SelectItem>
-                        <SelectItem value="120s">120 Seconds</SelectItem>
-                        <SelectItem value="180s">180 Seconds</SelectItem>
+                      <SelectTrigger aria-label="Clip length" className="border-white/20 bg-[#111C30] text-white focus:ring-violet-400"><SelectValue /></SelectTrigger>
+                      <SelectContent sideOffset={8} className="border-white/20 bg-[#111C30] text-white shadow-2xl">
+                        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value={normalizeClipLength(modelId)}>Approximately {nativeDurationSeconds} seconds</SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-xs leading-5 text-white/65">Longer ads will use multiple clips. Multi-clip production is coming soon.</p>
                   </div>
                 </div>
 
@@ -1109,7 +1093,7 @@ function Wizard() {
                   {(models ?? []).map((model) => {
                     const isSelected = modelId === model.id;
                     const canUse = canUseModel(model.tier);
-                    const clipLen = clipLabel(model.id, duration);
+                    const clipLen = clipLabel(model.id);
                     const supportsImage = Boolean((model as any).supports?.imageToVideo);
                     return (
                       <button
@@ -1117,6 +1101,7 @@ function Wizard() {
                         onClick={() => {
                           if (!canUse) return;
                           setModelId(model.id);
+                          setDuration(normalizeClipLength(model.id, duration));
                           if (renderIntent === "animate" && !(model as any).supports?.imageToVideo) setRenderIntent("create_new");
                         }}
                         disabled={!canUse}
@@ -1263,17 +1248,8 @@ function Wizard() {
               <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
                 <span className="text-xl flex-shrink-0 mt-0.5">🎬</span>
                 <div className="space-y-1">
-                  <p className="font-semibold text-white">You'll receive a <span className="text-amber-300">{clipLabel(modelId, duration)}</span> AI-generated clip</p>
-                  {parseDurationSec(duration) > (MODEL_MAX_SECONDS[modelId] ?? 10) ? (
-                    <p className="text-sm text-amber-400/80">
-                      You selected <strong className="text-amber-300">{duration}</strong> but <strong className="text-amber-300">{selectedModel?.name ?? modelId}</strong> outputs at most{" "}
-                      <strong className="text-amber-300">{nativeDurationSeconds} sec</strong>. Quae will send a purpose-built short production brief—not the full storyboard—to this model.
-                    </p>
-                  ) : (
-                    <p className="text-sm text-amber-400/80">
-                      This model can execute the approved creative at its requested duration, so Quae will preserve the full production direction.
-                    </p>
-                  )}
+                  <p className="font-semibold text-white">You'll receive a <span className="text-amber-300">{clipLabel(modelId)}</span> AI-generated clip</p>
+                  <p className="text-sm text-amber-400/80">Longer ads will use multiple clips. Multi-clip production is coming soon.</p>
                 </div>
               </div>
 
@@ -1446,7 +1422,7 @@ function Wizard() {
                           {!isAdminUser && <span className="text-muted-foreground"> ({userCredits} remaining → {Math.max(0, afterBalance)} after)</span>}
                         </p>
                         <p className="text-sm text-muted-foreground">Mode: <span className="font-semibold text-white">{renderIntent === "animate" ? "Animate selected visual" : "Create a new AI video"}</span></p>
-                        <p className="text-sm text-muted-foreground">Output length: <span className="font-semibold text-white">{clipLabel(modelId, duration)}</span></p>
+                        <p className="text-sm text-muted-foreground">Output length: <span className="font-semibold text-white">{clipLabel(modelId)}</span></p>
                         <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                           Source:
                           {renderIntent === "animate" && (signedProductImageUrl || imagePreviewUrl) ? <img src={signedProductImageUrl || imagePreviewUrl || ""} alt="Selected render source" className="h-10 w-10 rounded object-cover" /> : <span className="font-semibold text-white">Approved scene brief (no image)</span>}
