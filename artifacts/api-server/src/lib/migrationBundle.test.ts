@@ -21,6 +21,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0014_render_intent_credit_ledger.sql",
     "0015_campaign_identity_guards.sql",
     "0016_campaign_asset_production_handoff.sql",
+    "0017_campaign_video_production.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
@@ -38,6 +39,17 @@ test("campaign asset handoff migration is additive, historical, and provider-fre
   assert.doesNotMatch(sql,/DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
   assert.doesNotMatch(sql,/fal|openai|kling|wan|veo|credit_ledger/i);
 });
+test("campaign video production migration is bundled, additive, and retry-safe", async () => {
+  const sql = await readFile(
+    new URL("lib/db/migrations/0017_campaign_video_production.sql", root),
+    "utf8",
+  );
+  assert.match(sql, /campaign_video_brief_id/);
+  assert.match(sql, /projects_user_idempotency_unique/);
+  assert.match(sql, /UNIQUE INDEX[\s\S]*projects\(user_id,idempotency_key\)/);
+  assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
+});
+
 test("campaign migration has durable lease and duplicate-run protection", async () => {
   const sql = await readFile(
     new URL("lib/db/migrations/0002_campaign_department.sql", root),
