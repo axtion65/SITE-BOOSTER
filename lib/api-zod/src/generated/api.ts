@@ -157,7 +157,7 @@ export const ExpandPromptBody = zod.object({
   "productName": zod.string(),
   "targetAudience": zod.string().nullish(),
   "platform": zod.string().nullish().describe('Target platform: tiktok, youtube, instagram, amazon'),
-  "duration": zod.string().nullish().describe('Video duration: 15s, 30s, 60s')
+  "duration": zod.string().nullish().describe('Video duration: 5s, 10s, 15s, 30s, 45s, 60s, 90s, 120s, or 180s')
 })
 
 export const ExpandPromptResponse = zod.object({
@@ -209,7 +209,6 @@ export const ListRenderingModelsResponseItem = zod.object({
   "name": zod.string(),
   "description": zod.string(),
   "capabilities": zod.array(zod.string()),
-  "nativeDurationSeconds": zod.number(),
   "tier": zod.enum(['free', 'creator', 'agency']),
   "badge": zod.string().nullish()
 })
@@ -273,6 +272,8 @@ export const ListProjectsResponseItem = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "templateId": zod.string().nullish(),
   "productImageUrl": zod.string().nullish(),
+  "renderIntent": zod.enum(['create_new', 'animate']).optional(),
+  "sourceAssetId": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -292,6 +293,8 @@ export const CreateProjectBody = zod.object({
   "duration": zod.string().nullish(),
   "templateId": zod.string().nullish(),
   "productImageUrl": zod.string().nullish(),
+  "renderIntent": zod.enum(['create_new', 'animate']),
+  "sourceAssetId": zod.string().nullish(),
   "voiceId": zod.string().nullish()
 })
 
@@ -310,6 +313,8 @@ export const CreateProjectResponse = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "templateId": zod.string().nullish(),
   "productImageUrl": zod.string().nullish(),
+  "renderIntent": zod.enum(['create_new', 'animate']).optional(),
+  "sourceAssetId": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -337,6 +342,8 @@ export const GetProjectResponse = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "templateId": zod.string().nullish(),
   "productImageUrl": zod.string().nullish(),
+  "renderIntent": zod.enum(['create_new', 'animate']).optional(),
+  "sourceAssetId": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -376,6 +383,8 @@ export const UpdateProjectResponse = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "templateId": zod.string().nullish(),
   "productImageUrl": zod.string().nullish(),
+  "renderIntent": zod.enum(['create_new', 'animate']).optional(),
+  "sourceAssetId": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

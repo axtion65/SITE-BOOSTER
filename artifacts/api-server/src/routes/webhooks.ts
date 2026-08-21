@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, projectsTable, usersTable } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { db, projectsTable, usersTable, creditLedgerTable } from "@workspace/db";
+import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 import { MODEL_CREDIT_COSTS, extractFalRequestId } from "../lib/falvideo";
 
 const router = Router();
@@ -19,18 +19,19 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
   await db.transaction(async (tx) => {
     const updated = await tx
       .update(projectsTable)
-      .set({ status: "failed", updatedAt: new Date() })
-      .where(and(eq(projectsTable.id, projectId), inArray(projectsTable.status, ["processing", "narrating"])))
-      .returning({ id: projectsTable.id });
+      .set({ status: "failed", refundedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(projectsTable.id, projectId), isNull(projectsTable.refundedAt), inArray(projectsTable.status, ["processing", "narrating"])))
+      .returning({ id: projectsTable.id, renderAttempt: projectsTable.renderAttempt });
 
     if (updated.length === 0) return;
     won = true;
 
     // Atomic credit refund — skip admins
-    await tx
+    const balance = await tx
       .update(usersTable)
       .set({ credits: sql`${usersTable.credits} + ${creditCost}` })
-      .where(and(eq(usersTable.id, userId), sql`${usersTable.isAdmin} = false`));
+      .where(and(eq(usersTable.id, userId), sql`${usersTable.isAdmin} = false`)).returning({ credits: usersTable.credits });
+    if (balance[0]) await tx.insert(creditLedgerTable).values({ userId, projectId, attempt: updated[0]!.renderAttempt, kind: "refund", amount: creditCost, balanceAfter: balance[0].credits });
   });
   return won;
 }
@@ -76,7 +77,7 @@ router.post("/webhooks/fal", async (req, res) => {
 
   if (payload.status === "FAILED" || payload.error) {
     console.error(`[webhook/fal] Render FAILED for project ${project.id}:`, payload.error);
-    const creditCost = getCreditCost(project.renderingModelId ?? "ovi");
+    const creditCost = project.creditCharge;
     const wonFail = await failAndRefund(project.id, project.userId, creditCost);
     if (wonFail) {
       const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
@@ -122,7 +123,7 @@ router.post("/webhooks/fal", async (req, res) => {
     if (won.length > 0) {
       const projectId = project.id;
       const falUrl = url;
-      const creditCost = getCreditCost(project.renderingModelId ?? "ovi");
+      const creditCost = project.creditCharge;
 
       setImmediate(async () => {
         let permanentPath: string;
@@ -212,7 +213,7 @@ router.post("/webhooks/fal", async (req, res) => {
   } else {
     console.error(`[webhook/fal] COMPLETED but no URL for project ${project.id}. Keys:`, Object.keys(output));
     // Fail + refund atomically
-    const creditCost = getCreditCost(project.renderingModelId ?? "ovi");
+    const creditCost = project.creditCharge;
     const won = await failAndRefund(project.id, project.userId, creditCost);
     if (won) {
       const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));

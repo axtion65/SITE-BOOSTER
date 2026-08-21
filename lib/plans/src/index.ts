@@ -3,6 +3,24 @@ export type PlanSlug = (typeof PLAN_SLUGS)[number];
 export type PaidPlanSlug = Exclude<PlanSlug, "free">;
 export type BillingInterval = "month" | "year";
 
+export type RenderIntent = "create_new" | "animate";
+export interface RenderingModelDefinition {
+  id: string; name: string; description: string; nativeDurationSeconds: number;
+  creditCost: number; tier: PlanSlug; badge?: string;
+  supports: Readonly<{ textToVideo: boolean; imageToVideo: boolean }>;
+  capabilities: readonly string[];
+}
+
+/** The single capability catalogue consumed by both the API and customer UI. */
+export const RENDERING_MODELS = [
+  { id:"ltx-fast", name:"Fast Draft — LTX Fast", description:"Fast text-to-video previews.", nativeDurationSeconds:5, creditCost:15, tier:"free", badge:"Fastest", supports:{textToVideo:true,imageToVideo:false}, capabilities:["~30s render","Text to video","All platforms","Commercial use"] },
+  { id:"ovi", name:"Ovi", description:"AI video with native audio.", nativeDurationSeconds:10, creditCost:30, tier:"free", badge:"Best Value", supports:{textToVideo:true,imageToVideo:false}, capabilities:["Video + audio","Text to video","All platforms","Commercial use"] },
+  { id:"wan", name:"Wan 2.5", description:"Cinematic video with optional explicit image animation.", nativeDurationSeconds:10, creditCost:200, tier:"starter", badge:"Popular", supports:{textToVideo:true,imageToVideo:true}, capabilities:["Cinematic quality","Image conditioning","Pro motion","All platforms"] },
+  { id:"kling", name:"Higher Quality — Kling", description:"Premium video with optional explicit image animation.", nativeDurationSeconds:10, creditCost:300, tier:"pro", badge:"Premium", supports:{textToVideo:true,imageToVideo:true}, capabilities:["Ultra-realistic","Image conditioning","Premium output","Brand-safe"] },
+  { id:"veo3", name:"Veo 3", description:"Google's flagship text-to-video model.", nativeDurationSeconds:8, creditCost:1500, tier:"agency", badge:"Agency", supports:{textToVideo:true,imageToVideo:false}, capabilities:["Photorealistic","Text to video","Best-in-class","Agency grade"] },
+] as const satisfies readonly RenderingModelDefinition[];
+export const RENDERING_MODEL_BY_ID = Object.fromEntries(RENDERING_MODELS.map(model => [model.id, model])) as Record<string, RenderingModelDefinition>;
+
 export interface PlanDefinition {
   slug: PlanSlug;
   name: string;

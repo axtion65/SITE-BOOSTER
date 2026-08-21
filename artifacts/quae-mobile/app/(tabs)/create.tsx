@@ -425,13 +425,14 @@ export default function CreateScreen() {
         data: {
           title: productName.trim(),
           renderingModelId: selectedModel.id,
+          renderIntent: "create_new",
           description: description.trim() || null,
           script: expandedScript?.script ?? null,
           expandedScript: expandedScript ? JSON.stringify(expandedScript) : null,
           platform: platform || null,
           duration: selectedTemplate?.duration ?? null,
           templateId: selectedTemplate?.id ?? null,
-          productImageUrl: productImageUrl ?? null,
+          productImageUrl: null,
           voiceId: voiceId || 'alloy',
         },
       });

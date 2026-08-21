@@ -5,6 +5,7 @@
  * Quae.ai API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ProjectRenderIntent } from './projectRenderIntent';
 import type { ProjectStatus } from './projectStatus';
 
 export interface Project {
@@ -31,6 +32,9 @@ export interface Project {
   templateId?: string | null;
   /** @nullable */
   productImageUrl?: string | null;
+  renderIntent?: ProjectRenderIntent;
+  /** @nullable */
+  sourceAssetId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

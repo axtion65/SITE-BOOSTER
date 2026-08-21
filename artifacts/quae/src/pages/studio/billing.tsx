@@ -181,7 +181,7 @@ function BillingContent() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-[#AAB6CA]">Credits remaining</span>
-              <span className="text-white font-bold">{credits.toLocaleString()} / {currentPlanDefinition.credits.toLocaleString()}</span>
+              <span className="text-white font-bold">{credits.toLocaleString()} spendable credits</span>
             </div>
             <div className="h-2 w-full rounded-full bg-white/[0.06] overflow-hidden">
               <div

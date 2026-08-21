@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { resolveUserIdFromToken } from "./auth";
 import { durationPlanInstruction, normalizeScriptTiming, parseRequestedDuration, validateScript, type AdScript } from "../lib/scriptEngine";
 import { sanitizeVisualPrompt } from "../lib/falvideo";
+import { RENDERING_MODELS } from "@workspace/plans";
 
 const router = Router();
 
@@ -15,59 +16,7 @@ function getOpenAI(): OpenAI {
   return new OpenAI({ apiKey });
 }
 
-// Real fal.ai models — credits shown to users
-const RENDERING_MODELS = [
-  {
-    id: "ltx-fast",
-    nativeDurationSeconds: 5,
-    name: "Fast Draft — LTX Fast",
-    description: "Renders in ~30 seconds using LTX 2.3 Fast. Perfect for rapid iteration and previewing your concept — 15 credits per video.",
-    capabilities: ["~30s render", "Image conditioning", "All platforms", "Commercial use"],
-    creditCost: 15,
-    tier: "free",
-    badge: "Fastest",
-  },
-  {
-    id: "ovi",
-    nativeDurationSeconds: 10,
-    name: "Ovi",
-    description: "AI video with native audio. Best value — 30 credits per video.",
-    capabilities: ["Video + audio", "Fast render", "All platforms", "Commercial use"],
-    creditCost: 30,
-    tier: "free",
-    badge: "Best Value",
-  },
-  {
-    id: "wan",
-    nativeDurationSeconds: 10,
-    name: "Wan 2.5",
-    description: "High-quality cinematic video with image conditioning. 200 credits per video.",
-    capabilities: ["Cinematic quality", "Image conditioning", "Pro motion", "All platforms"],
-    creditCost: 200,
-    tier: "starter",
-    badge: "Popular",
-  },
-  {
-    id: "kling",
-    nativeDurationSeconds: 10,
-    name: "Higher Quality — Kling",
-    description: "Premium AI video with ultra-realistic rendering using Kling 2.5. 300 credits per video.",
-    capabilities: ["Ultra-realistic", "Image conditioning", "Premium output", "Brand-safe"],
-    creditCost: 300,
-    tier: "pro",
-    badge: "Premium",
-  },
-  {
-    id: "veo3",
-    nativeDurationSeconds: 8,
-    name: "Veo 3",
-    description: "Google's flagship model — unmatched realism. 1500 credits per video.",
-    capabilities: ["Photorealistic", "4K quality", "Best-in-class", "Agency grade"],
-    creditCost: 1500,
-    tier: "agency",
-    badge: "Agency",
-  },
-];
+// Rendering models come from the shared authoritative catalogue.
 
 // Template-specific system prompts — each type has its own structural DNA
 const TEMPLATE_SYSTEM_PROMPTS: Record<string, string> = {

@@ -103,7 +103,7 @@ function DashboardContent() {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-[#AAB6CA] text-xs">{creditsUsed.toLocaleString()} used</span>
-              <span className="text-white font-bold text-sm">{creditsRemaining.toLocaleString()} <span className="text-slate-400 font-normal">/ {maxCredits.toLocaleString()}</span></span>
+              <span className="text-white font-bold text-sm">{creditsRemaining.toLocaleString()} <span className="text-slate-400 font-normal">spendable credits</span></span>
             </div>
             <div className="h-1.5 w-full rounded-full bg-white/[0.06] overflow-hidden">
               <div
