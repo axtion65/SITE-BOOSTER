@@ -76,7 +76,7 @@ export interface PromptExpandInput {
      */
   platform?: string | null;
   /**
-     * Video duration: 15s, 30s, 60s
+     * Video duration: 5s, 10s, 15s, 30s, 45s, 60s, 90s, 120s, or 180s
      * @nullable
      */
   duration?: string | null;
@@ -174,6 +174,14 @@ export const ProjectStatus = {
   failed: 'failed',
 } as const;
 
+export type ProjectRenderIntent = typeof ProjectRenderIntent[keyof typeof ProjectRenderIntent];
+
+
+export const ProjectRenderIntent = {
+  create_new: 'create_new',
+  animate: 'animate',
+} as const;
+
 export interface Project {
   id: string;
   userId: string;
@@ -198,9 +206,20 @@ export interface Project {
   templateId?: string | null;
   /** @nullable */
   productImageUrl?: string | null;
+  renderIntent?: ProjectRenderIntent;
+  /** @nullable */
+  sourceAssetId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ProjectInputRenderIntent = typeof ProjectInputRenderIntent[keyof typeof ProjectInputRenderIntent];
+
+
+export const ProjectInputRenderIntent = {
+  create_new: 'create_new',
+  animate: 'animate',
+} as const;
 
 export interface ProjectInput {
   title: string;
@@ -219,6 +238,9 @@ export interface ProjectInput {
   templateId?: string | null;
   /** @nullable */
   productImageUrl?: string | null;
+  renderIntent: ProjectInputRenderIntent;
+  /** @nullable */
+  sourceAssetId?: string | null;
   /** @nullable */
   voiceId?: string | null;
 }

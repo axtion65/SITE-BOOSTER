@@ -1,4 +1,5 @@
 import type { ExpandedScript } from "./falvideo";
+import { RENDERING_MODEL_BY_ID } from "@workspace/plans";
 
 export const VIDEO_RENDER_BRIEF_VERSION = "model-aware-v2";
 
@@ -20,7 +21,7 @@ export const IMAGE_CONDITIONED_VIDEO_MODELS: ReadonlySet<string> = new Set([
 ]);
 
 export function modelSupportsImageConditioning(modelId: string): boolean {
-  return IMAGE_CONDITIONED_VIDEO_MODELS.has(modelId);
+  return RENDERING_MODEL_BY_ID[modelId]?.supports.imageToVideo === true;
 }
 
 export interface VideoRenderBrief {

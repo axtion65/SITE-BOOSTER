@@ -793,6 +793,11 @@ components:
           type: ["string", "null"]
         productImageUrl:
           type: ["string", "null"]
+        renderIntent:
+          type: string
+          enum: [create_new, animate]
+        sourceAssetId:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -802,7 +807,7 @@ components:
 
     ProjectInput:
       type: object
-      required: [title, renderingModelId]
+      required: [title, renderingModelId, renderIntent]
       properties:
         title:
           type: string
@@ -821,6 +826,11 @@ components:
         templateId:
           type: ["string", "null"]
         productImageUrl:
+          type: ["string", "null"]
+        renderIntent:
+          type: string
+          enum: [create_new, animate]
+        sourceAssetId:
           type: ["string", "null"]
         voiceId:
           type: ["string", "null"]

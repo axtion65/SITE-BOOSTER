@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,6 +18,10 @@ export const projectsTable = pgTable("projects", {
   thumbnailUrl: text("thumbnail_url"),
   templateId: text("template_id"),
   productImageUrl: text("product_image_url"),
+  renderIntent: text("render_intent").notNull().default("create_new"),
+  sourceAssetId: text("source_asset_id"),
+  creditCharge: integer("credit_charge").notNull().default(0),
+  refundedAt: timestamp("refunded_at"),
   voiceId: text("voice_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

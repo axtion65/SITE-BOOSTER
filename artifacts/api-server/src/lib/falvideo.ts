@@ -5,6 +5,7 @@
 
 import { fal } from "@fal-ai/client";
 import { compileVideoRenderBrief, modelSupportsImageConditioning, MODEL_NATIVE_DURATION_SECONDS, type VideoRenderBrief } from "./videoRenderBrief";
+import type { RenderIntent } from "@workspace/plans";
 
 export interface ExpandedScript {
   script: string;
@@ -278,9 +279,11 @@ export interface FalRenderRequest {
 }
 
 /** Pure provider-payload builder used by submission and regression tests. */
-export function buildFalRenderRequest(script: ExpandedScript, platform: string, duration: string, renderingModelId: string, templateType?: string, providerImageUrl?: string): FalRenderRequest {
+export function buildFalRenderRequest(script: ExpandedScript, platform: string, duration: string, renderingModelId: string, templateType?: string, renderIntent: RenderIntent = "create_new", providerImageUrl?: string): FalRenderRequest {
   const supportsImage = modelSupportsImageConditioning(renderingModelId);
-  const usableImage = supportsImage ? providerImageUrl : undefined;
+  if (renderIntent === "animate" && (!supportsImage || !providerImageUrl)) throw new Error("Animate requires an image-capable model and an explicit source asset");
+  if (renderIntent === "create_new" && providerImageUrl) throw new Error("Create New must not include a source image");
+  const usableImage = renderIntent === "animate" ? providerImageUrl : undefined;
   const brief = compileVideoRenderBrief(script, duration, renderingModelId);
   const prompt = buildVideoPrompt(script, platform, `${brief.renderDurationSeconds}s`, templateType, brief);
   const input: Record<string, unknown> = { prompt, ...buildModelParams(getModelKey(renderingModelId), parseDurationSeconds(duration)) };
@@ -393,7 +396,8 @@ export async function submitFalVideoRender(
   renderingModelId: string = 'quae-v1',
   templateType?: string,
   imageUrl?: string | null,
-  webhookUrl?: string
+  webhookUrl?: string,
+  renderIntent: RenderIntent = "create_new",
 ): Promise<string> {
   const falKey = process.env.FAL_KEY;
   if (!falKey) throw new Error('FAL_KEY not configured');
@@ -403,12 +407,12 @@ export async function submitFalVideoRender(
   // and it can't be ingested, throw so the project gets marked failed (and credits refunded)
   // rather than silently rendering a text-only video when the user expected image conditioning.
   let falImageUrl: string | undefined;
-  if (imageUrl && modelSupportsImageConditioning(renderingModelId)) {
+  if (renderIntent === "animate" && imageUrl && modelSupportsImageConditioning(renderingModelId)) {
     falImageUrl = await uploadImageToFal(imageUrl, falKey);
   }
 
   const hasImage = !!falImageUrl;
-  const { modelPath, input, brief } = buildFalRenderRequest(script, platform, duration, renderingModelId, templateType, falImageUrl);
+  const { modelPath, input, brief } = buildFalRenderRequest(script, platform, duration, renderingModelId, templateType, renderIntent, falImageUrl);
 
   console.log(`[fal-video] renderingModelId="${renderingModelId}" → fal="${modelPath}" | hasImage=${hasImage} | template=${templateType ?? 'generic'} | duration=${duration}`);
 

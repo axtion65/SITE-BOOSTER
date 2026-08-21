@@ -19,10 +19,10 @@
  * Call once on startup and then every INTERVAL_MS to self-heal without a restart.
  */
 
-import { db, projectsTable, usersTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { creditLedgerTable, db, projectsTable, usersTable } from "@workspace/db";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { logger } from "./logger";
-import { MODEL_RENDER_ESTIMATE, MODEL_CREDIT_COSTS } from "./falvideo";
+import { MODEL_RENDER_ESTIMATE } from "./falvideo";
 
 // Run every 15 minutes
 const INTERVAL_MS = 15 * 60 * 1000;
@@ -78,9 +78,7 @@ export async function autoFailStuckRenders(): Promise<void> {
         "[render-timeout] Marking failed"
       );
 
-      const creditCost =
-        MODEL_CREDIT_COSTS[project.renderingModelId ?? "ovi"] ??
-        MODEL_CREDIT_COSTS["ovi"];
+      const creditCost = project.creditCharge;
 
       // Atomic: transition status and refund credits in one transaction.
       // If the project was already resolved by a poll/webhook, the conditional
@@ -89,10 +87,11 @@ export async function autoFailStuckRenders(): Promise<void> {
       await db.transaction(async (tx) => {
         const updated = await tx
           .update(projectsTable)
-          .set({ status: "failed", updatedAt: new Date() })
+          .set({ status: "failed", refundedAt: new Date(), updatedAt: new Date() })
           .where(
             and(
               eq(projectsTable.id, project.id),
+              isNull(projectsTable.refundedAt),
               eq(projectsTable.status, "processing")
             )
           )
@@ -102,7 +101,7 @@ export async function autoFailStuckRenders(): Promise<void> {
         won = true;
 
         // Atomic relative credit increment; skip admins
-        await tx
+        const balance = await tx
           .update(usersTable)
           .set({ credits: sql`${usersTable.credits} + ${creditCost}` })
           .where(
@@ -110,7 +109,14 @@ export async function autoFailStuckRenders(): Promise<void> {
               eq(usersTable.id, project.userId),
               sql`${usersTable.isAdmin} = false`
             )
-          );
+          )
+          .returning({ credits: usersTable.credits });
+        if (balance[0]) {
+          await tx.insert(creditLedgerTable).values({
+            userId: project.userId, projectId: project.id, kind: "refund",
+            amount: creditCost, balanceAfter: balance[0].credits,
+          });
+        }
       });
 
       if (won) {

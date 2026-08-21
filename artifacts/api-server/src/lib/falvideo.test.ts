@@ -49,7 +49,7 @@ test("short apparel prompt is one product-hero concept with comprehensive text s
 });
 
 test("provider request prefers supported image conditioning without making provider calls", () => {
-  const request = buildFalRenderRequest(apparel, "instagram", "30s", "ltx-fast", undefined, "https://signed.example/product.jpg");
+  const request = buildFalRenderRequest(apparel, "instagram", "30s", "wan", undefined, "animate", "https://signed.example/product.jpg");
   assert.match(request.modelPath, /image-to-video/);
   assert.equal(request.input.image_url, "https://signed.example/product.jpg");
 });
@@ -58,7 +58,5 @@ test("no image falls back and unsupported models safely ignore images", () => {
   const noImage = buildFalRenderRequest(apparel, "instagram", "30s", "ltx-fast");
   assert.match(noImage.modelPath, /text-to-video/);
   assert.equal(noImage.input.image_url, undefined);
-  const unsupported = buildFalRenderRequest(apparel, "instagram", "30s", "ovi", undefined, "https://signed.example/product.jpg");
-  assert.equal(unsupported.modelPath, "fal-ai/ovi");
-  assert.equal(unsupported.input.image_url, undefined);
+  assert.throws(() => buildFalRenderRequest(apparel, "instagram", "30s", "ovi", undefined, "animate", "https://signed.example/product.jpg"));
 });

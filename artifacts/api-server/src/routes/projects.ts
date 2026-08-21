@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, pool, usersTable, projectsTable } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { db, pool, usersTable, projectsTable, creditLedgerTable } from "@workspace/db";
+import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
 import { PLAN_BY_SLUG, isPlanSlug } from "@workspace/plans";
 import {
@@ -10,6 +10,8 @@ import {
 import { compileVideoRenderBrief } from "../lib/videoRenderBrief";
 import { TEMPLATES } from "./templates";
 import { logger } from "../lib/logger";
+import { RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
+import { ObjectPermission } from "../lib/objectAcl";
 
 /** Log every field PostgreSQL/Drizzle exposes on a DB error. */
 function logDbError(context: string, err: any): void {
@@ -216,18 +218,19 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
   await db.transaction(async (tx) => {
     const updated = await tx
       .update(projectsTable)
-      .set({ status: "failed", updatedAt: new Date() })
-      .where(and(eq(projectsTable.id, projectId), inArray(projectsTable.status, ["processing", "narrating"])))
+      .set({ status: "failed", refundedAt: isAdmin ? null : new Date(), updatedAt: new Date() })
+      .where(and(eq(projectsTable.id, projectId), isNull(projectsTable.refundedAt), inArray(projectsTable.status, ["processing", "narrating"])))
       .returning({ id: projectsTable.id });
 
     if (updated.length === 0) return; // Another path already resolved this project
     won = true;
 
     if (!isAdmin) {
-      await tx
+      const [balance] = await tx
         .update(usersTable)
         .set({ credits: sql`${usersTable.credits} + ${creditCost}` })
-        .where(eq(usersTable.id, userId));
+        .where(eq(usersTable.id, userId)).returning({ credits: usersTable.credits });
+      await tx.insert(creditLedgerTable).values({ userId, projectId, kind: "refund", amount: creditCost, balanceAfter: balance!.credits });
     }
   });
   return won;
@@ -247,8 +250,7 @@ router.get("/projects/stats", async (req, res) => {
     if (s in byStatus) byStatus[s]++;
   }
 
-  const maxCredits = isPlanSlug(user.plan) ? PLAN_BY_SLUG[user.plan].credits : PLAN_BY_SLUG.free.credits;
-  const creditsUsed = Math.max(0, maxCredits - user.credits);
+  const creditsUsed = projects.reduce((sum, project) => sum + (project.refundedAt ? 0 : project.creditCharge), 0);
   res.json({ total: projects.length, byStatus, creditsUsed, creditsRemaining: user.credits });
 });
 
@@ -278,6 +280,35 @@ router.post("/projects", async (req, res) => {
   const parsed = CreateProjectBody.safeParse(req.body);
   const campaignId = typeof req.body?.campaignId === "string" ? req.body.campaignId : null;
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+
+  const renderIntent = parsed.data.renderIntent as RenderIntent;
+  const model = RENDERING_MODEL_BY_ID[parsed.data.renderingModelId];
+  if (!model?.supports.textToVideo) { res.status(400).json({ error: "Unsupported rendering model" }); return; }
+  if (renderIntent === "create_new" && (parsed.data.sourceAssetId || parsed.data.productImageUrl)) {
+    res.status(400).json({ error: "Create New cannot include a source asset" }); return;
+  }
+  if (renderIntent === "animate" && (!model.supports.imageToVideo || !parsed.data.sourceAssetId)) {
+    res.status(400).json({ error: "Animate requires an image-capable model and explicit source asset" }); return;
+  }
+
+  let ownedSourcePath: string | null = null;
+  if (renderIntent === "animate") {
+    try {
+      const { ObjectStorageService } = await import("../lib/objectStorage");
+      const storage = new ObjectStorageService();
+      ownedSourcePath = storage.normalizeObjectEntityPath(parsed.data.sourceAssetId!);
+      if (!ownedSourcePath.startsWith("/objects/") ||
+          parsed.data.productImageUrl !== `/api/storage${ownedSourcePath}`) {
+        res.status(400).json({ error: "Source asset fields are contradictory" }); return;
+      }
+      const file = await storage.getObjectEntityFile(ownedSourcePath);
+      if (!await storage.canAccessObjectEntity({ userId, objectFile: file, requestedPermission: ObjectPermission.READ })) {
+        res.status(403).json({ error: "Source asset is not owned by this account" }); return;
+      }
+    } catch {
+      res.status(403).json({ error: "Source asset is unavailable or not owned by this account" }); return;
+    }
+  }
 
   // Reject base64 data URLs and oversized image strings — product images must be
   // uploaded via the presigned URL flow; only short GCS object paths or https URLs
@@ -336,12 +367,23 @@ router.post("/projects", async (req, res) => {
     duration: parsed.data.duration ?? null,
     templateId: parsed.data.templateId ?? null,
     productImageUrl: parsed.data.productImageUrl ?? null,
+    renderIntent,
+    sourceAssetId: ownedSourcePath,
+    creditCharge: user.isAdmin ? 0 : creditCost,
     voiceId: parsed.data.voiceId ?? null,
     status: "processing",
   }).returning().catch((err: any) => {
     logDbError("INSERT projects", err);
     throw err; // Express 5 global handler returns 500
   });
+
+  if (!user.isAdmin) {
+    const [balance] = await db.select({ credits: usersTable.credits }).from(usersTable).where(eq(usersTable.id, userId));
+    await db.insert(creditLedgerTable).values({
+      userId, projectId: project.id, kind: "charge", amount: -creditCost,
+      balanceAfter: balance!.credits,
+    });
+  }
 
   // Submit fal.ai video render synchronously before responding
   if (process.env.FAL_KEY && parsed.data.expandedScript) {
@@ -351,7 +393,7 @@ router.post("/projects", async (req, res) => {
       const duration = parsed.data.duration ?? "30s";
       const templateType = TEMPLATES.find(t => t.id === parsed.data.templateId)?.templateType;
       const webhookUrl = buildFalWebhookUrl();
-      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1", templateType, parsed.data.productImageUrl, webhookUrl || undefined);
+      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1", templateType, ownedSourcePath, webhookUrl || undefined, renderIntent);
       await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
     } catch (err) {
       console.error("[fal-video] submit error — refunding credits", err);
@@ -519,7 +561,7 @@ router.post("/projects/:id/rerender", async (req, res) => {
   try {
     const templateType = TEMPLATES.find(t => t.id === project.templateId)?.templateType;
     const webhookUrl = buildFalWebhookUrl();
-    const token = await submitFalVideoRender(approvedScript, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType, project.productImageUrl, webhookUrl || undefined);
+    const token = await submitFalVideoRender(approvedScript, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType, project.sourceAssetId, webhookUrl || undefined, project.renderIntent as RenderIntent);
     await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
   } catch (err) {
     console.error("[fal-video] rerender submit error — refunding credits", err);

@@ -20,6 +20,7 @@ import { approvedCampaignToStudio, shouldRestoreStudioDraft, type ApprovedCampai
 import { compilePreviewRenderBrief } from "@/lib/render-brief";
 import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
+import type { RenderIntent } from "@workspace/plans";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -157,7 +158,10 @@ function Wizard() {
 
   // Product image state
   // productImageUrl: GCS serving URL stored in DB and draft (short path, no bloat)
-  const [productImageUrl, setProductImageUrl] = useState<string | null>(approvedMockup ? `/api/storage${approvedMockup.authoritativeImagePath}` : savedDraft?.productImageUrl ?? null);
+  // Visuals are deliberately session-scoped: a saved/stale draft may never opt a
+  // later render into image-to-video.
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(approvedMockup ? `/api/storage${approvedMockup.authoritativeImagePath}` : null);
+  const [renderIntent, setRenderIntent] = useState<RenderIntent>("create_new");
   // imagePreviewUrl: local data URL for thumbnail display only — NOT persisted in draft
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   // signedProductImageUrl: short-lived GCS signed URL resolved from productImageUrl
@@ -515,7 +519,9 @@ function Wizard() {
           platform,
           duration,
           templateId: templateId ?? null,
-          productImageUrl: productImageUrl ?? null,
+          renderIntent,
+          sourceAssetId: renderIntent === "animate" && productImageUrl ? productImageUrl.replace(/^\/api\/storage/, "") : null,
+          productImageUrl: renderIntent === "animate" ? productImageUrl : null,
           voiceId: voiceId ?? "alloy",
         } as any
       });
@@ -571,7 +577,7 @@ function Wizard() {
   }
 
   // Whether the selected model supports image conditioning
-  const selectedModelSupportsImage = Boolean((selectedModel as any)?.capabilities?.includes("Image conditioning"));
+  const selectedModelSupportsImage = Boolean((selectedModel as any)?.supports?.imageToVideo);
 
   const nativeDurationSeconds = (selectedModel as any)?.nativeDurationSeconds ?? MODEL_MAX_SECONDS[modelId] ?? 10;
   const previewRenderBrief = expandedScript
@@ -1055,6 +1061,17 @@ function Wizard() {
                 <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
               </div>
 
+              <div className="grid gap-3 md:grid-cols-2" aria-label="Render intent">
+                <button type="button" onClick={() => setRenderIntent("create_new")} className={`rounded-xl border p-4 text-left ${renderIntent === "create_new" ? "border-primary bg-primary/10" : "border-white/10"}`}>
+                  <strong className="block text-white">Create a new AI video</strong>
+                  <span className="text-xs text-muted-foreground">Uses your approved scene brief. No visual is sent to the provider.</span>
+                </button>
+                <button type="button" disabled={!productImageUrl} onClick={() => productImageUrl && setRenderIntent("animate")} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${renderIntent === "animate" ? "border-primary bg-primary/10" : "border-white/10"}`}>
+                  <strong className="block text-white">Animate my selected visual</strong>
+                  <span className="text-xs text-muted-foreground">Animates only the visual shown below with a supported model.</span>
+                </button>
+              </div>
+
               {/* Honest clip-length notice — shown once above the grid */}
               <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-amber-400/80 flex items-start gap-2">
                 <span className="text-amber-400 mt-0.5 flex-shrink-0">⚠</span>
@@ -1093,7 +1110,7 @@ function Wizard() {
                     const isSelected = modelId === model.id;
                     const canUse = canUseModel(model.tier);
                     const clipLen = clipLabel(model.id, duration);
-                    const supportsImage = Boolean((model as any).capabilities?.includes("Image conditioning"));
+                    const supportsImage = Boolean((model as any).supports?.imageToVideo);
                     return (
                       <button
                         key={model.id}
@@ -1166,7 +1183,7 @@ function Wizard() {
                 <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
                     Selected: <span className="text-white font-semibold">{selectedModel.name}</span>
-                    {productImageUrl && selectedModelSupportsImage && (
+                    {renderIntent === "animate" && productImageUrl && selectedModelSupportsImage && (
                       <span className="ml-2 text-xs text-primary">+ image conditioning</span>
                     )}
                     {productImageUrl && !selectedModelSupportsImage && (
@@ -1424,6 +1441,12 @@ function Wizard() {
                           Cost: <span className={`font-bold ${isAdminUser ? "text-green-400" : "text-amber-400"}`}>{isAdminUser ? "FREE (admin)" : `${renderCost} credits`}</span>
                           {!isAdminUser && <span className="text-muted-foreground"> ({userCredits} remaining → {Math.max(0, afterBalance)} after)</span>}
                         </p>
+                        <p className="text-sm text-muted-foreground">Mode: <span className="font-semibold text-white">{renderIntent === "animate" ? "Animate selected visual" : "Create a new AI video"}</span></p>
+                        <p className="text-sm text-muted-foreground">Output length: <span className="font-semibold text-white">{clipLabel(modelId, duration)}</span></p>
+                        <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                          Source:
+                          {renderIntent === "animate" && (signedProductImageUrl || imagePreviewUrl) ? <img src={signedProductImageUrl || imagePreviewUrl || ""} alt="Selected render source" className="h-10 w-10 rounded object-cover" /> : <span className="font-semibold text-white">Approved scene brief (no image)</span>}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
                         <Zap className="h-3 w-3 text-primary" />

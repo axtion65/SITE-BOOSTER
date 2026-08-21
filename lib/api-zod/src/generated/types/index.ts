@@ -25,6 +25,8 @@ export * from './healthStatus';
 export * from './listTemplatesParams';
 export * from './project';
 export * from './projectInput';
+export * from './projectInputRenderIntent';
+export * from './projectRenderIntent';
 export * from './projectStats';
 export * from './projectStatsByStatus';
 export * from './projectStatus';
