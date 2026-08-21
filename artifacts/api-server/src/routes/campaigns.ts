@@ -5,6 +5,7 @@ import { resolveUserIdFromToken } from "./auth";
 import { getMarketingContext } from "../lib/marketingContext";
 import { queueCampaignRun } from "../lib/campaignQueue";
 import { campaignGenerationContext, missingCampaignEvidence, rescuePrefill } from "../lib/campaignContext";
+import { ownedBusiness, ownedCampaignRun } from "../lib/campaignIdentity";
 import {
   approveLatestCampaignRun,
   validateLatestRevisionSource,
@@ -22,6 +23,7 @@ async function owner(req: any, res: any) {
 const campaignBody = z
   .object({
     name: z.string().trim().min(1).max(200),
+    businessId: z.string().uuid().optional(),
     productId: z.string().uuid().nullable().optional(),
     brief: z
       .object({
@@ -55,18 +57,15 @@ router.post("/campaigns", async (req, res) => {
     });
     return;
   }
-  const business = await pool.query(
-    "SELECT id FROM businesses WHERE user_id=$1",
-    [userId],
-  );
-  if (!business.rows[0]) {
-    res.status(409).json({ error: "Create your business profile first" });
+  const business = await ownedBusiness(pool, userId, parsed.data.businessId);
+  if (!business) {
+    res.status(409).json({ error: parsed.data.businessId ? "Business not found" : "Choose which business this campaign belongs to.", code: "business_required" });
     return;
   }
   if (parsed.data.productId) {
     const product = await pool.query(
       "SELECT 1 FROM products WHERE id=$1 AND business_id=$2",
-      [parsed.data.productId, business.rows[0].id],
+      [parsed.data.productId, business.id],
     );
     if (!product.rows[0]) {
       res.status(404).json({ error: "Product not found" });
@@ -78,7 +77,7 @@ router.post("/campaigns", async (req, res) => {
     [
       crypto.randomUUID(),
       userId,
-      business.rows[0].id,
+      business.id,
       parsed.data.productId ?? null,
       parsed.data.name,
       parsed.data.brief,
@@ -144,7 +143,7 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
     hasBrief: Boolean(campaign.brief?.objective),
     hasStrategy: Boolean(latest?.final_result),
     approved:
-      campaign.status === "approved" && Boolean(campaign.approved_run_id),
+      Boolean(campaign.approved_run_id),
     visualCount: visuals.length,
     videoCount: videos.length,
   };
@@ -247,6 +246,7 @@ router.post("/campaigns/:id/approve", async (req, res) => {
     res.status(400).json({ error: "Invalid approval" });
     return;
   }
+  if (!await ownedCampaignRun(pool, userId, req.params.id, parsed.data.runId)) { res.status(404).json({ error: "Not found" }); return; }
   const result = await approveLatestCampaignRun(pool, {
     campaignId: req.params.id,
     userId,
@@ -279,6 +279,7 @@ router.post("/campaigns/:id/request-changes", async (req, res) => {
     res.status(400).json({ error: "Revision guidance is required" });
     return;
   }
+  if (!await ownedCampaignRun(pool, userId, req.params.id, parsed.data.runId)) { res.status(404).json({ error: "Not found" }); return; }
   const current = await validateLatestRevisionSource(pool, {
     campaignId: req.params.id,
     userId,
