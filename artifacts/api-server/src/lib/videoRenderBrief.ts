@@ -36,7 +36,14 @@ export interface VideoRenderBrief {
   voiceoverText: string;
   visualTextPolicy: string;
   visualProductionBrief: string;
+  captionStyle: CaptionStyle;
 }
+
+export interface CaptionStyle { color:string; backingColor:string; stroke:string; safeMarginPercent:number; maxLineCharacters:number }
+export const READABLE_CAPTION_STYLE: Readonly<CaptionStyle> = Object.freeze({
+  color: "#FFFFFF", backingColor: "rgba(0,0,0,0.78)", stroke: "2px #000000",
+  safeMarginPercent: 8, maxLineCharacters: 42,
+});
 
 const TEXT_SAFETY = "No signs, posters, billboards, menus, screens displaying text, UI, captions, subtitles, invented labels, generated logos, random symbols, fake lettering, readable typography, watermarks, or background writing.";
 
@@ -54,6 +61,60 @@ function productionBrief(script: ExpandedScript, short: boolean): string {
     ? " Apparel fidelity: favor a clear front view, a fully visible garment surface, natural fabric and realistic construction. Preserve a supported custom print area from the supplied reference; never invent artwork, exact lettering, or a logo. The garment must not morph into another garment."
     : " Preserve the product's shape, materials, colors, and recognizable identity; do not morph it into another product.";
   return `Clean, uncluttered studio or neutral lifestyle setting. The product is the hero and focal subject. ${shot}${apparel} ${TEXT_SAFETY}`;
+}
+
+export function approvedCampaignPlatform(value: unknown): string {
+  const platform = String(value ?? "").trim().toLowerCase();
+  if (platform.includes("instagram")) return "instagram";
+  if (platform.includes("youtube")) return "youtube";
+  if (platform.includes("amazon")) return "amazon";
+  if (platform.includes("tik") || platform.includes("social")) return "tiktok";
+  return ["tiktok", "instagram", "youtube", "amazon"].includes(platform) ? platform : "tiktok";
+}
+
+function approvedCampaignDuration(value: unknown): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (/^\d+s$/.test(raw)) return raw;
+  const seconds = raw.match(/\d+/)?.[0];
+  return seconds ? `${seconds}s` : "15s";
+}
+
+function approvedCampaignScenes(script: string, duration: string): ExpandedScript["scenes"] {
+  const sentences = script.match(/[^.!?\n]+(?:[.!?]+|$)/g)?.map(part => part.trim()).filter(Boolean) ?? [script];
+  const sceneCount = Math.max(1, Math.min(4, sentences.length));
+  const groups = Array.from({ length: sceneCount }, () => [] as string[]);
+  sentences.forEach((sentence, index) => {
+    const groupIndex = Math.min(sceneCount - 1, Math.floor((index * sceneCount) / sentences.length));
+    groups[groupIndex]!.push(sentence);
+  });
+  const totalSeconds = Number.parseInt(duration, 10) || 15;
+  return groups.map((copy, index) => ({
+    sceneNumber: index + 1,
+    description: copy.join(" "),
+    duration: `${Math.max(1, Math.round(totalSeconds / sceneCount))}s`,
+    visualDirection: "Create product-focused visuals that support this approved voiceover without adding on-screen claims.",
+  }));
+}
+
+/** Rebuilds provider input from the persisted, approved campaign brief. */
+export function approvedCampaignBriefToExpandedScript(value: unknown): ExpandedScript {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Approved campaign video brief is missing");
+  }
+  const brief = value as Record<string, unknown>;
+  const script = String(brief.approvedCopy ?? "").trim();
+  if (!script) throw new Error("Approved campaign copy is missing");
+  const duration = approvedCampaignDuration(brief.duration);
+  const cta = String(brief.cta ?? "").trim();
+  return {
+    script,
+    hook: String(brief.hook ?? "").trim(),
+    callToAction: cta,
+    voiceoverText: script,
+    scenes: approvedCampaignScenes(script, duration),
+    estimatedDuration: duration,
+    suggestedMusic: "",
+  };
 }
 
 export function parseVideoDuration(value: string): number {
@@ -100,6 +161,7 @@ export function compileVideoRenderBrief(
       voiceoverText: approvedScript.voiceoverText,
       visualTextPolicy: "Imagery only. Do not generate captions, prices, signs, UI, readable typography, logos, or brand lettering.",
       visualProductionBrief: productionBrief(approvedScript, renderDurationSeconds <= 5),
+      captionStyle: READABLE_CAPTION_STYLE,
     };
   }
 
@@ -118,5 +180,6 @@ export function compileVideoRenderBrief(
     voiceoverText: durationSafeApprovedExcerpt(voiceSource, maxWords),
     visualTextPolicy: "Imagery only. Do not generate captions, prices, signs, UI, readable typography, logos, or brand lettering. Exact approved copy is reserved for deterministic overlays.",
     visualProductionBrief: productionBrief(approvedScript, renderDurationSeconds <= 5),
+    captionStyle: READABLE_CAPTION_STYLE,
   };
 }

@@ -264,8 +264,6 @@ function Wizard() {
 
   // Credit confirmation dialog
   const [showRenderConfirm, setShowRenderConfirm] = useState(false);
-  // Models costing ≥ this many credits get a confirmation dialog; cheaper ones proceed directly
-  const CONFIRM_CREDIT_THRESHOLD = 100;
 
   // Tracks whether the user intentionally completed a render (skip unload prompt)
   const renderStartedRef = useRef(false);
@@ -524,6 +522,9 @@ function Wizard() {
       const res = await createMutation.mutateAsync({
         data: {
           campaignId,
+          campaignVideoBriefId: briefId,
+          confirmed: true,
+          idempotencyKey: campaignId && briefId ? `campaign-video:${briefId}:${modelId}:${duration}` : crypto.randomUUID(),
           title: `${productName} Ad`,
           description,
           renderingModelId: modelId,
@@ -1420,7 +1421,7 @@ function Wizard() {
               {(() => {
                 const renderCost = (selectedModel as any)?.creditCost ?? 30;
                 const afterBalance = userCredits - renderCost;
-                const needsConfirm = renderCost >= CONFIRM_CREDIT_THRESHOLD;
+                const needsConfirm = true;
                 return (
                   <div className="p-5 rounded-xl bg-primary/5 border border-primary/20 space-y-4">
                     <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1494,6 +1495,14 @@ function Wizard() {
               </DialogHeader>
 
               <div className="space-y-4 py-2">
+                {campaignHandoff && <div className="space-y-2 rounded-xl border border-violet-400/20 bg-violet-500/5 p-3 text-sm">
+                  <div><span className="text-muted-foreground">Business / product</span><p className="font-semibold text-white">{campaignHandoff.productName}</p></div>
+                  <div><span className="text-muted-foreground">Campaign</span><p className="font-semibold text-white">{campaignHandoff.campaignName}</p></div>
+                  <div><span className="text-muted-foreground">Approved script</span><p className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap text-white">{campaignHandoff.expandedScript.script}</p></div>
+                  <div className="flex items-center justify-between"><span className="text-muted-foreground">Platform / aspect ratio</span><b>{platform} · {platform === "tiktok" || platform === "instagram" ? "9:16" : "16:9"}</b></div>
+                  <div className="flex items-center justify-between"><span className="text-muted-foreground">Supported output duration</span><b>{clipLabel(modelId)}</b></div>
+                  {signedProductImageUrl && <img src={signedProductImageUrl} alt="Exact selected visual" className="h-24 w-full rounded-lg object-contain bg-black" />}
+                </div>}
                 {/* Model row */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10">
                   <span className="text-sm text-muted-foreground">Model</span>
