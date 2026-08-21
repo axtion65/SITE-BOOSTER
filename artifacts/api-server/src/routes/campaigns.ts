@@ -4,6 +4,7 @@ import { z } from "@workspace/api-zod";
 import { resolveUserIdFromToken } from "./auth";
 import { getMarketingContext } from "../lib/marketingContext";
 import { queueCampaignRun } from "../lib/campaignQueue";
+import { campaignGenerationContext, missingCampaignEvidence, rescuePrefill } from "../lib/campaignContext";
 import {
   approveLatestCampaignRun,
   validateLatestRevisionSource,
@@ -129,6 +130,7 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
       [campaign.id, userId],
     )
   ).rows;
+  const attachedVisuals=(await pool.query(`SELECT a.is_primary,mv.id AS version_id,mv.version_number,mv.object_path,mv.status,mv.created_at,mp.id AS project_id,p.name FROM campaign_visual_attachments a JOIN mockup_versions mv ON mv.id=a.mockup_version_id JOIN mockup_projects mp ON mp.id=mv.mockup_project_id JOIN products p ON p.id=mp.product_id WHERE a.campaign_id=$1 AND mp.user_id=$2 ORDER BY a.is_primary DESC,a.created_at`,[campaign.id,userId])).rows;
   const latest = runs[0];
   const agents = latest
     ? (
@@ -154,7 +156,10 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
     agents,
     strategy: latest?.final_result ?? null,
     visuals,
+    attachedVisuals,
     videos,
+    websiteEvidence: campaign.context_snapshot?.websiteSnapshot ?? null,
+    rescue: { required: missingCampaignEvidence(campaign).length > 0, missing: missingCampaignEvidence(campaign), prefill: rescuePrefill(campaign) },
     progress: campaignWorkspaceProgress(facts),
     nextAction: campaignWorkspaceNextAction(facts),
   });
@@ -181,8 +186,15 @@ router.get("/campaigns/:id", async (req, res) => {
         [runs.rows[0].id],
       )
     : { rows: [] };
-  res.json({ ...campaign.rows[0], runs: runs.rows, agents: agents.rows });
+  const attachments=await pool.query(`SELECT a.is_primary,a.created_at AS attached_at,mv.id AS version_id,mv.version_number,mv.object_path,mv.status,mp.id AS project_id,p.name FROM campaign_visual_attachments a JOIN mockup_versions mv ON mv.id=a.mockup_version_id JOIN mockup_projects mp ON mp.id=mv.mockup_project_id JOIN products p ON p.id=mp.product_id WHERE a.campaign_id=$1 AND mp.user_id=$2 ORDER BY a.is_primary DESC,a.created_at`,[req.params.id,userId]);
+  res.json({ ...campaign.rows[0], runs: runs.rows, agents: agents.rows, websiteEvidence:campaign.rows[0].context_snapshot?.websiteSnapshot??null, attachedVisuals:attachments.rows, rescue:{required:missingCampaignEvidence(campaign.rows[0]).length>0,missing:missingCampaignEvidence(campaign.rows[0]),prefill:rescuePrefill(campaign.rows[0])} });
 });
+
+const rescueSchema=z.object({identity:z.string().trim().min(1).max(200),productsServices:z.string().trim().min(1).max(4000),targetAudience:z.string().trim().min(1).max(2000),offerPromotion:z.string().max(1000).optional(),callToAction:z.string().trim().min(1).max(1000)}).strict();
+router.put("/campaigns/:id/rescue",async(req,res)=>{const userId=await owner(req,res);if(!userId)return;const parsed=rescueSchema.safeParse(req.body);if(!parsed.success){res.status(400).json({error:"Complete the required campaign details.",details:parsed.error.flatten()});return;}const rescue=parsed.data;const row=await pool.query(`UPDATE campaigns SET context_snapshot=jsonb_set(context_snapshot,'{generationContext}',COALESCE(context_snapshot->'generationContext','{}'::jsonb)||$3::jsonb,true),updated_at=NOW() WHERE id=$1 AND user_id=$2 RETURNING *`,[req.params.id,userId,JSON.stringify({identity:{name:rescue.identity},products:[{name:rescue.productsServices}],audienceEvidence:rescue.targetAudience,offerEvidence:rescue.offerPromotion||"",ctaEvidence:rescue.callToAction,rescuedAt:new Date().toISOString()})]);if(!row.rows[0]){res.status(404).json({error:"Campaign not found"});return;}res.json({...row.rows[0],rescue:{required:false,prefill:rescuePrefill(row.rows[0])}});});
+
+router.get("/campaigns/:id/visual-options",async(req,res)=>{const userId=await owner(req,res);if(!userId)return;const campaign=(await pool.query("SELECT 1 FROM campaigns WHERE id=$1 AND user_id=$2",[req.params.id,userId])).rows[0];if(!campaign){res.status(404).json({error:"Campaign not found"});return;}const rows=await pool.query(`SELECT mv.id AS version_id,mv.version_number,mv.object_path,mv.status,mv.created_at,mp.id AS project_id,p.name,EXISTS(SELECT 1 FROM campaign_visual_attachments a WHERE a.campaign_id=$1 AND a.mockup_version_id=mv.id) AS attached FROM mockup_versions mv JOIN mockup_projects mp ON mp.id=mv.mockup_project_id JOIN products p ON p.id=mp.product_id WHERE mp.user_id=$2 AND mv.object_path IS NOT NULL AND mv.status IN ('approved','ready_for_review') ORDER BY mv.created_at DESC`,[req.params.id,userId]);res.json(rows.rows);});
+router.put("/campaigns/:id/visuals",async(req,res)=>{const userId=await owner(req,res);if(!userId)return;const parsed=z.object({primaryVersionId:z.string().uuid(),additionalVersionIds:z.array(z.string().uuid()).max(20).default([])}).strict().safeParse(req.body);if(!parsed.success){res.status(400).json({error:"Choose a primary visual."});return;}const ids=[parsed.data.primaryVersionId,...new Set(parsed.data.additionalVersionIds.filter(id=>id!==parsed.data.primaryVersionId))];const client=await pool.connect();try{await client.query("BEGIN");const campaign=(await client.query("SELECT 1 FROM campaigns WHERE id=$1 AND user_id=$2 FOR UPDATE",[req.params.id,userId])).rows[0];if(!campaign){await client.query("ROLLBACK");res.status(404).json({error:"Campaign not found"});return;}const owned=await client.query(`SELECT mv.id FROM mockup_versions mv JOIN mockup_projects mp ON mp.id=mv.mockup_project_id WHERE mv.id=ANY($1::text[]) AND mp.user_id=$2 AND mv.object_path IS NOT NULL AND mv.status IN ('approved','ready_for_review')`,[ids,userId]);if(owned.rows.length!==ids.length){await client.query("ROLLBACK");res.status(403).json({error:"One or more visuals are not selectable or are not owned by your account."});return;}await client.query("DELETE FROM campaign_visual_attachments WHERE campaign_id=$1 AND NOT(mockup_version_id=ANY($2::text[]))",[req.params.id,ids]);await client.query("UPDATE campaign_visual_attachments SET is_primary=FALSE WHERE campaign_id=$1",[req.params.id]);for(const id of ids)await client.query(`INSERT INTO campaign_visual_attachments(campaign_id,mockup_version_id,is_primary) VALUES($1,$2,$3) ON CONFLICT(campaign_id,mockup_version_id) DO UPDATE SET is_primary=EXCLUDED.is_primary`,[req.params.id,id,id===parsed.data.primaryVersionId]);await client.query("COMMIT");res.json({campaignId:req.params.id,primaryVersionId:parsed.data.primaryVersionId,additionalVersionIds:ids.slice(1)});}catch(error){await client.query("ROLLBACK").catch(()=>{});throw error;}finally{client.release();}});
 router.post("/campaigns/:id/run-team", async (req, res) => {
   const userId = await owner(req, res);
   if (!userId) return;
@@ -203,10 +215,8 @@ router.post("/campaigns/:id/run-team", async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const context = await getMarketingContext(
-    userId,
-    campaign.product_id ?? undefined,
-  );
+  const missing=missingCampaignEvidence(campaign);if(missing.length){res.status(409).json({error:"Complete Campaign Rescue before generation.",code:"campaign_rescue_required",missing,prefill:rescuePrefill(campaign)});return;}
+  const context = campaign.context_snapshot&&Object.keys(campaign.context_snapshot).length?campaignGenerationContext(campaign):await getMarketingContext(userId,campaign.product_id??undefined);
   if (!context) {
     res.status(409).json({ error: "Marketing context is incomplete" });
     return;
@@ -294,10 +304,8 @@ router.post("/campaigns/:id/request-changes", async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const context = await getMarketingContext(
-    userId,
-    campaign.product_id ?? undefined,
-  );
+  const missing=missingCampaignEvidence(campaign);if(missing.length){res.status(409).json({error:"Complete Campaign Rescue before regeneration.",code:"campaign_rescue_required",missing,prefill:rescuePrefill(campaign)});return;}
+  const context = campaign.context_snapshot&&Object.keys(campaign.context_snapshot).length?campaignGenerationContext(campaign):await getMarketingContext(userId,campaign.product_id??undefined);
   if (!context) {
     res.status(409).json({ error: "Marketing context is incomplete" });
     return;
