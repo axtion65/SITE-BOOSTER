@@ -134,3 +134,50 @@ export function approvedCampaignToStudio(
     },
   };
 }
+
+
+export interface PreparedVideoBriefExpectation {
+  briefId: string;
+  campaignId: string;
+  approvedRunId: string;
+  selectedVisualProjectId: string;
+  selectedVisualVersionId: string;
+}
+
+/** Converts only the exact, server-prepared campaign brief into Creative state. */
+export function preparedVideoBriefToStudio(
+  record: CampaignRecord,
+  expected: PreparedVideoBriefExpectation,
+): ApprovedCampaignHandoff | null {
+  const brief = record?.brief;
+  if (!brief || typeof brief !== "object") return null;
+  const exactIdentity =
+    String(record.id) === expected.briefId &&
+    String(record.campaign_id) === expected.campaignId &&
+    String(record.campaign_run_id) === expected.approvedRunId &&
+    String(record.mockup_project_id) === expected.selectedVisualProjectId &&
+    String(record.mockup_version_id) === expected.selectedVisualVersionId &&
+    String(brief.campaignId) === expected.campaignId &&
+    String(brief.approvedCampaignRunId) === expected.approvedRunId &&
+    String(brief.selectedVisualProjectId) === expected.selectedVisualProjectId &&
+    String(brief.selectedVisualVersionId) === expected.selectedVisualVersionId &&
+    record.render_intent === "animate" &&
+    brief.renderIntent === "animate";
+  if (!exactIdentity) return null;
+  const script = typeof brief.approvedCopy === "string" ? brief.approvedCopy.trim() : "";
+  if (!script) return null;
+  const duration = durationFor(brief.duration);
+  const cta = String(brief.cta ?? "").trim();
+  const descriptionParts = [brief.productDescription,brief.offer,typeof brief.strategy === "string" ? brief.strategy : null].filter(Boolean);
+  return {
+    campaignId: expected.campaignId,
+    campaignName: String(brief.campaignName ?? "").trim(),
+    productName: String(brief.productName ?? brief.campaignName ?? "").trim(),
+    description: descriptionParts.join("\n\n") || String(brief.campaignName ?? "").trim(),
+    targetAudience: String(brief.targetAudience ?? "").trim(),
+    platform: platformFor(brief.platform),
+    duration,
+    approvedCta: cta,
+    expandedScript: {script,hook:String(brief.hook ?? "").trim(),callToAction:cta,voiceoverText:script,scenes:productionScenes(script,duration),estimatedDuration:duration,suggestedMusic:null},
+  };
+}

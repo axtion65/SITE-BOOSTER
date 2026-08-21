@@ -14,7 +14,15 @@ export async function attachCampaignVisual(db:CampaignAssetDb,input:{customerId:
 }
 
 export function deriveProductionBrief(row:any){
-  const result=row.final_result||{},context=row.run_context||{},brief=row.campaign_brief||{};
-  const copy=result.winningScript||result.script||result.copy||{};
-  return {customerId:row.user_id,businessId:row.business_id,campaignId:row.campaign_id,approvedCampaignRunId:row.campaign_run_id,selectedVisualProjectId:row.mockup_project_id,selectedVisualVersionId:row.mockup_version_id,campaignName:row.campaign_name,strategy:result.strategy||result.campaignStrategy||result,approvedCopy:copy.script||copy.body||copy.voiceoverText||"",targetAudience:context.audienceEvidence||brief.targetAudience||"",offer:context.offerEvidence||brief.promotion||"",cta:context.ctaEvidence||copy.callToAction||"",platform:brief.channel||"",duration:brief.duration||result.estimatedDuration||"30s",sourceWebsiteUrl:row.source_url||null,renderIntent:"animate" as const};
+  const result=row.final_result||{},context=row.run_context||{};
+  const generation=context.generationContext||context;
+  const brief=row.campaign_brief||context.campaignBrief||{};
+  const product=context.product||generation.product||generation.products?.[0]||{};
+  const business=context.business||generation.business||generation.identity||{};
+  const candidate=result.winningScript??result.finalScript??result.script??result.copy??{};
+  const approvedCopy=typeof candidate==="string"?candidate:String(candidate.script??candidate.body??candidate.voiceoverText??"").trim();
+  const approvedCta=String(candidate.callToAction??generation.ctaEvidence??context.ctaEvidence??brief.callToAction??"").trim();
+  const benefits=Array.isArray(product.benefits)?product.benefits.join(", "):product.benefits;
+  const productDescription=[product.description,benefits,product.offer,business.description].filter(Boolean).join("\n\n");
+  return {customerId:row.user_id,businessId:row.business_id,campaignId:row.campaign_id,approvedCampaignRunId:row.campaign_run_id,selectedVisualProjectId:row.mockup_project_id,selectedVisualVersionId:row.mockup_version_id,campaignName:row.campaign_name,productName:String(product.name??business.name??row.campaign_name??"").trim(),productDescription:productDescription||String(brief.objective??row.campaign_name??"").trim(),strategy:result.strategy||result.campaignStrategy||result,hook:typeof candidate==="object"&&candidate?String(candidate.hook??"").trim():"",approvedCopy,targetAudience:String(generation.audienceEvidence??context.audienceEvidence??product.targetAudience??brief.targetAudience??"").trim(),offer:String(generation.offerEvidence??context.offerEvidence??product.offer??brief.promotion??"").trim(),cta:approvedCta,platform:String(brief.channel??"").trim(),duration:String(brief.duration??result.estimatedDuration??"30s").trim(),sourceWebsiteUrl:row.source_url||null,renderIntent:"animate" as const};
 }
