@@ -1066,7 +1066,7 @@ function Wizard() {
                   <strong className="block text-white">Create a new AI video</strong>
                   <span className="text-xs text-muted-foreground">Uses your approved scene brief. No visual is sent to the provider.</span>
                 </button>
-                <button type="button" disabled={!productImageUrl} onClick={() => productImageUrl && setRenderIntent("animate")} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${renderIntent === "animate" ? "border-primary bg-primary/10" : "border-white/10"}`}>
+                <button type="button" disabled={!productImageUrl || !selectedModelSupportsImage} onClick={() => productImageUrl && selectedModelSupportsImage && setRenderIntent("animate")} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${renderIntent === "animate" ? "border-primary bg-primary/10" : "border-white/10"}`}>
                   <strong className="block text-white">Animate my selected visual</strong>
                   <span className="text-xs text-muted-foreground">Animates only the visual shown below with a supported model.</span>
                 </button>
@@ -1114,7 +1114,11 @@ function Wizard() {
                     return (
                       <button
                         key={model.id}
-                        onClick={() => canUse && setModelId(model.id)}
+                        onClick={() => {
+                          if (!canUse) return;
+                          setModelId(model.id);
+                          if (renderIntent === "animate" && !(model as any).supports?.imageToVideo) setRenderIntent("create_new");
+                        }}
                         disabled={!canUse}
                         className={`p-5 rounded-2xl border text-left transition-all relative ${
                           isSelected

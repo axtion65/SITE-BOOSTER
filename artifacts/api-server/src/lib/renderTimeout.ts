@@ -95,7 +95,7 @@ export async function autoFailStuckRenders(): Promise<void> {
               eq(projectsTable.status, "processing")
             )
           )
-          .returning({ id: projectsTable.id });
+          .returning({ id: projectsTable.id, renderAttempt: projectsTable.renderAttempt });
 
         if (updated.length === 0) return; // Race: already resolved elsewhere
         won = true;
@@ -113,7 +113,7 @@ export async function autoFailStuckRenders(): Promise<void> {
           .returning({ credits: usersTable.credits });
         if (balance[0]) {
           await tx.insert(creditLedgerTable).values({
-            userId: project.userId, projectId: project.id, kind: "refund",
+            userId: project.userId, projectId: project.id, attempt: updated[0]!.renderAttempt, kind: "refund",
             amount: creditCost, balanceAfter: balance[0].credits,
           });
         }

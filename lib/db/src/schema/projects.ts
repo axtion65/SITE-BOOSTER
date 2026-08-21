@@ -22,6 +22,7 @@ export const projectsTable = pgTable("projects", {
   sourceAssetId: text("source_asset_id"),
   creditCharge: integer("credit_charge").notNull().default(0),
   refundedAt: timestamp("refunded_at"),
+  renderAttempt: integer("render_attempt").notNull().default(1),
   voiceId: text("voice_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

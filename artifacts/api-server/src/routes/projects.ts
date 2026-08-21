@@ -190,21 +190,8 @@ function getCreditCost(modelId: string): number {
   return MODEL_CREDIT_COSTS[modelId] ?? MODEL_CREDIT_COSTS["ovi"];
 }
 
-/**
- * Conditionally debit credits using a single UPDATE with a WHERE balance check.
- * Returns true when the debit succeeded, false when the user doesn't have enough credits.
- * Safe against concurrent requests: two simultaneous calls with exactly one render's
- * worth of credits will each see `credits >= cost` but only one UPDATE will win; the
- * other returns an empty array and gets a 402.
- */
-async function debitCredits(userId: string, creditCost: number): Promise<boolean> {
-  const rows = await db
-    .update(usersTable)
-    .set({ credits: sql`${usersTable.credits} - ${creditCost}` })
-    .where(and(eq(usersTable.id, userId), sql`${usersTable.credits} >= ${creditCost}`))
-    .returning({ id: usersTable.id });
-  return rows.length > 0;
-}
+class InsufficientCreditsError extends Error {}
+class RenderAlreadyActiveError extends Error {}
 
 /**
  * Atomically transition a project from "processing" → "failed" and refund credits
@@ -220,7 +207,7 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
       .update(projectsTable)
       .set({ status: "failed", refundedAt: isAdmin ? null : new Date(), updatedAt: new Date() })
       .where(and(eq(projectsTable.id, projectId), isNull(projectsTable.refundedAt), inArray(projectsTable.status, ["processing", "narrating"])))
-      .returning({ id: projectsTable.id });
+      .returning({ id: projectsTable.id, renderAttempt: projectsTable.renderAttempt });
 
     if (updated.length === 0) return; // Another path already resolved this project
     won = true;
@@ -230,7 +217,7 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
         .update(usersTable)
         .set({ credits: sql`${usersTable.credits} + ${creditCost}` })
         .where(eq(usersTable.id, userId)).returning({ credits: usersTable.credits });
-      await tx.insert(creditLedgerTable).values({ userId, projectId, kind: "refund", amount: creditCost, balanceAfter: balance!.credits });
+      await tx.insert(creditLedgerTable).values({ userId, projectId, attempt: updated[0]!.renderAttempt, kind: "refund", amount: creditCost, balanceAfter: balance!.credits });
     }
   });
   return won;
@@ -337,15 +324,6 @@ router.post("/projects", async (req, res) => {
 
   const creditCost = getCreditCost(parsed.data.renderingModelId ?? "quae-v1");
 
-  // Admins bypass credit checks so they can test all tiers freely
-  if (!user.isAdmin) {
-    const ok = await debitCredits(userId, creditCost);
-    if (!ok) {
-      res.status(402).json({ error: `Not enough credits. This render costs ${creditCost} credits.` });
-      return;
-    }
-  }
-
   let renderArtifact: string | null = parsed.data.script ?? null;
   if (parsed.data.expandedScript) {
     try {
@@ -355,34 +333,58 @@ router.post("/projects", async (req, res) => {
     } catch { /* input remains stored; render submission reports malformed JSON below */ }
   }
 
-  const [project] = await db.insert(projectsTable).values({
-    userId,
-    campaignId,
-    title: parsed.data.title,
-    description: parsed.data.description ?? null,
-    renderingModelId: parsed.data.renderingModelId,
-    script: renderArtifact,
-    expandedScript: parsed.data.expandedScript ?? null,
-    platform: parsed.data.platform ?? null,
-    duration: parsed.data.duration ?? null,
-    templateId: parsed.data.templateId ?? null,
-    productImageUrl: parsed.data.productImageUrl ?? null,
-    renderIntent,
-    sourceAssetId: ownedSourcePath,
-    creditCharge: user.isAdmin ? 0 : creditCost,
-    voiceId: parsed.data.voiceId ?? null,
-    status: "processing",
-  }).returning().catch((err: any) => {
-    logDbError("INSERT projects", err);
-    throw err; // Express 5 global handler returns 500
-  });
+  let project: typeof projectsTable.$inferSelect;
+  try {
+    project = await db.transaction(async (tx) => {
+      let balanceAfter = user.credits;
+      if (!user.isAdmin) {
+        const [balance] = await tx
+          .update(usersTable)
+          .set({ credits: sql`${usersTable.credits} - ${creditCost}` })
+          .where(and(eq(usersTable.id, userId), sql`${usersTable.credits} >= ${creditCost}`))
+          .returning({ credits: usersTable.credits });
+        if (!balance) throw new InsufficientCreditsError();
+        balanceAfter = balance.credits;
+      }
 
-  if (!user.isAdmin) {
-    const [balance] = await db.select({ credits: usersTable.credits }).from(usersTable).where(eq(usersTable.id, userId));
-    await db.insert(creditLedgerTable).values({
-      userId, projectId: project.id, kind: "charge", amount: -creditCost,
-      balanceAfter: balance!.credits,
+      const [created] = await tx.insert(projectsTable).values({
+        userId,
+        campaignId,
+        title: parsed.data.title,
+        description: parsed.data.description ?? null,
+        renderingModelId: parsed.data.renderingModelId,
+        script: renderArtifact,
+        expandedScript: parsed.data.expandedScript ?? null,
+        platform: parsed.data.platform ?? null,
+        duration: parsed.data.duration ?? null,
+        templateId: parsed.data.templateId ?? null,
+        productImageUrl: parsed.data.productImageUrl ?? null,
+        renderIntent,
+        sourceAssetId: ownedSourcePath,
+        creditCharge: user.isAdmin ? 0 : creditCost,
+        voiceId: parsed.data.voiceId ?? null,
+        status: "processing",
+      }).returning();
+
+      if (!user.isAdmin) {
+        await tx.insert(creditLedgerTable).values({
+          userId,
+          projectId: created!.id,
+          attempt: created!.renderAttempt,
+          kind: "charge",
+          amount: -creditCost,
+          balanceAfter,
+        });
+      }
+      return created!;
     });
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      res.status(402).json({ error: `Not enough credits. This render costs ${creditCost} credits.` });
+      return;
+    }
+    logDbError("CREATE project and debit credits", err);
+    throw err;
   }
 
   // Submit fal.ai video render synchronously before responding
@@ -541,22 +543,68 @@ router.post("/projects/:id/rerender", async (req, res) => {
   const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1");
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
 
-  // Admins bypass credit checks
-  if (!user.isAdmin) {
-    const ok = await debitCredits(userId, creditCost);
-    if (!ok) {
-      res.status(402).json({ error: `Not enough credits. Re-render costs ${creditCost} credits.` });
-      return;
-    }
-  }
-
   const approvedScript: ExpandedScript = JSON.parse(project.expandedScript);
   const rerenderBrief = compileVideoRenderBrief(approvedScript, project.duration ?? "30s", project.renderingModelId ?? "quae-v1");
   const rerenderArtifact = JSON.stringify({ version: rerenderBrief.version, modelNativeDurationSeconds: rerenderBrief.modelNativeDurationSeconds, renderBrief: rerenderBrief });
 
-  const [reset] = await db.update(projectsTable)
-    .set({ status: "processing", videoUrl: null, thumbnailUrl: null, script: rerenderArtifact, updatedAt: new Date() })
-    .where(eq(projectsTable.id, project.id)).returning();
+  let reset: typeof projectsTable.$inferSelect;
+  try {
+    reset = await db.transaction(async (tx) => {
+      const [locked] = await tx.select({ status: projectsTable.status })
+        .from(projectsTable)
+        .where(and(eq(projectsTable.id, project.id), eq(projectsTable.userId, userId)))
+        .for("update");
+      if (!locked) throw new Error("Project disappeared during re-render");
+      if (["processing", "narrating"].includes(locked.status)) throw new RenderAlreadyActiveError();
+
+      let balanceAfter = user.credits;
+      if (!user.isAdmin) {
+        const [balance] = await tx
+          .update(usersTable)
+          .set({ credits: sql`${usersTable.credits} - ${creditCost}` })
+          .where(and(eq(usersTable.id, userId), sql`${usersTable.credits} >= ${creditCost}`))
+          .returning({ credits: usersTable.credits });
+        if (!balance) throw new InsufficientCreditsError();
+        balanceAfter = balance.credits;
+      }
+
+      const [updated] = await tx.update(projectsTable)
+        .set({
+          status: "processing",
+          videoUrl: null,
+          thumbnailUrl: null,
+          script: rerenderArtifact,
+          creditCharge: user.isAdmin ? 0 : creditCost,
+          refundedAt: null,
+          renderAttempt: sql`${projectsTable.renderAttempt} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(projectsTable.id, project.id))
+        .returning();
+
+      if (!user.isAdmin) {
+        await tx.insert(creditLedgerTable).values({
+          userId,
+          projectId: project.id,
+          attempt: updated!.renderAttempt,
+          kind: "charge",
+          amount: -creditCost,
+          balanceAfter,
+        });
+      }
+      return updated!;
+    });
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      res.status(402).json({ error: `Not enough credits. Re-render costs ${creditCost} credits.` });
+      return;
+    }
+    if (err instanceof RenderAlreadyActiveError) {
+      res.status(409).json({ error: "This render is already in progress." });
+      return;
+    }
+    throw err;
+  }
 
   try {
     const templateType = TEMPLATES.find(t => t.id === project.templateId)?.templateType;

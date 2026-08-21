@@ -24,9 +24,17 @@ test("Create New rejects stale images while Animate accepts its one explicit sou
   assert.equal(request.input.image_url,"https://example.test/owned.png");
 });
 
-test("legacy balance migration is additive and exact refunds are uniquely audited", async () => {
+test("legacy balances and in-flight charges are preserved with attempt-scoped refunds", async () => {
   const sql = await readFile(new URL("../../../../lib/db/migrations/0014_render_intent_credit_ledger.sql", import.meta.url),"utf8");
   assert.doesNotMatch(sql,/UPDATE\s+users\s+SET\s+credits/i);
   assert.match(sql,/legacy_backfill[\s\S]*credits,credits/i);
-  assert.match(sql,/UNIQUE INDEX[\s\S]*project_id,\s*kind/i);
+  assert.match(sql,/UPDATE\s+projects[\s\S]*credit_charge/i);
+  assert.match(sql,/UNIQUE INDEX[\s\S]*project_id,\s*kind,\s*attempt/i);
+});
+
+test("credit debit, project persistence, and audit entry share one transaction", async () => {
+  const source = await readFile(new URL("../routes/projects.ts", import.meta.url), "utf8");
+  assert.match(source,/db\.transaction[\s\S]*credits[\s\S]*INSERT|db\.transaction[\s\S]*insert\(creditLedgerTable\)/i);
+  assert.match(source,/renderAttempt:\s*sql`\$\{projectsTable\.renderAttempt\}\s*\+\s*1`/);
+  assert.match(source,/refundedAt:\s*null/);
 });

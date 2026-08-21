@@ -21,7 +21,7 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
       .update(projectsTable)
       .set({ status: "failed", refundedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(projectsTable.id, projectId), isNull(projectsTable.refundedAt), inArray(projectsTable.status, ["processing", "narrating"])))
-      .returning({ id: projectsTable.id });
+      .returning({ id: projectsTable.id, renderAttempt: projectsTable.renderAttempt });
 
     if (updated.length === 0) return;
     won = true;
@@ -31,7 +31,7 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
       .update(usersTable)
       .set({ credits: sql`${usersTable.credits} + ${creditCost}` })
       .where(and(eq(usersTable.id, userId), sql`${usersTable.isAdmin} = false`)).returning({ credits: usersTable.credits });
-    if (balance[0]) await tx.insert(creditLedgerTable).values({ userId, projectId, kind: "refund", amount: creditCost, balanceAfter: balance[0].credits });
+    if (balance[0]) await tx.insert(creditLedgerTable).values({ userId, projectId, attempt: updated[0]!.renderAttempt, kind: "refund", amount: creditCost, balanceAfter: balance[0].credits });
   });
   return won;
 }
