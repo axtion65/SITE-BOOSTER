@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { READABLE_CAPTION_STYLE } from "./videoRenderBrief";
+import { approvedCampaignBriefToExpandedScript, approvedCampaignPlatform, READABLE_CAPTION_STYLE } from "./videoRenderBrief";
 
 test("campaign production is bound to the approved brief, run, owner, business and exact visual", async () => {
   const source = await readFile(new URL("../routes/projects.ts", import.meta.url), "utf8");
@@ -10,6 +10,8 @@ test("campaign production is bound to the approved brief, run, owner, business a
   assert.match(source, /s\.mockup_version_id=vb\.mockup_version_id/);
   assert.match(source, /parsed\.data\.sourceAssetId !== production\.object_path/);
   assert.match(source, /req\.body\?\.confirmed !== true/);
+  assert.match(source, /approvedCampaignBriefToExpandedScript\(production\.brief\)/);
+  assert.match(source, /matchesApprovedCampaignScript\(submittedCampaignScript, authoritativeCampaignScript\)/);
   assert.ok(source.indexOf("tx.insert(projectsTable)") < source.indexOf("const token = await submitFalVideoRender"));
 });
 
@@ -17,6 +19,25 @@ test("campaign render retries are durable and idempotent", async () => {
   const migration = await readFile(new URL("../../../../lib/db/migrations/0017_campaign_video_production.sql", import.meta.url), "utf8");
   assert.match(migration, /UNIQUE INDEX[\s\S]*projects\(user_id,idempotency_key\)/);
   assert.match(migration, /campaign_video_brief_id/);
+  const source = await readFile(new URL("../routes/projects.ts", import.meta.url), "utf8");
+  assert.match(source, /projects_user_idempotency_unique/);
+  assert.match(source, /eq\(projectsTable\.idempotencyKey, idempotencyKey\)/);
+});
+
+test("approved campaign brief is the authoritative provider script", () => {
+  const approved = approvedCampaignBriefToExpandedScript({
+    approvedCopy: "Meet Quae. Build a campaign in minutes.",
+    hook: "Your AI marketing department.",
+    cta: "Build your campaign.",
+    duration: "30 seconds",
+    platform: "Instagram",
+  });
+  assert.equal(approved.script, "Meet Quae. Build a campaign in minutes.");
+  assert.equal(approved.voiceoverText, approved.script);
+  assert.equal(approved.callToAction, "Build your campaign.");
+  assert.equal(approved.estimatedDuration, "30s");
+  assert.equal(approvedCampaignPlatform("Instagram Reels"), "instagram");
+  assert.ok(approved.scenes.length >= 1);
 });
 
 test("images and error documents cannot pass as generated videos", async () => {
