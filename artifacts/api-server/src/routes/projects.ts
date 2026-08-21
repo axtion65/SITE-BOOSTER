@@ -266,7 +266,42 @@ router.post("/projects", async (req, res) => {
 
   const parsed = CreateProjectBody.safeParse(req.body);
   const campaignId = typeof req.body?.campaignId === "string" ? req.body.campaignId : null;
+  const campaignVideoBriefId = typeof req.body?.campaignVideoBriefId === "string" ? req.body.campaignVideoBriefId : null;
+  const idempotencyKey = String(req.headers["idempotency-key"] || req.body?.idempotencyKey || "").trim();
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+
+  if (!idempotencyKey || idempotencyKey.length > 200) {
+    res.status(400).json({ error: "Idempotency-Key is required" }); return;
+  }
+  const [previous] = await db.select().from(projectsTable)
+    .where(and(eq(projectsTable.userId, userId), eq(projectsTable.idempotencyKey, idempotencyKey)));
+  if (previous) {
+    res.json({ ...previous, videoUrl: await resolveVideoUrl(previous.videoUrl, previous.status), createdAt: previous.createdAt.toISOString(), updatedAt: previous.updatedAt.toISOString() });
+    return;
+  }
+
+  let production: any = null;
+  if (campaignId) {
+    if (req.body?.confirmed !== true || !campaignVideoBriefId) {
+      res.status(409).json({ error: "Review and explicitly confirm the prepared campaign video before rendering." }); return;
+    }
+    production = (await pool.query(`SELECT vb.*,c.name campaign_name,b.name business_name,mv.object_path
+      FROM campaign_video_briefs vb
+      JOIN campaigns c ON c.id=vb.campaign_id AND c.user_id=vb.customer_id AND c.business_id=vb.business_id
+        AND c.approved_run_id=vb.campaign_run_id AND c.status='approved'
+      JOIN businesses b ON b.id=vb.business_id AND b.user_id=vb.customer_id
+      JOIN campaign_asset_selections s ON s.id=vb.selection_id AND s.active
+        AND s.campaign_id=vb.campaign_id AND s.campaign_run_id=vb.campaign_run_id
+        AND s.customer_id=vb.customer_id AND s.business_id=vb.business_id
+        AND s.mockup_project_id=vb.mockup_project_id AND s.mockup_version_id=vb.mockup_version_id
+      JOIN mockup_projects mp ON mp.id=vb.mockup_project_id AND mp.user_id=vb.customer_id AND mp.business_id=vb.business_id
+      JOIN mockup_versions mv ON mv.id=vb.mockup_version_id AND mv.mockup_project_id=mp.id AND mv.status='completed'
+      WHERE vb.id=$1 AND vb.campaign_id=$2 AND vb.customer_id=$3`, [campaignVideoBriefId, campaignId, userId])).rows[0];
+    if (!production) { res.status(409).json({ error: "That prepared campaign video is stale, mismatched, or unavailable." }); return; }
+    if (parsed.data.renderIntent !== "animate" || parsed.data.sourceAssetId !== production.object_path || parsed.data.productImageUrl !== `/api/storage${production.object_path}`) {
+      res.status(409).json({ error: "The render source must be the exact confirmed visual version." }); return;
+    }
+  }
 
   const renderIntent = parsed.data.renderIntent as RenderIntent;
   const model = RENDERING_MODEL_BY_ID[parsed.data.renderingModelId];
@@ -353,6 +388,13 @@ router.post("/projects", async (req, res) => {
       const [created] = await tx.insert(projectsTable).values({
         userId,
         campaignId,
+        campaignRunId: production?.campaign_run_id ?? null,
+        campaignVideoBriefId: production?.id ?? null,
+        mockupProjectId: production?.mockup_project_id ?? null,
+        mockupVersionId: production?.mockup_version_id ?? null,
+        idempotencyKey,
+        confirmedAt: new Date(),
+        qualityStatus: "preparing",
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         renderingModelId: parsed.data.renderingModelId,

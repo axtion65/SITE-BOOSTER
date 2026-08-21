@@ -36,7 +36,14 @@ export interface VideoRenderBrief {
   voiceoverText: string;
   visualTextPolicy: string;
   visualProductionBrief: string;
+  captionStyle: CaptionStyle;
 }
+
+export interface CaptionStyle { color:string; backingColor:string; stroke:string; safeMarginPercent:number; maxLineCharacters:number }
+export const READABLE_CAPTION_STYLE: Readonly<CaptionStyle> = Object.freeze({
+  color: "#FFFFFF", backingColor: "rgba(0,0,0,0.78)", stroke: "2px #000000",
+  safeMarginPercent: 8, maxLineCharacters: 42,
+});
 
 const TEXT_SAFETY = "No signs, posters, billboards, menus, screens displaying text, UI, captions, subtitles, invented labels, generated logos, random symbols, fake lettering, readable typography, watermarks, or background writing.";
 
@@ -100,6 +107,7 @@ export function compileVideoRenderBrief(
       voiceoverText: approvedScript.voiceoverText,
       visualTextPolicy: "Imagery only. Do not generate captions, prices, signs, UI, readable typography, logos, or brand lettering.",
       visualProductionBrief: productionBrief(approvedScript, renderDurationSeconds <= 5),
+      captionStyle: READABLE_CAPTION_STYLE,
     };
   }
 
@@ -118,5 +126,6 @@ export function compileVideoRenderBrief(
     voiceoverText: durationSafeApprovedExcerpt(voiceSource, maxWords),
     visualTextPolicy: "Imagery only. Do not generate captions, prices, signs, UI, readable typography, logos, or brand lettering. Exact approved copy is reserved for deterministic overlays.",
     visualProductionBrief: productionBrief(approvedScript, renderDurationSeconds <= 5),
+    captionStyle: READABLE_CAPTION_STYLE,
   };
 }
