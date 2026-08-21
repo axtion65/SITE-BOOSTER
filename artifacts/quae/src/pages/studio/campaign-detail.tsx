@@ -13,6 +13,7 @@ import { MarketingImage, MarketingPage, PremiumCard, fieldClass } from "./market
 import { ActionButton, StatusPill } from "@/components/quae-design-system";
 import { statusLabel } from "./campaigns";
 import { useToast } from "@/hooks/use-toast";
+import { customerCopy } from "@/lib/customer-copy";
 const headers = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${localStorage.getItem("quae_token") || ""}`,
@@ -43,6 +44,7 @@ export default function CampaignDetail() {
   }, [params?.id]);
   const run = data?.runs?.[0],
     result = run?.final_result,
+    copy = customerCopy(result),
     active = ["queued", "running"].includes(run?.status);
   async function saveRescue(){setBusy("rescue");try{const response=await fetch(`/api/campaigns/${data.id}/rescue`,{method:"PUT",headers:headers(),body:JSON.stringify(rescue)});if(!response.ok)throw new Error("save");toast({title:"Campaign details saved"});await load();}catch{toast({title:"We couldn’t save those details. Your draft is still here.",variant:"destructive"});}finally{setBusy(null)}}
   async function post(path: string, body: Record<string, unknown>) {
@@ -236,10 +238,10 @@ export default function CampaignDetail() {
           <PremiumCard>
             <FileText className="h-5 w-5 text-violet-300" />
             <h2 className="mt-3 text-lg font-bold">Marketing Copy</h2>
-            {data.strategy?.finalScript?.script ? (
+            {copy?.body ? (
               <>
                 <p className="mt-3 line-clamp-5 whitespace-pre-wrap text-sm text-slate-300">
-                  {data.strategy.finalScript.script}
+                  {copy.body}
                 </p>
                 <a
                   href="#campaign-copy"
@@ -384,13 +386,13 @@ export default function CampaignDetail() {
                 Refined and quality-checked by Quae
               </p>
               <h2 className="text-2xl font-black">
-                {result.finalScript?.title}
+                {copy?.title}
               </h2>
               <p className="mt-4 text-lg font-semibold text-violet-200">
-                {result.finalScript?.hook}
+                {copy?.hook}
               </p>
               <p className="mt-5 whitespace-pre-wrap leading-7 text-[#B9C5D8]">
-                {result.finalScript?.script}
+                {copy?.body}
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <StatusPill>
@@ -400,7 +402,7 @@ export default function CampaignDetail() {
                   Quality: {result.qa?.pass ? "Pass" : "Needs revision"}
                 </StatusPill>
                 <div className="font-bold">
-                  CTA: {result.finalScript?.callToAction}
+                  CTA: {copy?.callToAction}
                 </div>
               </div>
               {result.factcheck?.unsupportedClaims?.length > 0 && (

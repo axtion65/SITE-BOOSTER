@@ -6,15 +6,16 @@ import { resolveUserIdFromToken } from "./auth";
 import { downloadWebsiteImage, importWebsite, WebsiteImportError } from "../lib/websiteImporter";
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { ownedBusiness } from "../lib/campaignIdentity";
 
 const router=Router();
 async function owner(req:any,res:any){const id=await resolveUserIdFromToken(req.headers.authorization);if(!id)res.status(401).json({error:"Not authenticated"});return id;}
 const attempts=new Map<string,number[]>();
 function rateLimited(userId:string){const now=Date.now(), recent=(attempts.get(userId)||[]).filter(x=>now-x<60_000);recent.push(now);attempts.set(userId,recent);return recent.length>5;}
-const startSchema=z.object({url:z.string().trim().min(1).max(2048),authorized:z.literal(true),idempotencyKey:z.string().trim().min(8).max(200)}).strict();
+const startSchema=z.object({businessId:z.string().uuid().optional(),url:z.string().trim().min(1).max(2048),authorized:z.literal(true),idempotencyKey:z.string().trim().min(8).max(200)}).strict();
 const productSchema=z.object({name:z.string().trim().min(1).max(200),description:z.string().max(4000),images:z.array(z.string().url()).max(10),regularPrice:z.string().max(30).nullable(),salePrice:z.string().max(30).nullable(),currency:z.string().max(3).nullable(),offer:z.string().max(1000).nullable(),url:z.string().url().nullable(),selected:z.boolean()}).strict();
 const contentSchema=z.object({business:z.object({name:z.string().trim().min(1).max(200),website:z.string().url(),description:z.string().max(4000),pageTitle:z.string().max(500),pageDescription:z.string().max(2000),logo:z.string().url().nullable(),favicon:z.string().url().nullable(),colors:z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/)).max(3),socialLinks:z.record(z.string(),z.string().url())}).strict(),products:z.array(productSchema).max(50),structured:z.object({organizations:z.array(z.unknown()),products:z.array(z.unknown())})}).strict();
-const approveSchema=z.object({approved:z.literal(true),identityChoice:z.enum(["imported","saved"]).optional(),content:contentSchema,campaign:z.object({name:z.string().trim().min(1).max(200),objective:z.string().trim().min(1).max(2000),campaignType:z.string().max(100).default("Awareness"),channel:z.string().max(100).default("Multi-platform"),promotion:z.string().max(1000).optional()}).strict()}).strict();
+const approveSchema=z.object({approved:z.literal(true),identityChoice:z.enum(["imported","saved"]).optional(),content:contentSchema,campaign:z.object({name:z.string().trim().min(1).max(200),objective:z.string().trim().min(1).max(2000),campaignType:z.string().max(100).default("Awareness"),channel:z.string().max(100).default("Multi-platform"),promotion:z.string().max(1000).optional(),audience:z.string().trim().min(1).max(2000),offer:z.string().max(1000),callToAction:z.string().trim().min(1).max(1000)}).strict()}).strict();
 const friendly:Record<string,string>={invalid_target:"Enter a valid public HTTP or HTTPS website URL.",blocked_target:"This website address cannot be imported.",target_unavailable:"We couldn’t read that website. Check the URL and try again.",redirect_limit:"The website redirected too many times.",unsupported_content:"That address does not contain a supported public web page.",response_too_large:"That web page is too large to import safely."};
 
 type ApprovedContent=z.infer<typeof contentSchema>;
@@ -45,7 +46,7 @@ async function archiveApprovedImages(userId:string,importId:string,content:Appro
 }
 
 router.post('/website-imports',async(req,res)=>{const userId=await owner(req,res);if(!userId)return;if(rateLimited(userId)){res.status(429).json({error:"Too many import attempts. Please wait and try again."});return;}const parsed=startSchema.safeParse(req.body);if(!parsed.success){res.status(400).json({error:"A valid URL, authorization confirmation, and import key are required."});return;}
-  const existing=await pool.query("SELECT * FROM website_import_drafts WHERE user_id=$1 AND idempotency_key=$2",[userId,parsed.data.idempotencyKey]);if(existing.rows[0]){res.json(existing.rows[0]);return;}const importId=crypto.randomUUID();try{const content=await importWebsite(parsed.data.url);const row=await pool.query("INSERT INTO website_import_drafts(id,user_id,idempotency_key,source_url,content) VALUES($1,$2,$3,$4,$5) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET updated_at=website_import_drafts.updated_at RETURNING *",[importId,userId,parsed.data.idempotencyKey,parsed.data.url,content]);logger.info({importId,userId},"Website import draft prepared");res.status(201).json(row.rows[0]);}catch(error){const code=error instanceof WebsiteImportError?error.code:'target_unavailable';logger.warn({importId,userId,code},"Website import rejected");res.status(400).json({error:friendly[code]||friendly.target_unavailable});}});
+  const existing=await pool.query("SELECT * FROM website_import_drafts WHERE user_id=$1 AND idempotency_key=$2",[userId,parsed.data.idempotencyKey]);if(existing.rows[0]){res.json(existing.rows[0]);return;}const business=await ownedBusiness(pool,userId,parsed.data.businessId);const businessCount=parsed.data.businessId?null:Number((await pool.query("SELECT COUNT(*)::int count FROM businesses WHERE user_id=$1",[userId])).rows[0]?.count||0);if(!business&&(parsed.data.businessId||businessCount!==0)){res.status(409).json({error:parsed.data.businessId?"Business not found":"Choose which business this website belongs to.",code:"business_required"});return;}const importId=crypto.randomUUID();try{const content=await importWebsite(parsed.data.url);const row=await pool.query("INSERT INTO website_import_drafts(id,user_id,business_id,idempotency_key,source_url,content) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,idempotency_key) DO UPDATE SET updated_at=website_import_drafts.updated_at RETURNING *",[importId,userId,business?.id??null,parsed.data.idempotencyKey,parsed.data.url,content]);logger.info({importId,userId},"Website import draft prepared");res.status(201).json(row.rows[0]);}catch(error){const code=error instanceof WebsiteImportError?error.code:'target_unavailable';logger.warn({importId,userId,code},"Website import rejected");res.status(400).json({error:friendly[code]||friendly.target_unavailable});}});
 router.get('/website-imports/:id',async(req,res)=>{const userId=await owner(req,res);if(!userId)return;const row=await pool.query("SELECT * FROM website_import_drafts WHERE id=$1 AND user_id=$2",[req.params.id,userId]);if(!row.rows[0]){res.status(404).json({error:"Import not found"});return;}res.json(row.rows[0]);});
 router.post('/website-imports/:id/approve',async(req,res)=>{
   const userId=await owner(req,res);if(!userId)return;
@@ -54,10 +55,11 @@ router.post('/website-imports/:id/approve',async(req,res)=>{
   if(!existing){res.status(404).json({error:"Import not found"});return;}
   if(existing.status==='approved'){res.json({campaignId:existing.approved_campaign_id,idempotent:true});return;}
 
-  const savedBusiness=(await pool.query("SELECT id,name,description,website,target_customer,products_services,primary_cta FROM businesses WHERE user_id=$1",[userId])).rows[0];
+  const savedBusiness=(await pool.query("SELECT b.id,b.name,b.description,b.website,b.target_customer,b.products_services,b.primary_cta FROM website_import_drafts d LEFT JOIN businesses b ON b.id=d.business_id AND b.user_id=d.user_id WHERE (d.business_id IS NULL OR b.id IS NOT NULL) AND d.id=$1 AND d.user_id=$2",[req.params.id,userId])).rows[0];
+  const boundBusiness=savedBusiness?.id?savedBusiness:null;
   const importedName=parsed.data.content.business.name.trim();
-  const identityConflict=Boolean(savedBusiness?.name&&savedBusiness.name.trim().toLocaleLowerCase()!==importedName.toLocaleLowerCase());
-  if(identityConflict&&!parsed.data.identityChoice){res.status(409).json({error:"Choose which identity this campaign should use.",code:"identity_conflict",identities:{imported:{name:importedName,website:parsed.data.content.business.website},saved:{name:savedBusiness.name,website:savedBusiness.website}}});return;}
+  const identityConflict=Boolean(boundBusiness?.name&&savedBusiness.name.trim().toLocaleLowerCase()!==importedName.toLocaleLowerCase());
+  if(identityConflict&&!parsed.data.identityChoice){res.status(409).json({error:"Choose which identity this campaign should use.",code:"identity_conflict",identities:{imported:{name:importedName,website:parsed.data.content.business.website},saved:{name:boundBusiness.name,website:boundBusiness.website}}});return;}
 
   // Remote source URLs remain draft metadata. Only these private object paths
   // are allowed to cross the approval boundary into customer records.
@@ -65,13 +67,13 @@ router.post('/website-imports/:id/approve',async(req,res)=>{
   const client=await pool.connect();
   try{
     await client.query('BEGIN');
-    const draft=(await client.query("SELECT * FROM website_import_drafts WHERE id=$1 AND user_id=$2 FOR UPDATE",[req.params.id,userId])).rows[0];
+    const draft=(await client.query("SELECT d.* FROM website_import_drafts d LEFT JOIN businesses b ON b.id=d.business_id AND b.user_id=d.user_id WHERE (d.business_id IS NULL OR b.id IS NOT NULL) AND d.id=$1 AND d.user_id=$2 FOR UPDATE OF d",[req.params.id,userId])).rows[0];
     if(!draft){await client.query('ROLLBACK');res.status(404).json({error:"Import not found"});return;}
     if(draft.status==='approved'){await client.query('COMMIT');res.json({campaignId:draft.approved_campaign_id,idempotent:true});return;}
     const c=parsed.data.content;
-    const business=savedBusiness||(await client.query("INSERT INTO businesses(id,user_id,name,description,website,social_links) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",[crypto.randomUUID(),userId,c.business.name,c.business.description||null,c.business.website,c.business.socialLinks])).rows[0];
+    const business=boundBusiness||(await client.query("INSERT INTO businesses(id,user_id,name,description,website,social_links) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",[crypto.randomUUID(),userId,c.business.name,c.business.description||null,c.business.website,c.business.socialLinks])).rows[0];
     const selectedProducts=c.products.map((p,productIndex)=>({p,productIndex})).filter(({p})=>p.selected).map(({p,productIndex})=>({...p,archivedImages:(archived.ownedProductImages.get(productIndex)||[]).filter(Boolean)}));
-    const importedContext={source:"website_import",sourceUrl:draft.source_url,importedAt:draft.created_at,websiteSnapshot:c,identity:{name:c.business.name,website:c.business.website,description:c.business.description},products:selectedProducts,audienceEvidence:"",offerEvidence:selectedProducts.map(p=>p.offer).filter(Boolean).join("; "),ctaEvidence:""};
+    const importedContext={source:"website_import",sourceUrl:draft.source_url,importedAt:draft.created_at,websiteSnapshot:c,identity:{name:c.business.name,website:c.business.website,description:c.business.description},products:selectedProducts,audienceEvidence:parsed.data.campaign.audience,offerEvidence:parsed.data.campaign.offer||selectedProducts.map(p=>p.offer).filter(Boolean).join("; "),ctaEvidence:parsed.data.campaign.callToAction};
     const savedContext={identity:{name:business.name,website:business.website,description:business.description},products:business.products_services?[{name:business.products_services}]:[],audienceEvidence:business.target_customer||"",offerEvidence:"",ctaEvidence:business.primary_cta||""};
     const identityResolution=identityConflict?parsed.data.identityChoice||null:"imported";
     const contextSnapshot={...importedContext,generationContext:identityResolution==="saved"?savedContext:importedContext};

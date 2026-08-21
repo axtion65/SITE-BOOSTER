@@ -118,3 +118,12 @@ test("needs-revision run cannot be approved", async () => {
   assert.equal(result.kind, "superseded");
   assert.equal(db.campaign.approved_run_id, undefined);
 });
+
+
+test("duplicate approval is idempotent after persistence", async () => {
+  const db = stateDb([{ id: "latest", run_number: 2, status: "ready_for_review" }]);
+  const args={campaignId:"campaign",userId:"owner",runId:"latest"};
+  assert.equal((await approveLatestCampaignRun(db,args)).kind,"approved");
+  assert.equal((await approveLatestCampaignRun(db,args)).kind,"approved");
+  assert.equal(db.campaign.approved_run_id,"latest");
+});

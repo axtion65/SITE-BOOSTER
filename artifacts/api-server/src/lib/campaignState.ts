@@ -46,7 +46,9 @@ export function approveLatestCampaignRun(
     db,
     args.campaignId,
     args.userId,
-    async (client) => {
+    async (client, lockedCampaign) => {
+      if (lockedCampaign.approved_run_id === args.runId)
+        return { kind: "approved" as const, campaign: lockedCampaign };
       const latest = (
         await client.query(
           "SELECT * FROM campaign_runs WHERE campaign_id=$1 ORDER BY run_number DESC LIMIT 1 FOR UPDATE",
