@@ -63,6 +63,60 @@ function productionBrief(script: ExpandedScript, short: boolean): string {
   return `Clean, uncluttered studio or neutral lifestyle setting. The product is the hero and focal subject. ${shot}${apparel} ${TEXT_SAFETY}`;
 }
 
+export function approvedCampaignPlatform(value: unknown): string {
+  const platform = String(value ?? "").trim().toLowerCase();
+  if (platform.includes("instagram")) return "instagram";
+  if (platform.includes("youtube")) return "youtube";
+  if (platform.includes("amazon")) return "amazon";
+  if (platform.includes("tik") || platform.includes("social")) return "tiktok";
+  return ["tiktok", "instagram", "youtube", "amazon"].includes(platform) ? platform : "tiktok";
+}
+
+function approvedCampaignDuration(value: unknown): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (/^\d+s$/.test(raw)) return raw;
+  const seconds = raw.match(/\d+/)?.[0];
+  return seconds ? `${seconds}s` : "15s";
+}
+
+function approvedCampaignScenes(script: string, duration: string): ExpandedScript["scenes"] {
+  const sentences = script.match(/[^.!?\n]+(?:[.!?]+|$)/g)?.map(part => part.trim()).filter(Boolean) ?? [script];
+  const sceneCount = Math.max(1, Math.min(4, sentences.length));
+  const groups = Array.from({ length: sceneCount }, () => [] as string[]);
+  sentences.forEach((sentence, index) => {
+    const groupIndex = Math.min(sceneCount - 1, Math.floor((index * sceneCount) / sentences.length));
+    groups[groupIndex]!.push(sentence);
+  });
+  const totalSeconds = Number.parseInt(duration, 10) || 15;
+  return groups.map((copy, index) => ({
+    sceneNumber: index + 1,
+    description: copy.join(" "),
+    duration: `${Math.max(1, Math.round(totalSeconds / sceneCount))}s`,
+    visualDirection: "Create product-focused visuals that support this approved voiceover without adding on-screen claims.",
+  }));
+}
+
+/** Rebuilds provider input from the persisted, approved campaign brief. */
+export function approvedCampaignBriefToExpandedScript(value: unknown): ExpandedScript {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Approved campaign video brief is missing");
+  }
+  const brief = value as Record<string, unknown>;
+  const script = String(brief.approvedCopy ?? "").trim();
+  if (!script) throw new Error("Approved campaign copy is missing");
+  const duration = approvedCampaignDuration(brief.duration);
+  const cta = String(brief.cta ?? "").trim();
+  return {
+    script,
+    hook: String(brief.hook ?? "").trim(),
+    callToAction: cta,
+    voiceoverText: script,
+    scenes: approvedCampaignScenes(script, duration),
+    estimatedDuration: duration,
+    suggestedMusic: "",
+  };
+}
+
 export function parseVideoDuration(value: string): number {
   const normalized = value.toLowerCase().trim();
   const amount = Number.parseFloat(normalized) || 10;
