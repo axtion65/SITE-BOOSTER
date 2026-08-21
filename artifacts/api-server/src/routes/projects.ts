@@ -7,7 +7,11 @@ import {
   submitFalVideoRender, pollFalVideoRender, isFalToken,
   MODEL_CREDIT_COSTS, buildFalWebhookUrl, type ExpandedScript
 } from "../lib/falvideo";
-import { compileVideoRenderBrief } from "../lib/videoRenderBrief";
+import {
+  approvedCampaignBriefToExpandedScript,
+  approvedCampaignPlatform,
+  compileVideoRenderBrief,
+} from "../lib/videoRenderBrief";
 import { TEMPLATES } from "./templates";
 import { logger } from "../lib/logger";
 import { isNativeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
@@ -35,6 +39,17 @@ function logDbError(context: string, err: any): void {
     pg_routine: cause?.routine,
     pg_stack:   cause?.stack,
   }, `DB error: ${context}`);
+}
+
+function matchesApprovedCampaignScript(value: unknown, approved: ExpandedScript): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<ExpandedScript>;
+  return candidate.script === approved.script &&
+    candidate.hook === approved.hook &&
+    candidate.callToAction === approved.callToAction &&
+    candidate.voiceoverText === approved.voiceoverText &&
+    candidate.estimatedDuration === approved.estimatedDuration &&
+    JSON.stringify(candidate.scenes) === JSON.stringify(approved.scenes);
 }
 
 const router = Router();
@@ -281,6 +296,8 @@ router.post("/projects", async (req, res) => {
   }
 
   let production: any = null;
+  let authoritativeCampaignScript: ExpandedScript | null = null;
+  let authoritativeCampaignPlatform: string | null = null;
   if (campaignId) {
     if (req.body?.confirmed !== true || !campaignVideoBriefId) {
       res.status(409).json({ error: "Review and explicitly confirm the prepared campaign video before rendering." }); return;
@@ -300,6 +317,20 @@ router.post("/projects", async (req, res) => {
     if (!production) { res.status(409).json({ error: "That prepared campaign video is stale, mismatched, or unavailable." }); return; }
     if (parsed.data.renderIntent !== "animate" || parsed.data.sourceAssetId !== production.object_path || parsed.data.productImageUrl !== `/api/storage${production.object_path}`) {
       res.status(409).json({ error: "The render source must be the exact confirmed visual version." }); return;
+    }
+    try {
+      authoritativeCampaignScript = approvedCampaignBriefToExpandedScript(production.brief);
+      authoritativeCampaignPlatform = approvedCampaignPlatform(production.brief?.platform);
+    } catch {
+      res.status(409).json({ error: "The approved campaign video brief is incomplete or unavailable." }); return;
+    }
+    let submittedCampaignScript: unknown = null;
+    try { submittedCampaignScript = JSON.parse(parsed.data.expandedScript ?? ""); } catch { /* rejected below */ }
+    if (!matchesApprovedCampaignScript(submittedCampaignScript, authoritativeCampaignScript)) {
+      res.status(409).json({ error: "Campaign copy changed after approval. Return to the campaign and approve a revision before rendering." }); return;
+    }
+    if (parsed.data.platform && parsed.data.platform !== authoritativeCampaignPlatform) {
+      res.status(409).json({ error: "The render platform must match the approved campaign brief." }); return;
     }
   }
 
@@ -362,13 +393,15 @@ router.post("/projects", async (req, res) => {
 
   const creditCost = getCreditCost(parsed.data.renderingModelId ?? "quae-v1");
 
+  let renderScript: ExpandedScript | null = authoritativeCampaignScript;
+  if (!renderScript && parsed.data.expandedScript) {
+    try { renderScript = JSON.parse(parsed.data.expandedScript) as ExpandedScript; }
+    catch { /* malformed non-campaign input remains handled by the existing render boundary */ }
+  }
   let renderArtifact: string | null = parsed.data.script ?? null;
-  if (parsed.data.expandedScript) {
-    try {
-      const approved = JSON.parse(parsed.data.expandedScript) as ExpandedScript;
-      const brief = compileVideoRenderBrief(approved, parsed.data.duration ?? "30s", parsed.data.renderingModelId ?? "quae-v1");
-      renderArtifact = JSON.stringify({ version: brief.version, modelNativeDurationSeconds: brief.modelNativeDurationSeconds, renderBrief: brief });
-    } catch { /* input remains stored; render submission reports malformed JSON below */ }
+  if (renderScript) {
+    const brief = compileVideoRenderBrief(renderScript, parsed.data.duration ?? "30s", parsed.data.renderingModelId ?? "quae-v1");
+    renderArtifact = JSON.stringify({ version: brief.version, modelNativeDurationSeconds: brief.modelNativeDurationSeconds, renderBrief: brief });
   }
 
   let project: typeof projectsTable.$inferSelect;
@@ -399,8 +432,8 @@ router.post("/projects", async (req, res) => {
         description: parsed.data.description ?? null,
         renderingModelId: parsed.data.renderingModelId,
         script: renderArtifact,
-        expandedScript: parsed.data.expandedScript ?? null,
-        platform: parsed.data.platform ?? null,
+        expandedScript: renderScript ? JSON.stringify(renderScript) : parsed.data.expandedScript ?? null,
+        platform: authoritativeCampaignPlatform ?? parsed.data.platform ?? null,
         duration: parsed.data.duration ?? null,
         templateId: parsed.data.templateId ?? null,
         productImageUrl: parsed.data.productImageUrl ?? null,
@@ -428,15 +461,24 @@ router.post("/projects", async (req, res) => {
       res.status(402).json({ error: `Not enough credits. This render costs ${creditCost} credits.` });
       return;
     }
+    const cause: any = (err as any)?.cause ?? err;
+    if (cause?.code === "23505" && cause?.constraint === "projects_user_idempotency_unique") {
+      const [replayed] = await db.select().from(projectsTable)
+        .where(and(eq(projectsTable.userId, userId), eq(projectsTable.idempotencyKey, idempotencyKey)));
+      if (replayed) {
+        res.json({ ...replayed, videoUrl: await resolveVideoUrl(replayed.videoUrl, replayed.status), createdAt: replayed.createdAt.toISOString(), updatedAt: replayed.updatedAt.toISOString() });
+        return;
+      }
+    }
     logDbError("CREATE project and debit credits", err);
     throw err;
   }
 
   // Submit fal.ai video render synchronously before responding
-  if (process.env.FAL_KEY && parsed.data.expandedScript) {
+  if (process.env.FAL_KEY && renderScript) {
     try {
-      const scriptObj: ExpandedScript = JSON.parse(parsed.data.expandedScript);
-      const platform = parsed.data.platform ?? "youtube";
+      const scriptObj = renderScript;
+      const platform = authoritativeCampaignPlatform ?? parsed.data.platform ?? "youtube";
       const duration = parsed.data.duration ?? "30s";
       const templateType = TEMPLATES.find(t => t.id === parsed.data.templateId)?.templateType;
       const webhookUrl = buildFalWebhookUrl();
