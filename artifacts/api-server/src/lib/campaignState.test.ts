@@ -9,6 +9,8 @@ function stateDb(runs: any[]) {
   let campaign: any = {
     id: "campaign",
     user_id: "owner",
+    business_id: "business",
+    business_owner_id: "owner",
     status: "ready_for_review",
   };
   return {
@@ -19,7 +21,7 @@ function stateDb(runs: any[]) {
       return {
         release() {},
         async query(sql: string, values: any[] = []) {
-          if (sql.startsWith("SELECT * FROM campaigns"))
+          if (sql.includes("FROM campaigns c JOIN businesses"))
             return { rows: values[1] === "owner" ? [campaign] : [] };
           if (sql.startsWith("SELECT * FROM campaign_runs"))
             return {
@@ -119,11 +121,12 @@ test("needs-revision run cannot be approved", async () => {
   assert.equal(db.campaign.approved_run_id, undefined);
 });
 
-
 test("duplicate approval is idempotent after persistence", async () => {
-  const db = stateDb([{ id: "latest", run_number: 2, status: "ready_for_review" }]);
-  const args={campaignId:"campaign",userId:"owner",runId:"latest"};
-  assert.equal((await approveLatestCampaignRun(db,args)).kind,"approved");
-  assert.equal((await approveLatestCampaignRun(db,args)).kind,"approved");
-  assert.equal(db.campaign.approved_run_id,"latest");
+  const db = stateDb([
+    { id: "latest", run_number: 2, status: "ready_for_review" },
+  ]);
+  const args = { campaignId: "campaign", userId: "owner", runId: "latest" };
+  assert.equal((await approveLatestCampaignRun(db, args)).kind, "approved");
+  assert.equal((await approveLatestCampaignRun(db, args)).kind, "approved");
+  assert.equal(db.campaign.approved_run_id, "latest");
 });
