@@ -163,7 +163,9 @@ export default function CampaignDetail() {
           response.status === 401
             ? "Your session has expired. Please sign in again."
             : response.status === 409
-              ? path === "run-team"
+              ? path === "rebuild"
+                ? "We couldn’t restart this campaign. Please try again later or contact support."
+                : path === "run-team"
                 ? "Your campaign is already being worked on."
                 : "This campaign version has been superseded."
               : "We couldn’t complete that action. Please try again.";

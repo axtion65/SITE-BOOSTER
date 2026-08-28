@@ -34,3 +34,32 @@ test("recovery remains authenticated, owner scoped, idempotent, and provider fre
   assert.match(recovery, /isFailedRecoveryRun\(latest\)/);
   assert.doesNotMatch(recovery, /openai|fal|provider|credit|charge/i);
 });
+
+test("a failed recovery reports a safe error before any duplicate can be queued", async () => {
+  const [route, page] = await Promise.all([
+    readFile(
+      new URL("../../../api-server/src/routes/campaigns.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../pages/studio/campaign-detail.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  const recovery = route.slice(
+    route.indexOf('router.post("/campaigns/:id/rebuild"'),
+    route.indexOf('router.post("/campaigns/:id/run-team"'),
+  );
+  const replayGuard = recovery.slice(
+    recovery.indexOf("if (isFailedRecoveryRun(latest))"),
+    recovery.indexOf("if (!canRecoverCampaignRun"),
+  );
+  assert.match(replayGuard, /\["queued", "running"\]\.includes\(latest\.status\)/);
+  assert.match(replayGuard, /res\.status\(409\)/);
+  assert.match(replayGuard, /code: "campaign_recovery_failed"/);
+  assert.doesNotMatch(replayGuard, /queueCampaignRun/);
+  assert.match(
+    page,
+    /path === "rebuild"[\s\S]*We couldn’t restart this campaign\./,
+  );
+});

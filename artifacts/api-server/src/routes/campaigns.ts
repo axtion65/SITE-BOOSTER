@@ -500,9 +500,17 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
     )
   ).rows[0];
   if (isFailedRecoveryRun(latest)) {
-    res.json(
-      publicCampaignRun(latest, validateRunSource(campaign, latest).valid),
-    );
+    if (["queued", "running"].includes(latest.status)) {
+      res.json(
+        publicCampaignRun(latest, validateRunSource(campaign, latest).valid),
+      );
+      return;
+    }
+    res.status(409).json({
+      error:
+        "We couldn’t restart this campaign. Please try again later or contact support.",
+      code: "campaign_recovery_failed",
+    });
     return;
   }
   if (!canRecoverCampaignRun(campaign, latest)) {
