@@ -3,6 +3,9 @@ import test from "node:test";
 import {
   publicCampaignResult,
   rebuildIdempotencyKey,
+  canRecoverCampaignRun,
+  isFailedRecoveryRun,
+  recoveryIdempotencyKey,
   validateRunSource,
 } from "./campaignReview";
 
@@ -78,6 +81,28 @@ test("rebuild retries have one stable source-derived key", () =>
     rebuildIdempotencyKey(campaign),
     rebuildIdempotencyKey(structuredClone(campaign)),
   ));
+test("one failed run receives one stable recovery identity", () => {
+  const failed = {
+    id: "failed-run",
+    status: "failed",
+    context_snapshot: correctContext,
+  };
+  assert.equal(canRecoverCampaignRun(campaign, failed), true);
+  assert.equal(
+    recoveryIdempotencyKey(campaign, failed),
+    recoveryIdempotencyKey(structuredClone(campaign), structuredClone(failed)),
+  );
+  assert.notEqual(
+    recoveryIdempotencyKey(campaign, failed),
+    rebuildIdempotencyKey(campaign),
+  );
+  assert.equal(
+    isFailedRecoveryRun({
+      idempotency_key: recoveryIdempotencyKey(campaign, failed),
+    }),
+    true,
+  );
+});
 test("customer projection fails closed for JSON and AI internal text", () => {
   assert.equal(
     publicCampaignResult({

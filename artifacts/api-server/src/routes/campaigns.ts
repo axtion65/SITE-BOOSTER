@@ -24,7 +24,9 @@ import {
 } from "../lib/campaignWorkspace";
 import {
   publicCampaignRun,
-  rebuildIdempotencyKey,
+  canRecoverCampaignRun,
+  isFailedRecoveryRun,
+  recoveryIdempotencyKey,
   REBUILD_EXPLANATION,
   validateRunSource,
 } from "../lib/campaignReview";
@@ -491,7 +493,33 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
     res.status(404).json({ error: "Campaign not found" });
     return;
   }
-  const key = rebuildIdempotencyKey(campaign);
+  const latest = (
+    await pool.query(
+      "SELECT * FROM campaign_runs WHERE campaign_id=$1 ORDER BY run_number DESC LIMIT 1",
+      [campaign.id],
+    )
+  ).rows[0];
+  if (isFailedRecoveryRun(latest)) {
+    if (["queued", "running"].includes(latest.status)) {
+      res.json(
+        publicCampaignRun(latest, validateRunSource(campaign, latest).valid),
+      );
+      return;
+    }
+    res.status(409).json({
+      error:
+        "We couldn’t restart this campaign. Please try again later or contact support.",
+      code: "campaign_recovery_failed",
+    });
+    return;
+  }
+  if (!canRecoverCampaignRun(campaign, latest)) {
+    res
+      .status(409)
+      .json({ error: "This campaign does not require rebuilding." });
+    return;
+  }
+  const key = recoveryIdempotencyKey(campaign, latest);
   const existing = (
     await pool.query(
       "SELECT * FROM campaign_runs WHERE campaign_id=$1 AND idempotency_key=$2",
@@ -502,18 +530,6 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
     res.json(
       publicCampaignRun(existing, validateRunSource(campaign, existing).valid),
     );
-    return;
-  }
-  const latest = (
-    await pool.query(
-      "SELECT * FROM campaign_runs WHERE campaign_id=$1 ORDER BY run_number DESC LIMIT 1",
-      [campaign.id],
-    )
-  ).rows[0];
-  if (!latest || validateRunSource(campaign, latest).valid) {
-    res
-      .status(409)
-      .json({ error: "This campaign does not require rebuilding." });
     return;
   }
   const result = await queueCampaignRun(pool, {

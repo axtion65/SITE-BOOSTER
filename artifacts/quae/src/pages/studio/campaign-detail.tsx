@@ -163,7 +163,9 @@ export default function CampaignDetail() {
           response.status === 401
             ? "Your session has expired. Please sign in again."
             : response.status === 409
-              ? path === "run-team"
+              ? path === "rebuild"
+                ? "We couldn’t restart this campaign. Please try again later or contact support."
+                : path === "run-team"
                 ? "Your campaign is already being worked on."
                 : "This campaign version has been superseded."
               : "We couldn’t complete that action. Please try again.";
@@ -180,6 +182,14 @@ export default function CampaignDetail() {
       });
       setNotes("");
       await load();
+    } catch {
+      toast({
+        title:
+          path === "rebuild" || path === "run-team"
+            ? "We couldn’t start your campaign. Please try again."
+            : "We couldn’t complete that action. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setBusy(null);
     }
@@ -215,6 +225,14 @@ export default function CampaignDetail() {
         : data.nextAction === "review_assets"
           ? "Review Completed Assets"
           : "Continue Campaign";
+  const strategyPending =
+    data.nextAction === "create_strategy" &&
+    (busy === "rebuild" || busy === "run-team" || active);
+  const startStrategy = () =>
+    post(
+      run?.status === "failed" ? "rebuild" : "run-team",
+      run?.status === "failed" ? {} : { idempotencyKey: crypto.randomUUID() },
+    );
   return (
     <MarketingPage
       eyebrow="Campaign workspace"
@@ -284,6 +302,19 @@ export default function CampaignDetail() {
                 {continueLabel}
                 <ArrowRight className="h-4 w-4" />
               </button>
+            ) : data.nextAction === "create_strategy" ? (
+              <button
+                disabled={busy !== null || active}
+                onClick={startStrategy}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {strategyPending ? "Starting strategy…" : continueLabel}
+                {strategyPending ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
+              </button>
             ) : (
             <Link
               href={continueHref}
@@ -294,6 +325,12 @@ export default function CampaignDetail() {
             </Link>
             )}
           </div>
+          {strategyPending && (
+            <p role="status" className="mt-4 text-sm text-violet-200">
+              Your campaign strategy is starting. This page will refresh as it
+              progresses.
+            </p>
+          )}
           <div className="mt-6 grid grid-cols-3 gap-2 lg:grid-cols-6">
             {data.progress?.map((stage: any) => (
               <div
