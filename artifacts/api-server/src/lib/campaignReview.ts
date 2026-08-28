@@ -135,6 +135,25 @@ export function rebuildIdempotencyKey(campaign: any) {
     .digest("hex")}`;
 }
 
+export function recoveryIdempotencyKey(campaign: any, run: any) {
+  return validateRunSource(campaign, run).valid && run?.status === "failed"
+    ? `failed-recovery:${run.id}:${rebuildIdempotencyKey(campaign)}`
+    : rebuildIdempotencyKey(campaign);
+}
+
+export function canRecoverCampaignRun(campaign: any, run: any) {
+  return Boolean(
+    run && (run.status === "failed" || !validateRunSource(campaign, run).valid),
+  );
+}
+
+export function isFailedRecoveryRun(run: any) {
+  return (
+    typeof run?.idempotency_key === "string" &&
+    run.idempotency_key.startsWith("failed-recovery:")
+  );
+}
+
 export function publicCampaignRun(run: any, valid: boolean) {
   return {
     id: run.id,
