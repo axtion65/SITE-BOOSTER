@@ -26,13 +26,38 @@ const PATHS = [
   "product.offer",
   "product.cta",
 ] as const;
+const WEBSITE_PATHS = [
+  "identity.name",
+  "identity.description",
+  "audienceEvidence",
+  "offerEvidence",
+  "ctaEvidence",
+] as const;
+const WEBSITE_PRODUCT_FIELDS = [
+  "name",
+  "description",
+  "category",
+  "features",
+  "benefits",
+  "targetAudience",
+  "customerProblem",
+  "price",
+  "salePrice",
+  "offer",
+  "cta",
+] as const;
 function at(root: any, path: string) {
   return path.split(".").reduce((v, k) => v?.[k], root);
 }
 export function buildEvidenceLedger(context: unknown): Evidence[] {
   let n = 0;
   const facts: Evidence[] = [];
-  for (const path of PATHS) {
+  const websiteProductPaths = Array.isArray((context as any)?.products)
+    ? (context as any).products.flatMap((_: unknown, index: number) =>
+        WEBSITE_PRODUCT_FIELDS.map((field) => `products.${index}.${field}`),
+      )
+    : [];
+  for (const path of [...PATHS, ...WEBSITE_PATHS, ...websiteProductPaths]) {
     const raw = at(context, path);
     const values = Array.isArray(raw)
       ? raw
