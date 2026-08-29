@@ -25,6 +25,7 @@ import {
 import {
   publicCampaignRun,
   canRecoverCampaignRun,
+  isCurrentRecoveryRun,
   isFailedRecoveryRun,
   recoveryIdempotencyKey,
   REBUILD_EXPLANATION,
@@ -506,12 +507,14 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
       );
       return;
     }
-    res.status(409).json({
-      error:
-        "We couldn’t restart this campaign. Please try again later or contact support.",
-      code: "campaign_recovery_failed",
-    });
-    return;
+    if (isCurrentRecoveryRun(latest)) {
+      res.status(409).json({
+        error:
+          "We couldn’t restart this campaign. Please try again later or contact support.",
+        code: "campaign_recovery_failed",
+      });
+      return;
+    }
   }
   if (!canRecoverCampaignRun(campaign, latest)) {
     res
