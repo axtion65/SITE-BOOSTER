@@ -4,6 +4,7 @@ import {
   publicCampaignResult,
   rebuildIdempotencyKey,
   canRecoverCampaignRun,
+  isCurrentRecoveryRun,
   isFailedRecoveryRun,
   recoveryIdempotencyKey,
   validateRunSource,
@@ -96,9 +97,24 @@ test("one failed run receives one stable recovery identity", () => {
     recoveryIdempotencyKey(campaign, failed),
     rebuildIdempotencyKey(campaign),
   );
+  const retry = {
+    idempotency_key: recoveryIdempotencyKey(campaign, failed),
+  };
+  assert.equal(isFailedRecoveryRun(retry), true);
+  assert.equal(isCurrentRecoveryRun(retry), true);
+});
+test("one legacy failed recovery receives one current-revision retry identity", () => {
+  const legacyRecovery = {
+    id: "legacy-recovery",
+    status: "failed",
+    context_snapshot: correctContext,
+    idempotency_key: `failed-recovery:failed-run:${rebuildIdempotencyKey(campaign)}`,
+  };
+  assert.equal(isFailedRecoveryRun(legacyRecovery), true);
+  assert.equal(isCurrentRecoveryRun(legacyRecovery), false);
   assert.equal(
-    isFailedRecoveryRun({
-      idempotency_key: recoveryIdempotencyKey(campaign, failed),
+    isCurrentRecoveryRun({
+      idempotency_key: recoveryIdempotencyKey(campaign, legacyRecovery),
     }),
     true,
   );

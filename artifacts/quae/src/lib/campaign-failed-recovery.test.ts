@@ -32,10 +32,11 @@ test("recovery remains authenticated, owner scoped, idempotent, and provider fre
   assert.match(recovery, /WHERE c\.id=\$1 AND c\.user_id=\$2/);
   assert.match(recovery, /recoveryIdempotencyKey\(campaign, latest\)/);
   assert.match(recovery, /isFailedRecoveryRun\(latest\)/);
+  assert.match(recovery, /isCurrentRecoveryRun\(latest\)/);
   assert.doesNotMatch(recovery, /openai|fal|provider|credit|charge/i);
 });
 
-test("a failed recovery reports a safe error before any duplicate can be queued", async () => {
+test("a failed current-revision recovery reports a safe error before any duplicate can be queued", async () => {
   const [route, page] = await Promise.all([
     readFile(
       new URL("../../../api-server/src/routes/campaigns.ts", import.meta.url),
@@ -55,6 +56,7 @@ test("a failed recovery reports a safe error before any duplicate can be queued"
     recovery.indexOf("if (!canRecoverCampaignRun"),
   );
   assert.match(replayGuard, /\["queued", "running"\]\.includes\(latest\.status\)/);
+  assert.match(replayGuard, /isCurrentRecoveryRun\(latest\)/);
   assert.match(replayGuard, /res\.status\(409\)/);
   assert.match(replayGuard, /code: "campaign_recovery_failed"/);
   assert.doesNotMatch(replayGuard, /queueCampaignRun/);
