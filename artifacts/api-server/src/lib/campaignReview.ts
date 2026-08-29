@@ -4,6 +4,9 @@ import { campaignGenerationContext } from "./campaignContext";
 export const REBUILD_EXPLANATION =
   "This campaign was created from older or mismatched business information. Rebuild it from your current Quae.ai information before approval.";
 
+export const CAMPAIGN_RECOVERY_REVISION = "research-evidence-v2";
+const CURRENT_RECOVERY_PREFIX = `failed-recovery:${CAMPAIGN_RECOVERY_REVISION}:`;
+
 const text = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 const unsafe = (value: string) =>
@@ -137,7 +140,7 @@ export function rebuildIdempotencyKey(campaign: any) {
 
 export function recoveryIdempotencyKey(campaign: any, run: any) {
   return validateRunSource(campaign, run).valid && run?.status === "failed"
-    ? `failed-recovery:${run.id}:${rebuildIdempotencyKey(campaign)}`
+    ? `${CURRENT_RECOVERY_PREFIX}${run.id}:${rebuildIdempotencyKey(campaign)}`
     : rebuildIdempotencyKey(campaign);
 }
 
@@ -151,6 +154,13 @@ export function isFailedRecoveryRun(run: any) {
   return (
     typeof run?.idempotency_key === "string" &&
     run.idempotency_key.startsWith("failed-recovery:")
+  );
+}
+
+export function isCurrentRecoveryRun(run: any) {
+  return (
+    typeof run?.idempotency_key === "string" &&
+    run.idempotency_key.startsWith(CURRENT_RECOVERY_PREFIX)
   );
 }
 
