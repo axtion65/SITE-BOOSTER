@@ -1,5 +1,9 @@
 import { createHash, randomInt } from "node:crypto";
-import { buildEvidenceLedger, validateEvidenceLedger } from "./evidence";
+import {
+  buildEvidenceLedger,
+  buildResearchInput,
+  validateEvidenceLedger,
+} from "./evidence";
 import { scoreCandidates } from "./scoring";
 import { AGENT_PRICING_VERSION, estimatedCost } from "./pricing";
 import { CampaignError } from "./errors";
@@ -21,7 +25,6 @@ import {
   judgeOutputSchema,
   qaInputSchema,
   qaOutputSchema,
-  researchInputSchema,
   researchOutputSchema,
   rewriteInputSchema,
   scriptOutputSchema,
@@ -149,6 +152,7 @@ export class CampaignPipeline {
     const ledger = buildEvidenceLedger(snapshot);
     if (!validateEvidenceLedger(snapshot, ledger))
       throw new CampaignError("INVALID_EVIDENCE_LEDGER", "permanent");
+    const researchInput = buildResearchInput(snapshot, ledger);
     await stage("research");
     const research = await this.agent(
       runId,
@@ -157,10 +161,7 @@ export class CampaignPipeline {
       versions.research,
       researchOutputSchema,
       "Analyze the supplied authoritative evidence ledger. Identify insights and unknowns; never add facts.",
-      researchInputSchema.parse({
-        ledger,
-        customerInstruction: JSON.stringify(snapshot.campaignBrief ?? {}),
-      }),
+      researchInput,
     );
     await stage("strategy");
     const strategy = await this.agent(
