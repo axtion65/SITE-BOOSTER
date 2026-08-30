@@ -4,6 +4,7 @@ import {
   campaignGenerationContext,
   missingCampaignEvidence,
   missingGenerationEvidence,
+  workspaceMissingCampaignEvidence,
 } from "./campaignContext";
 import {
   publicCampaignResult,
@@ -216,7 +217,11 @@ test("incomplete legacy campaign exposes the missing details for rescue", () => 
     business_primary_cta: null,
   };
 
-  assert.deepEqual(missingCampaignEvidence(incomplete), ["cta"]);
+  assert.deepEqual(missingCampaignEvidence(incomplete), []);
+  assert.deepEqual(
+    workspaceMissingCampaignEvidence(incomplete, { status: "failed" }),
+    ["cta"],
+  );
 });
 
 test("legacy recovery does not use a mismatched website import", () => {
