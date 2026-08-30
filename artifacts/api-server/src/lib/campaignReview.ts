@@ -139,7 +139,7 @@ export function rebuildIdempotencyKey(campaign: any) {
 }
 
 export function recoveryIdempotencyKey(campaign: any, run: any) {
-  return validateRunSource(campaign, run).valid && run?.status === "failed"
+  return run?.status === "failed"
     ? `${CURRENT_RECOVERY_PREFIX}${run.id}:${rebuildIdempotencyKey(campaign)}`
     : rebuildIdempotencyKey(campaign);
 }
