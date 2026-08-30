@@ -169,6 +169,29 @@ test("legacy campaign recovery reconstructs the owned approved website context",
   );
 });
 
+test("legacy campaign without an import rebuilds from its owned business", () => {
+  const legacyCampaign = {
+    ...campaign,
+    website_import_id: null,
+    import_id: null,
+    import_content: null,
+    context_snapshot: {},
+    business_name: "Quae.ai",
+    business_website: "https://quae.ai",
+    business_description: "AI marketing software",
+    business_target_customer: "Small businesses",
+    business_products_services: "Campaign software",
+    business_primary_cta: "Start now",
+  };
+
+  const rebuilt = campaignGenerationContext(legacyCampaign);
+  assert.equal(rebuilt.identity.name, "Quae.ai");
+  assert.equal(rebuilt.products[0].name, "Campaign software");
+  assert.equal(rebuilt.audienceEvidence, "Small businesses");
+  assert.equal(rebuilt.ctaEvidence, "Start now");
+  assert.deepEqual(missingGenerationEvidence(rebuilt), []);
+});
+
 test("legacy recovery does not use a mismatched website import", () => {
   const mismatched = {
     ...campaign,
@@ -181,7 +204,10 @@ test("legacy recovery does not use a mismatched website import", () => {
   };
   const rebuilt = campaignGenerationContext(mismatched);
   assert.equal(rebuilt.websiteEvidence, null);
-  assert.equal(validateRunSource(mismatched, { context_snapshot: rebuilt }).valid, false);
+  assert.equal(
+    validateRunSource(mismatched, { context_snapshot: rebuilt }).valid,
+    false,
+  );
 });
 
 test("customer projection fails closed for JSON and AI internal text", () => {
