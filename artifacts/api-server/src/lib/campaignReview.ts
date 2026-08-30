@@ -17,6 +17,11 @@ const unsafe = (value: string) =>
   /evidence[_ ]?ids?|model reasoning|chain of thought|hidden instructions?|parsing error|malformed output|as an ai|internal metadata/i.test(
     value,
   );
+const safeReasons = (value: unknown, limit = 20) =>
+  (Array.isArray(value) ? value : [])
+    .map(text)
+    .filter((item) => item && !unsafe(item))
+    .slice(0, limit);
 const canonical = (value: unknown): string =>
   Array.isArray(value)
     ? `[${value.map(canonical).join(",")}]`
@@ -66,8 +71,24 @@ export function publicCampaignResult(value: unknown) {
       script: text(final.script),
       callToAction: text(final.callToAction),
     },
-    factcheck: { pass: input.factcheck?.pass === true },
-    qa: { pass: input.qa?.pass === true },
+    factcheck: {
+      pass: input.factcheck?.pass === true,
+      unsupportedClaims: safeReasons(input.factcheck?.unsupportedClaims),
+      conciseReasons: safeReasons(input.factcheck?.conciseReasons),
+    },
+    qa: {
+      pass: input.qa?.pass === true,
+      score:
+        typeof input.qa?.score === "number" && Number.isFinite(input.qa.score)
+          ? Math.max(0, Math.min(100, input.qa.score))
+          : null,
+      issues: safeReasons(input.qa?.issues),
+      customerSummary:
+        text(input.qa?.customerSummary) &&
+        !unsafe(text(input.qa.customerSummary))
+          ? text(input.qa.customerSummary)
+          : "",
+    },
   };
   const customerText = [
     projected.strategy?.angle,
@@ -77,6 +98,10 @@ export function publicCampaignResult(value: unknown) {
     projected.winningScript?.title,
     projected.winningScript?.script,
     ...Object.values(projected.finalScript),
+    ...projected.factcheck.unsupportedClaims,
+    ...projected.factcheck.conciseReasons,
+    ...projected.qa.issues,
+    projected.qa.customerSummary,
   ].filter((item): item is string => Boolean(item));
   if (customerText.some(unsafe)) return null;
   return Object.values(projected.finalScript).some(Boolean) ? projected : null;
