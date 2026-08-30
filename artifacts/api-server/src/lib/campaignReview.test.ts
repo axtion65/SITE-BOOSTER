@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   campaignGenerationContext,
+  missingCampaignEvidence,
   missingGenerationEvidence,
 } from "./campaignContext";
 import {
@@ -200,6 +201,22 @@ test("legacy campaign without an import rebuilds from its owned business", () =>
   const retryKey = recoveryIdempotencyKey(legacyCampaign, failed);
   assert.match(retryKey, /^failed-recovery:owned-context-v4:/);
   assert.notEqual(retryKey, rebuildIdempotencyKey(legacyCampaign));
+});
+
+test("incomplete legacy campaign exposes the missing details for rescue", () => {
+  const incomplete = {
+    ...campaign,
+    website_import_id: null,
+    import_id: null,
+    import_content: null,
+    context_snapshot: { campaignBrief: campaign.brief },
+    business_name: "Quae.ai",
+    business_target_customer: "Small businesses",
+    business_products_services: "Campaign software",
+    business_primary_cta: null,
+  };
+
+  assert.deepEqual(missingCampaignEvidence(incomplete), ["cta"]);
 });
 
 test("legacy recovery does not use a mismatched website import", () => {
