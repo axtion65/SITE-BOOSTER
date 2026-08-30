@@ -159,15 +159,15 @@ export default function CampaignDetail() {
         body: JSON.stringify(body),
       });
       if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
         const title =
           response.status === 401
             ? "Your session has expired. Please sign in again."
             : response.status === 409
-              ? path === "rebuild"
-                ? "We couldn’t restart this campaign. Please try again later or contact support."
-                : path === "run-team"
-                ? "Your campaign is already being worked on."
-                : "This campaign version has been superseded."
+              ? errorBody.error ||
+                (path === "run-team"
+                  ? "Your campaign is already being worked on."
+                  : "This campaign version has been superseded.")
               : "We couldn’t complete that action. Please try again.";
         toast({ title, variant: "destructive" });
         return;
@@ -209,6 +209,7 @@ export default function CampaignDetail() {
       </div>
     );
   if (!data) return <div className="quae-page p-10">Loading campaign…</div>;
+  const rescueRequired = Boolean(data.rescue?.required);
   const continueHref =
     data.nextAction === "create_visual"
       ? `/studio/mockups?campaignId=${encodeURIComponent(data.id)}${data.product_id ? `&productId=${encodeURIComponent(data.product_id)}` : ""}`
@@ -216,8 +217,10 @@ export default function CampaignDetail() {
         ? `/studio?campaignId=${encodeURIComponent(data.id)}`
         : "#campaign-work";
   const continueLabel =
-    data.reviewState === "needs_rebuild"
-      ? "Fix Campaign"
+    rescueRequired
+      ? "Complete Campaign Details"
+      : data.reviewState === "needs_rebuild"
+        ? "Fix Campaign"
       : data.nextAction === "review_campaign"
       ? "Review Campaign"
       : data.nextAction === "create_strategy"
@@ -293,10 +296,15 @@ export default function CampaignDetail() {
                   "Your saved audience"}
               </p>
             </div>
-            {data.nextAction === "review_campaign" ||
+            {rescueRequired ||
+            data.nextAction === "review_campaign" ||
             data.reviewState === "needs_rebuild" ? (
               <button
-                onClick={openReview}
+                onClick={
+                  rescueRequired
+                    ? () => window.scrollTo({ top: 0, behavior: "smooth" })
+                    : openReview
+                }
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
               >
                 {continueLabel}
