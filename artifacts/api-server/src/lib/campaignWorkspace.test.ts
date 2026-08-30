@@ -120,7 +120,11 @@ test("legacy rebuild action routes a safely repairable draft through focused rev
   assert.match(route, /priorQualityFeedback/);
   assert.match(route, /sourceRunId: latest\.id/);
   assert.ok(
-    route.indexOf("latestValidation?.repairable") <
-      route.indexOf("canRecoverCampaignRun"),
+    route.indexOf("canRecoverCampaignRun") <
+      route.indexOf("latestValidation?.repairable"),
+  );
+  assert.ok(
+    route.indexOf("ownedWebsiteImportMatchesCampaign") <
+      route.indexOf("latestValidation?.repairable"),
   );
 });
