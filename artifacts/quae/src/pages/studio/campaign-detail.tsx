@@ -233,6 +233,8 @@ export default function CampaignDetail() {
   const continueLabel =
     rescueRequired
       ? "Complete Campaign Details"
+      : data.revisionRecovery
+        ? "Repair Campaign"
       : data.reviewState === "needs_rebuild"
         ? "Fix Campaign"
       : data.nextAction === "review_campaign"
@@ -591,16 +593,36 @@ export default function CampaignDetail() {
               <p className="mt-3 leading-7 text-[#B9C5D8]">
                 {data.reviewExplanation}
               </p>
-              <ActionButton
-                disabled={busy !== null}
-                onClick={() => post("rebuild", {})}
-                className="mt-6"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${busy === "rebuild" ? "animate-spin" : ""}`}
-                />
-                Rebuild from Quae.ai information
-              </ActionButton>
+              {data.revisionRecovery ? (
+                <ActionButton
+                  disabled={busy !== null || active}
+                  onClick={() =>
+                    post("request-changes", {
+                      runId: data.revisionRecovery.runId,
+                      notes:
+                        "Repair the saved draft using current confirmed campaign information and resolve every prior Fact Check and QA issue.",
+                      idempotencyKey: crypto.randomUUID(),
+                    })
+                  }
+                  className="mt-6"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${busy === "request-changes" ? "animate-spin" : ""}`}
+                  />
+                  Repair saved draft
+                </ActionButton>
+              ) : (
+                <ActionButton
+                  disabled={busy !== null}
+                  onClick={() => post("rebuild", {})}
+                  className="mt-6"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${busy === "rebuild" ? "animate-spin" : ""}`}
+                  />
+                  Rebuild from Quae.ai information
+                </ActionButton>
+              )}
             </PremiumCard>
           )}
         <PremiumCard elevated>

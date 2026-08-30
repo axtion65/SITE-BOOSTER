@@ -68,7 +68,7 @@ test("the Quae.ai campaign quarantines the preserved Big Al's run", () => {
   };
   assert.equal(
     validateRunSource(campaign, contaminated).reason,
-    "needs_rebuild",
+    "source_mismatch",
   );
   assert.equal(contaminated.final_result.finalScript.title, "Meet Big Al's");
 });
@@ -296,4 +296,47 @@ test("customer projection includes safe quality feedback without internal eviden
     "Use only the confirmed service list.",
   ]);
   assert.doesNotMatch(JSON.stringify(result), /fact_001|evidenceIds/);
+});
+
+test("owned needs-revision output with stale source is eligible for focused repair", () => {
+  const stale = {
+    id: "stale-run",
+    status: "needs_revision",
+    context_snapshot: {
+      ...correctContext,
+      audienceEvidence: "An older audience",
+    },
+    final_result: final(),
+  };
+  const validation = validateRunSource(campaign, stale);
+  assert.equal(validation.reason, "source_mismatch");
+  assert.equal(validation.repairable, true);
+});
+
+test("ownership, import, and unsafe-output failures cannot enter focused repair", () => {
+  const run = {
+    status: "needs_revision",
+    context_snapshot: correctContext,
+    final_result: final(),
+  };
+  assert.deepEqual(
+    validateRunSource({ ...campaign, business_owner_id: "other" }, run),
+    { valid: false, reason: "ownership_mismatch", repairable: false },
+  );
+  assert.equal(
+    validateRunSource({ ...campaign, import_user_id: "other" }, run).reason,
+    "import_mismatch",
+  );
+  assert.equal(
+    validateRunSource(
+      campaign,
+      {
+        ...run,
+        final_result: {
+          finalScript: { script: '{"evidenceIds":["fact_1"]}' },
+        },
+      },
+    ).reason,
+    "output_invalid",
+  );
 });
