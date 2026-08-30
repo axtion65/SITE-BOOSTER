@@ -13,6 +13,7 @@ export async function queueCampaignRun(
     contextSnapshot: unknown;
     revisionNotes?: string | null;
     sourceRunId?: string;
+    allowFailedSuccessors?: boolean;
     concurrencyLimit: number;
   },
 ) {
@@ -29,11 +30,31 @@ export async function queueCampaignRun(
           [args.campaign.id],
         )
       ).rows[0];
-      if (
-        !latest ||
-        latest.id !== args.sourceRunId ||
-        !["ready_for_review", "needs_revision"].includes(latest.status)
-      ) {
+      let sourceIsSafe = Boolean(
+        latest &&
+          latest.id === args.sourceRunId &&
+          ["ready_for_review", "needs_revision"].includes(latest.status),
+      );
+      if (!sourceIsSafe && args.allowFailedSuccessors) {
+        sourceIsSafe = Boolean(
+          (
+            await client.query(
+              `SELECT source.id FROM campaign_runs source
+               WHERE source.campaign_id=$1 AND source.id=$2
+                 AND source.status IN ('ready_for_review','needs_revision')
+                 AND NOT EXISTS (
+                   SELECT 1 FROM campaign_runs newer
+                   WHERE newer.campaign_id=source.campaign_id
+                     AND newer.run_number>source.run_number
+                     AND newer.status<>'failed'
+                 )
+               FOR UPDATE`,
+              [args.campaign.id, args.sourceRunId],
+            )
+          ).rows[0],
+        );
+      }
+      if (!sourceIsSafe) {
         await client.query("ROLLBACK");
         return { kind: "superseded" as const };
       }
