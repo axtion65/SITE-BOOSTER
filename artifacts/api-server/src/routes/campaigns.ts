@@ -536,6 +536,23 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
       return;
     }
   }
+  if (!canRecoverCampaignRun(campaign, latest)) {
+    res
+      .status(409)
+      .json({ error: "This campaign does not require rebuilding." });
+    return;
+  }
+  if (
+    campaign.website_import_id &&
+    !ownedWebsiteImportMatchesCampaign(campaign)
+  ) {
+    res.status(409).json({
+      error:
+        "The approved website information for this campaign is unavailable.",
+      code: "campaign_source_unavailable",
+    });
+    return;
+  }
   const latestValidation = latest ? validateRunSource(campaign, latest) : null;
   if (latest && latestValidation?.repairable) {
     const contextSnapshot = campaignGenerationContext(campaign);
@@ -592,23 +609,6 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
     res
       .status(result.kind === "created" ? 202 : 200)
       .json(publicCampaignRun(result.run, true));
-    return;
-  }
-  if (!canRecoverCampaignRun(campaign, latest)) {
-    res
-      .status(409)
-      .json({ error: "This campaign does not require rebuilding." });
-    return;
-  }
-  if (
-    campaign.website_import_id &&
-    !ownedWebsiteImportMatchesCampaign(campaign)
-  ) {
-    res.status(409).json({
-      error:
-        "The approved website information for this campaign is unavailable.",
-      code: "campaign_source_unavailable",
-    });
     return;
   }
   const contextSnapshot = campaignGenerationContext(campaign);
