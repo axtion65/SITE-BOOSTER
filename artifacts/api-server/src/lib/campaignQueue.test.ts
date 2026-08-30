@@ -23,6 +23,23 @@ function fakeDb() {
               .sort((a, b) => b.run_number - a.run_number)[0];
             return { rows: latest ? [latest] : [] };
           }
+          if (sql.includes("SELECT source.id FROM campaign_runs source")) {
+            const source = runs.find(
+              (run) =>
+                run.campaign_id === values[0] &&
+                run.id === values[1] &&
+                ["ready_for_review", "needs_revision"].includes(run.status),
+            );
+            const newerNonfailed = source
+              ? runs.some(
+                  (run) =>
+                    run.campaign_id === source.campaign_id &&
+                    run.run_number > source.run_number &&
+                    run.status !== "failed",
+                )
+              : true;
+            return { rows: source && !newerNonfailed ? [source] : [] };
+          }
           if (
             sql.startsWith(
               "SELECT * FROM campaign_runs WHERE campaign_id=$1 AND idempotency_key=$2",
@@ -174,4 +191,57 @@ test("stale revision source remains superseded", async () => {
 
   assert.equal(result.kind, "superseded");
   assert.equal(db.runs.length, 2);
+});
+
+test("an explicit repair source remains safe behind failed successors", async () => {
+  const db = fakeDb();
+  db.runs.push(
+    {
+      id: "repair-source",
+      campaign_id: "c1",
+      status: "needs_revision",
+      run_number: 1,
+    },
+    { id: "failed-1", campaign_id: "c1", status: "failed", run_number: 2 },
+    { id: "failed-2", campaign_id: "c1", status: "failed", run_number: 3 },
+  );
+  const result = await queueCampaignRun(db, {
+    campaign: { id: "c1", user_id: "u1" },
+    idempotencyKey: "focused-repair",
+    contextSnapshot: {},
+    sourceRunId: "repair-source",
+    allowFailedSuccessors: true,
+    concurrencyLimit: 1,
+  });
+  assert.equal(result.kind, "created");
+  assert.equal(db.runs.at(-1)?.run_number, 4);
+});
+
+test("failed-successor recovery still rejects a newer active source", async () => {
+  const db = fakeDb();
+  db.runs.push(
+    {
+      id: "stale-source",
+      campaign_id: "c1",
+      status: "needs_revision",
+      run_number: 1,
+    },
+    {
+      id: "newer-source",
+      campaign_id: "c1",
+      status: "needs_revision",
+      run_number: 2,
+    },
+    { id: "failed", campaign_id: "c1", status: "failed", run_number: 3 },
+  );
+  const result = await queueCampaignRun(db, {
+    campaign: { id: "c1", user_id: "u1" },
+    idempotencyKey: "unsafe-repair",
+    contextSnapshot: {},
+    sourceRunId: "stale-source",
+    allowFailedSuccessors: true,
+    concurrencyLimit: 1,
+  });
+  assert.equal(result.kind, "superseded");
+  assert.equal(db.runs.length, 3);
 });
