@@ -31,3 +31,16 @@ test("failed quality review explains the issue and repairs the saved draft", asy
     /disabled=\{!notes\.trim\(\)/,
   );
 });
+
+test("safe source mismatch offers focused repair instead of a full rebuild", async () => {
+  const page = await readFile(
+    new URL("../pages/studio/campaign-detail.tsx", import.meta.url),
+    "utf8",
+  );
+  const start = page.indexOf('{data.reviewState === "needs_rebuild"');
+  const review = page.slice(start, start + 3500);
+  assert.match(review, /data\.revisionRecovery/);
+  assert.match(review, /request-changes/);
+  assert.match(review, /Repair saved draft/);
+  assert.match(review, /Rebuild from Quae\.ai information/);
+});
