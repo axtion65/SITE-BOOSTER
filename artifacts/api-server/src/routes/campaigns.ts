@@ -37,7 +37,7 @@ const router = Router();
 async function reviewAuthority(campaignId: string, userId: string) {
   const campaign = (
     await pool.query(
-      `SELECT c.*,b.user_id business_owner_id,b.name business_name,b.website business_website,b.description business_description,b.target_customer business_target_customer,b.products_services business_products_services,b.primary_cta business_primary_cta,wi.id import_id,wi.user_id import_user_id,wi.business_id import_business_id,wi.source_url import_source_url,wi.content import_content FROM campaigns c JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id LEFT JOIN website_import_drafts wi ON wi.id=c.website_import_id WHERE c.id=$1 AND c.user_id=$2`,
+      `SELECT c.*,b.user_id business_owner_id,b.name business_name,b.website business_website,b.description business_description,b.target_customer business_target_customer,b.products_services business_products_services,b.primary_cta business_primary_cta,wi.id import_id,wi.approved_campaign_id import_approved_campaign_id,wi.user_id import_user_id,wi.business_id import_business_id,wi.source_url import_source_url,wi.content import_content FROM campaigns c JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id LEFT JOIN website_import_drafts wi ON wi.id=c.website_import_id WHERE c.id=$1 AND c.user_id=$2`,
       [campaignId, userId],
     )
   ).rows[0];
@@ -143,7 +143,7 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
       b.target_customer business_audience, b.target_customer business_target_customer,
       b.primary_cta business_primary_cta,
       bk.personality brand_personality, b.user_id business_owner_id,
-      wi.id import_id, wi.user_id import_user_id, wi.business_id import_business_id, wi.source_url import_source_url,wi.content import_content
+      wi.id import_id, wi.approved_campaign_id import_approved_campaign_id, wi.user_id import_user_id, wi.business_id import_business_id, wi.source_url import_source_url,wi.content import_content
      FROM campaigns c JOIN businesses b ON b.id=c.business_id
      LEFT JOIN products p ON p.id=c.product_id AND p.business_id=c.business_id
      LEFT JOIN brand_kits bk ON bk.business_id=c.business_id
@@ -212,7 +212,7 @@ router.get("/campaigns/:id", async (req, res) => {
   const userId = await owner(req, res);
   if (!userId) return;
   const campaign = await pool.query(
-    `SELECT c.*,b.user_id business_owner_id,b.name business_name,b.website business_website,b.description business_description,b.target_customer business_target_customer,b.products_services business_products_services,b.primary_cta business_primary_cta,wi.id import_id,wi.user_id import_user_id,
+    `SELECT c.*,b.user_id business_owner_id,b.name business_name,b.website business_website,b.description business_description,b.target_customer business_target_customer,b.products_services business_products_services,b.primary_cta business_primary_cta,wi.id import_id,wi.approved_campaign_id import_approved_campaign_id,wi.user_id import_user_id,
      wi.business_id import_business_id,wi.source_url import_source_url,wi.content import_content FROM campaigns c
      JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id
      LEFT JOIN website_import_drafts wi ON wi.id=c.website_import_id WHERE c.id=$1 AND c.user_id=$2`,
@@ -491,7 +491,7 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
   if (!userId) return;
   const campaign = (
     await pool.query(
-      `SELECT c.*,b.user_id business_owner_id,b.name business_name,b.website business_website,b.description business_description,b.target_customer business_target_customer,b.products_services business_products_services,b.primary_cta business_primary_cta,wi.id import_id,wi.user_id import_user_id,wi.business_id import_business_id,wi.source_url import_source_url,wi.content import_content FROM campaigns c JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id LEFT JOIN website_import_drafts wi ON wi.id=c.website_import_id WHERE c.id=$1 AND c.user_id=$2`,
+      `SELECT c.*,b.user_id business_owner_id,b.name business_name,b.website business_website,b.description business_description,b.target_customer business_target_customer,b.products_services business_products_services,b.primary_cta business_primary_cta,wi.id import_id,wi.approved_campaign_id import_approved_campaign_id,wi.user_id import_user_id,wi.business_id import_business_id,wi.source_url import_source_url,wi.content import_content FROM campaigns c JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id LEFT JOIN website_import_drafts wi ON wi.id=c.website_import_id WHERE c.id=$1 AND c.user_id=$2`,
       [req.params.id, userId],
     )
   ).rows[0];
