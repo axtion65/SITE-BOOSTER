@@ -14,7 +14,8 @@ export function ownedWebsiteImportMatchesCampaign(campaign: any) {
     campaign?.website_import_id &&
       campaign.import_id === campaign.website_import_id &&
       campaign.import_user_id === campaign.user_id &&
-      campaign.import_business_id === campaign.business_id &&
+      (campaign.import_business_id === campaign.business_id ||
+        campaign.import_approved_campaign_id === campaign.id) &&
       campaign.import_source_url === campaign.source_url &&
       campaign.import_content &&
       typeof campaign.import_content === "object",
