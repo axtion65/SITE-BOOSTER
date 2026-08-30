@@ -33,6 +33,10 @@ test("recovery remains authenticated, owner scoped, idempotent, and provider fre
   assert.match(recovery, /recoveryIdempotencyKey\(campaign, latest\)/);
   assert.match(recovery, /isFailedRecoveryRun\(latest\)/);
   assert.match(recovery, /isCurrentRecoveryRun\(latest\)/);
+  assert.match(recovery, /b\.name business_name/);
+  assert.match(recovery, /b\.primary_cta business_primary_cta/);
+  assert.match(recovery, /ownedWebsiteImportMatchesCampaign\(campaign\)/);
+  assert.match(recovery, /missingGenerationEvidence\(contextSnapshot\)/);
   assert.doesNotMatch(recovery, /openai|fal|provider|credit|charge/i);
 });
 
@@ -64,4 +68,28 @@ test("a failed current-revision recovery reports a safe error before any duplica
     page,
     /path === "rebuild"[\s\S]*We couldn’t restart this campaign\./,
   );
+});
+
+
+test("incomplete legacy evidence is rejected before a recovery run is queued", async () => {
+  const route = await readFile(
+    new URL("../../../api-server/src/routes/campaigns.ts", import.meta.url),
+    "utf8",
+  );
+  const recovery = route.slice(
+    route.indexOf('router.post("/campaigns/:id/rebuild"'),
+    route.indexOf('router.post("/campaigns/:id/run-team"'),
+  );
+  const sourceGuard = recovery.indexOf(
+    "!ownedWebsiteImportMatchesCampaign(campaign)",
+  );
+  const evidenceGuard = recovery.indexOf(
+    "missingGenerationEvidence(contextSnapshot)",
+  );
+  const queue = recovery.indexOf("queueCampaignRun(pool");
+
+  assert.ok(sourceGuard >= 0 && sourceGuard < queue);
+  assert.ok(evidenceGuard >= 0 && evidenceGuard < queue);
+  assert.match(recovery, /code: "campaign_source_unavailable"/);
+  assert.match(recovery, /code: "campaign_evidence_incomplete"/);
 });

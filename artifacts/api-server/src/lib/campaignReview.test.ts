@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  campaignGenerationContext,
+  missingGenerationEvidence,
+} from "./campaignContext";
+import {
   publicCampaignResult,
   rebuildIdempotencyKey,
   canRecoverCampaignRun,
@@ -108,7 +112,7 @@ test("one legacy failed recovery receives one current-revision retry identity", 
     id: "legacy-recovery",
     status: "failed",
     context_snapshot: correctContext,
-    idempotency_key: `failed-recovery:research-evidence-v2:failed-run:${rebuildIdempotencyKey(campaign)}`,
+    idempotency_key: `failed-recovery:research-input-v3:failed-run:${rebuildIdempotencyKey(campaign)}`,
   };
   assert.equal(isFailedRecoveryRun(legacyRecovery), true);
   assert.equal(isCurrentRecoveryRun(legacyRecovery), false);
@@ -119,6 +123,103 @@ test("one legacy failed recovery receives one current-revision retry identity", 
     true,
   );
 });
+test("legacy campaign recovery reconstructs the owned approved website context", () => {
+  const importContent = {
+    business: {
+      name: "Quae.ai",
+      website: "https://quae.ai",
+      description: "AI marketing software",
+    },
+    products: [
+      {
+        name: "Campaign software",
+        description: "Build grounded campaigns",
+        regularPrice: null,
+        offer: "Campaign planning",
+        selected: true,
+      },
+    ],
+  };
+  const legacyCampaign = {
+    ...campaign,
+    context_snapshot: {},
+    import_business_id: null,
+    import_approved_campaign_id: campaign.id,
+    import_content: importContent,
+    identity_resolution: "imported",
+    business_name: "Quae.ai",
+    business_website: "https://quae.ai",
+    business_description: "AI marketing software",
+    business_target_customer: "Small businesses",
+    business_products_services: "Campaign software",
+    business_primary_cta: "Start now",
+  };
+
+  const rebuilt = campaignGenerationContext(legacyCampaign);
+  assert.equal(rebuilt.identity.name, "Quae.ai");
+  assert.equal(rebuilt.products[0].name, "Campaign software");
+  assert.equal(rebuilt.audienceEvidence, "Small businesses");
+  assert.equal(rebuilt.offerEvidence, "Campaign planning");
+  assert.equal(rebuilt.ctaEvidence, "Start now");
+  assert.deepEqual(rebuilt.websiteEvidence, importContent);
+  assert.deepEqual(missingGenerationEvidence(rebuilt), []);
+  assert.equal(
+    validateRunSource(legacyCampaign, {
+      context_snapshot: structuredClone(rebuilt),
+    }).valid,
+    true,
+  );
+});
+
+test("legacy campaign without an import rebuilds from its owned business", () => {
+  const legacyCampaign = {
+    ...campaign,
+    website_import_id: null,
+    import_id: null,
+    import_content: null,
+    context_snapshot: {},
+    business_name: "Quae.ai",
+    business_website: "https://quae.ai",
+    business_description: "AI marketing software",
+    business_target_customer: "Small businesses",
+    business_products_services: "Campaign software",
+    business_primary_cta: "Start now",
+  };
+
+  const rebuilt = campaignGenerationContext(legacyCampaign);
+  assert.equal(rebuilt.identity.name, "Quae.ai");
+  assert.equal(rebuilt.products[0].name, "Campaign software");
+  assert.equal(rebuilt.audienceEvidence, "Small businesses");
+  assert.equal(rebuilt.ctaEvidence, "Start now");
+  assert.deepEqual(missingGenerationEvidence(rebuilt), []);
+  const failed = {
+    id: "failed-empty-context",
+    status: "failed",
+    context_snapshot: { campaignBrief: campaign.brief },
+  };
+  const retryKey = recoveryIdempotencyKey(legacyCampaign, failed);
+  assert.match(retryKey, /^failed-recovery:owned-context-v4:/);
+  assert.notEqual(retryKey, rebuildIdempotencyKey(legacyCampaign));
+});
+
+test("legacy recovery does not use a mismatched website import", () => {
+  const mismatched = {
+    ...campaign,
+    context_snapshot: {},
+    import_user_id: "different-owner",
+    import_content: {
+      business: { name: "Wrong business" },
+      products: [{ name: "Wrong product", selected: true }],
+    },
+  };
+  const rebuilt = campaignGenerationContext(mismatched);
+  assert.equal(rebuilt.websiteEvidence, null);
+  assert.equal(
+    validateRunSource(mismatched, { context_snapshot: rebuilt }).valid,
+    false,
+  );
+});
+
 test("customer projection fails closed for JSON and AI internal text", () => {
   assert.equal(
     publicCampaignResult({

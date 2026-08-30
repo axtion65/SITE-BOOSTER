@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
-import { campaignGenerationContext } from "./campaignContext";
+import {
+  campaignGenerationContext,
+  ownedWebsiteImportMatchesCampaign,
+} from "./campaignContext";
 
 export const REBUILD_EXPLANATION =
   "This campaign was created from older or mismatched business information. Rebuild it from your current Quae.ai information before approval.";
 
-export const CAMPAIGN_RECOVERY_REVISION = "research-input-v3";
+export const CAMPAIGN_RECOVERY_REVISION = "owned-context-v4";
 const CURRENT_RECOVERY_PREFIX = `failed-recovery:${CAMPAIGN_RECOVERY_REVISION}:`;
 
 const text = (value: unknown) =>
@@ -87,12 +90,9 @@ export function validateRunSource(campaign: any, run: any) {
   );
   const imported =
     !campaign.website_import_id ||
-    (campaign.import_id === campaign.website_import_id &&
-      campaign.import_user_id === campaign.user_id &&
-      campaign.import_business_id === campaign.business_id &&
-      campaign.import_source_url === campaign.source_url &&
+    (ownedWebsiteImportMatchesCampaign(campaign) &&
       canonical(campaign.import_content) ===
-        canonical(campaign.context_snapshot?.websiteSnapshot));
+        canonical(expected.websiteEvidence));
   const sourceMatches =
     !campaign.website_import_id ||
     (actual &&
@@ -139,7 +139,7 @@ export function rebuildIdempotencyKey(campaign: any) {
 }
 
 export function recoveryIdempotencyKey(campaign: any, run: any) {
-  return validateRunSource(campaign, run).valid && run?.status === "failed"
+  return run?.status === "failed"
     ? `${CURRENT_RECOVERY_PREFIX}${run.id}:${rebuildIdempotencyKey(campaign)}`
     : rebuildIdempotencyKey(campaign);
 }
