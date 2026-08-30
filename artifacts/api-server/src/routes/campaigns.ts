@@ -8,6 +8,7 @@ import {
   campaignGenerationContext,
   missingCampaignEvidence,
   missingGenerationEvidence,
+  ownedWebsiteImportMatchesCampaign,
   rescuePrefill,
 } from "../lib/campaignContext";
 import { ownedBusiness, ownedCampaignRun } from "../lib/campaignIdentity";
@@ -524,6 +525,17 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
     res
       .status(409)
       .json({ error: "This campaign does not require rebuilding." });
+    return;
+  }
+  if (
+    campaign.website_import_id &&
+    !ownedWebsiteImportMatchesCampaign(campaign)
+  ) {
+    res.status(409).json({
+      error:
+        "The approved website information for this campaign is unavailable.",
+      code: "campaign_source_unavailable",
+    });
     return;
   }
   const contextSnapshot = campaignGenerationContext(campaign);
