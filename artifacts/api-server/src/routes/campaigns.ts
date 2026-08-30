@@ -33,6 +33,7 @@ import {
   isFailedRecoveryRun,
   recoveryIdempotencyKey,
   REBUILD_EXPLANATION,
+  SOURCE_REPAIR_EXPLANATION,
   validateRunSource,
 } from "../lib/campaignReview";
 const router = Router();
@@ -185,7 +186,7 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
   const attachedVisuals=(await pool.query(`SELECT TRUE is_primary,mv.id AS version_id,mv.version_number,mv.object_path,mv.status,s.created_at,mp.id AS project_id,p.name FROM campaign_asset_selections s JOIN mockup_versions mv ON mv.id=s.mockup_version_id JOIN mockup_projects mp ON mp.id=s.mockup_project_id AND mp.user_id=s.customer_id AND mp.business_id=s.business_id JOIN products p ON p.id=mp.product_id WHERE s.campaign_id=$1 AND s.customer_id=$2 AND s.active ORDER BY s.created_at DESC`,[campaign.id,userId])).rows;
   const latest = runs[0];
   const rescueMissing = workspaceMissingCampaignEvidence(campaign, latest);
-  const latestValidation=latest?validateRunSource(campaign,latest):{valid:true,reason:null};
+  const latestValidation=latest?validateRunSource(campaign,latest):{valid:true,reason:null,repairable:false};
   const facts = {
     hasBrief: Boolean(campaign.brief?.objective),
     hasStrategy: Boolean(latest?.final_result)&&latestValidation.valid,
@@ -207,7 +208,16 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
     progress: campaignWorkspaceProgress(facts),
     nextAction: campaignWorkspaceNextAction(facts),
     reviewState:latestValidation.valid?"valid":"needs_rebuild",
-    reviewExplanation:latestValidation.valid?null:REBUILD_EXPLANATION,
+    reviewReason: latestValidation.reason,
+    revisionRecovery:
+      latest && latestValidation.repairable
+        ? { runId: latest.id, reason: latestValidation.reason }
+        : null,
+    reviewExplanation:latestValidation.valid
+      ? null
+      : latestValidation.repairable
+        ? SOURCE_REPAIR_EXPLANATION
+        : REBUILD_EXPLANATION,
   });
 });
 
