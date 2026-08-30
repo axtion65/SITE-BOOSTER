@@ -143,6 +143,15 @@ export function missingCampaignEvidence(
   return missingGenerationEvidence(campaignGenerationContext(campaign));
 }
 
+export function workspaceMissingCampaignEvidence(
+  campaign: CampaignContextRecord,
+  latestRun: any,
+): string[] {
+  return latestRun?.status === "failed"
+    ? missingGenerationEvidence(campaignGenerationContext(campaign))
+    : missingCampaignEvidence(campaign);
+}
+
 export function rescuePrefill(campaign: CampaignContextRecord) {
   const context = campaignGenerationContext(campaign);
   return {

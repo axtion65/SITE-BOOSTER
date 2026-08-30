@@ -10,6 +10,7 @@ import {
   missingGenerationEvidence,
   ownedWebsiteImportMatchesCampaign,
   rescuePrefill,
+  workspaceMissingCampaignEvidence,
 } from "../lib/campaignContext";
 import { ownedBusiness, ownedCampaignRun } from "../lib/campaignIdentity";
 import {
@@ -182,6 +183,7 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
   ).rows;
   const attachedVisuals=(await pool.query(`SELECT TRUE is_primary,mv.id AS version_id,mv.version_number,mv.object_path,mv.status,s.created_at,mp.id AS project_id,p.name FROM campaign_asset_selections s JOIN mockup_versions mv ON mv.id=s.mockup_version_id JOIN mockup_projects mp ON mp.id=s.mockup_project_id AND mp.user_id=s.customer_id AND mp.business_id=s.business_id JOIN products p ON p.id=mp.product_id WHERE s.campaign_id=$1 AND s.customer_id=$2 AND s.active ORDER BY s.created_at DESC`,[campaign.id,userId])).rows;
   const latest = runs[0];
+  const rescueMissing = workspaceMissingCampaignEvidence(campaign, latest);
   const latestValidation=latest?validateRunSource(campaign,latest):{valid:true,reason:null};
   const facts = {
     hasBrief: Boolean(campaign.brief?.objective),
@@ -200,7 +202,7 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
     visuals,
     attachedVisuals,
     videos,
-    rescue: { required: missingCampaignEvidence(campaign).length > 0, missing: missingCampaignEvidence(campaign), prefill: rescuePrefill(campaign) },
+    rescue: { required: rescueMissing.length > 0, missing: rescueMissing, prefill: rescuePrefill(campaign) },
     progress: campaignWorkspaceProgress(facts),
     nextAction: campaignWorkspaceNextAction(facts),
     reviewState:latestValidation.valid?"valid":"needs_rebuild",
@@ -231,6 +233,8 @@ router.get("/campaigns/:id", async (req, res) => {
     [req.params.id, userId],
   );
   const c = campaign.rows[0];
+  const latest = runs.rows[0];
+  const rescueMissing = workspaceMissingCampaignEvidence(c, latest);
   res.json({
     id: c.id,
     business_id: c.business_id,
@@ -250,8 +254,8 @@ router.get("/campaigns/:id", async (req, res) => {
     ),
     attachedVisuals: attachments.rows,
     rescue: {
-      required: missingCampaignEvidence(c).length > 0,
-      missing: missingCampaignEvidence(c),
+      required: rescueMissing.length > 0,
+      missing: rescueMissing,
       prefill: rescuePrefill(c),
     },
   });
