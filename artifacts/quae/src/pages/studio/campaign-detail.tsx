@@ -56,6 +56,20 @@ export default function CampaignDetail() {
     result = run?.final_result,
     copy = customerCopy(result),
     active = ["queued", "running"].includes(run?.status);
+  const qualityFeedback = Array.from(
+    new Set(
+      [
+        ...(result?.factcheck?.unsupportedClaims || []),
+        ...(result?.factcheck?.conciseReasons || []),
+        ...(result?.qa?.issues || []),
+        result?.qa?.customerSummary,
+      ].filter((item): item is string => Boolean(item)),
+    ),
+  );
+  const revisionNotes =
+    notes.trim() ||
+    qualityFeedback.join(" ") ||
+    "Repair the saved draft using only confirmed campaign evidence.";
   function openReview() {
     const section = document.getElementById("campaign-review");
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -625,18 +639,28 @@ export default function CampaignDetail() {
                 standard. You won’t be asked to approve content that failed
                 review.
               </p>
+              {qualityFeedback.length > 0 && (
+                <div className="mt-4 rounded-xl bg-amber-400/10 p-4 text-amber-100">
+                  <p className="font-bold">What needs to change</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                    {qualityFeedback.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <textarea
                 className={`${fieldClass} mt-5`}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Tell the team what you want changed…"
+                placeholder="Add an optional instruction, or use the quality feedback above."
               />
               <button
-                disabled={!notes.trim() || busy !== null || active}
+                disabled={busy !== null || active}
                 onClick={() =>
                   post("request-changes", {
                     runId: run.id,
-                    notes,
+                    notes: revisionNotes,
                     idempotencyKey: crypto.randomUUID(),
                   })
                 }
@@ -647,7 +671,7 @@ export default function CampaignDetail() {
                 />
                 {busy === "request-changes"
                   ? "QUEUEING CHANGES…"
-                  : "REQUEST CHANGES"}
+                  : "REPAIR SAVED DRAFT"}
               </button>
             </div>
           </PremiumCard>
