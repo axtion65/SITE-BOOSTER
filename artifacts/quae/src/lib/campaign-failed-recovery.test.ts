@@ -64,12 +64,34 @@ test("a failed current-revision recovery reports a safe error before any duplica
   assert.match(replayGuard, /res\.status\(409\)/);
   assert.match(replayGuard, /code: "campaign_recovery_failed"/);
   assert.doesNotMatch(replayGuard, /queueCampaignRun/);
-  assert.match(
-    page,
-    /path === "rebuild"[\s\S]*We couldn’t restart this campaign\./,
-  );
+  assert.match(page, /const errorBody = await response\.json/);
+  assert.match(page, /errorBody\.error/);
 });
 
+
+test("incomplete legacy evidence is visible and blocks Start Strategy", async () => {
+  const [context, page] = await Promise.all([
+    readFile(
+      new URL("../../../api-server/src/lib/campaignContext.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../pages/studio/campaign-detail.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(
+    context,
+    /missingCampaignEvidence[\s\S]*missingGenerationEvidence\(campaignGenerationContext\(campaign\)\)/,
+  );
+  assert.match(page, /const rescueRequired = Boolean\(data\.rescue\?\.required\)/);
+  assert.match(page, /Complete Campaign Details/);
+  assert.match(
+    page,
+    /\{rescueRequired \|\|[\s\S]*data\.nextAction === "review_campaign"/,
+  );
+});
 
 test("incomplete legacy evidence is rejected before a recovery run is queued", async () => {
   const route = await readFile(
