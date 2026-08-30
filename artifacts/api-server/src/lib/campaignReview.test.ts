@@ -334,6 +334,39 @@ test("focused repair may recover the newest safe draft behind failed attempts", 
   );
 });
 
+test("focused repair recovers a valid customer-safe draft behind failed attempts", () => {
+  const validDraft = {
+    id: "valid-draft",
+    status: "needs_revision",
+    context_snapshot: correctContext,
+    final_result: final(),
+  };
+  assert.equal(validateRunSource(campaign, validDraft).valid, true);
+  assert.equal(
+    repairableRunBehindFailures(campaign, [
+      { id: "failed-2", status: "failed" },
+      { id: "failed-1", status: "failed" },
+      validDraft,
+    ])?.id,
+    "valid-draft",
+  );
+});
+
+test("focused repair rejects a valid run without a customer-safe saved draft", () => {
+  assert.equal(
+    repairableRunBehindFailures(campaign, [
+      { id: "failed", status: "failed" },
+      {
+        id: "empty-draft",
+        status: "needs_revision",
+        context_snapshot: correctContext,
+        final_result: null,
+      },
+    ]),
+    null,
+  );
+});
+
 test("a newer nonfailed run blocks recovery of an older draft", () => {
   const staleDraft = {
     id: "stale-draft",

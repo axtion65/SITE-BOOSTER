@@ -165,7 +165,14 @@ export function validateRunSource(campaign: any, run: any) {
 
 export function repairableRunBehindFailures(campaign: any, runs: any[]) {
   for (const run of runs) {
-    if (validateRunSource(campaign, run).repairable) return run;
+    const validation = validateRunSource(campaign, run);
+    const hasSafeDraft = publicCampaignResult(run?.final_result) !== null;
+    if (
+      hasSafeDraft &&
+      ["ready_for_review", "needs_revision"].includes(run?.status) &&
+      (validation.valid || validation.repairable)
+    )
+      return run;
     if (run?.status !== "failed") return null;
   }
   return null;
