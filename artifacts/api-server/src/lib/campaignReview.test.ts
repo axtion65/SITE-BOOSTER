@@ -190,6 +190,14 @@ test("legacy campaign without an import rebuilds from its owned business", () =>
   assert.equal(rebuilt.audienceEvidence, "Small businesses");
   assert.equal(rebuilt.ctaEvidence, "Start now");
   assert.deepEqual(missingGenerationEvidence(rebuilt), []);
+  const failed = {
+    id: "failed-empty-context",
+    status: "failed",
+    context_snapshot: { campaignBrief: campaign.brief },
+  };
+  const retryKey = recoveryIdempotencyKey(legacyCampaign, failed);
+  assert.match(retryKey, /^failed-recovery:owned-context-v4:/);
+  assert.notEqual(retryKey, rebuildIdempotencyKey(legacyCampaign));
 });
 
 test("legacy recovery does not use a mismatched website import", () => {
