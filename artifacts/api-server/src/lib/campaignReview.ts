@@ -4,7 +4,7 @@ import { campaignGenerationContext } from "./campaignContext";
 export const REBUILD_EXPLANATION =
   "This campaign was created from older or mismatched business information. Rebuild it from your current Quae.ai information before approval.";
 
-export const CAMPAIGN_RECOVERY_REVISION = "research-evidence-v2";
+export const CAMPAIGN_RECOVERY_REVISION = "research-input-v3";
 const CURRENT_RECOVERY_PREFIX = `failed-recovery:${CAMPAIGN_RECOVERY_REVISION}:`;
 
 const text = (value: unknown) =>
