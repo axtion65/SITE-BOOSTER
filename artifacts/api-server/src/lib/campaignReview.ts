@@ -6,6 +6,8 @@ import {
 
 export const REBUILD_EXPLANATION =
   "This campaign was created from older or mismatched business information. Rebuild it from your current Quae.ai information before approval.";
+export const SOURCE_REPAIR_EXPLANATION =
+  "This saved draft uses older campaign information. Quae can repair it against your current confirmed information without restarting the full campaign.";
 
 export const CAMPAIGN_RECOVERY_REVISION = "owned-context-v4";
 const CURRENT_RECOVERY_PREFIX = `failed-recovery:${CAMPAIGN_RECOVERY_REVISION}:`;
@@ -141,12 +143,23 @@ export function validateRunSource(campaign: any, run: any) {
         }));
   const outputValid =
     !run?.final_result || publicCampaignResult(run.final_result) !== null;
+  const reason = !owned
+    ? ("ownership_mismatch" as const)
+    : !imported
+      ? ("import_mismatch" as const)
+      : !outputValid
+        ? ("output_invalid" as const)
+        : !sourceMatches
+          ? ("source_mismatch" as const)
+          : null;
   return {
-    valid: owned && imported && sourceMatches && outputValid,
-    reason:
-      owned && imported && sourceMatches && outputValid
-        ? null
-        : ("needs_rebuild" as const),
+    valid: reason === null,
+    reason,
+    repairable: Boolean(
+      reason === "source_mismatch" &&
+        outputValid &&
+        ["ready_for_review", "needs_revision"].includes(run?.status),
+    ),
   };
 }
 
