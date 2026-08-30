@@ -143,6 +143,8 @@ test("legacy campaign recovery reconstructs the owned approved website context",
   const legacyCampaign = {
     ...campaign,
     context_snapshot: {},
+    import_business_id: null,
+    import_approved_campaign_id: campaign.id,
     import_content: importContent,
     identity_resolution: "imported",
     business_name: "Quae.ai",
