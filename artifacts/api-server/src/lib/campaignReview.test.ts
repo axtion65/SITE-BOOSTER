@@ -13,6 +13,7 @@ import {
   isCurrentRecoveryRun,
   isFailedRecoveryRun,
   recoveryIdempotencyKey,
+  repairableRunBehindFailures,
   validateRunSource,
 } from "./campaignReview";
 
@@ -311,6 +312,45 @@ test("owned needs-revision output with stale source is eligible for focused repa
   const validation = validateRunSource(campaign, stale);
   assert.equal(validation.reason, "source_mismatch");
   assert.equal(validation.repairable, true);
+});
+
+test("focused repair may recover the newest safe draft behind failed attempts", () => {
+  const safeDraft = {
+    id: "safe-draft",
+    status: "needs_revision",
+    context_snapshot: {
+      ...correctContext,
+      audienceEvidence: "An older audience",
+    },
+    final_result: final(),
+  };
+  assert.equal(
+    repairableRunBehindFailures(campaign, [
+      { id: "failed-2", status: "failed" },
+      { id: "failed-1", status: "failed" },
+      safeDraft,
+    ])?.id,
+    "safe-draft",
+  );
+});
+
+test("a newer nonfailed run blocks recovery of an older draft", () => {
+  const staleDraft = {
+    id: "stale-draft",
+    status: "needs_revision",
+    context_snapshot: {
+      ...correctContext,
+      audienceEvidence: "An older audience",
+    },
+    final_result: final(),
+  };
+  assert.equal(
+    repairableRunBehindFailures(campaign, [
+      { id: "newer", status: "queued" },
+      staleDraft,
+    ]),
+    null,
+  );
 });
 
 test("ownership, import, and unsafe-output failures cannot enter focused repair", () => {

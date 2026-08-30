@@ -163,6 +163,14 @@ export function validateRunSource(campaign: any, run: any) {
   };
 }
 
+export function repairableRunBehindFailures(campaign: any, runs: any[]) {
+  for (const run of runs) {
+    if (validateRunSource(campaign, run).repairable) return run;
+    if (run?.status !== "failed") return null;
+  }
+  return null;
+}
+
 export function rebuildIdempotencyKey(campaign: any) {
   return `source-rebuild:${createHash("sha256")
     .update(

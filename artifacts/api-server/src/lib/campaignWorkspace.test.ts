@@ -114,17 +114,18 @@ test("legacy rebuild action routes a safely repairable draft through focused rev
     source.indexOf('router.post("/campaigns/:id/rebuild"'),
     source.indexOf('router.post("/campaigns/:id/run-team"'),
   );
-  assert.match(route, /latestValidation\?\.repairable/);
+  assert.match(route, /repairableRunBehindFailures/);
   assert.match(route, /customerRevision:\s*\{/);
-  assert.match(route, /previousRunId: latest\.id/);
+  assert.match(route, /previousRunId: repairSource\.id/);
   assert.match(route, /priorQualityFeedback/);
-  assert.match(route, /sourceRunId: latest\.id/);
+  assert.match(route, /sourceRunId: repairSource\.id/);
+  assert.match(route, /allowFailedSuccessors/);
   assert.ok(
     route.indexOf("canRecoverCampaignRun") <
-      route.indexOf("latestValidation?.repairable"),
+      route.indexOf("if (repairSource)"),
   );
   assert.ok(
     route.indexOf("ownedWebsiteImportMatchesCampaign") <
-      route.indexOf("latestValidation?.repairable"),
+      route.indexOf("if (repairSource)"),
   );
 });
