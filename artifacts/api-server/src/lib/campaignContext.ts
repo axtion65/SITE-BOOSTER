@@ -132,7 +132,24 @@ export function missingGenerationEvidence(context: any): string[] {
 export function missingCampaignEvidence(
   campaign: CampaignContextRecord,
 ): string[] {
+  if (
+    !(
+      campaign.website_import_id ||
+      campaign.context_snapshot?.source === "website_import" ||
+      campaign.context_snapshot?.sourceUrl
+    )
+  )
+    return [];
   return missingGenerationEvidence(campaignGenerationContext(campaign));
+}
+
+export function workspaceMissingCampaignEvidence(
+  campaign: CampaignContextRecord,
+  latestRun: any,
+): string[] {
+  return latestRun?.status === "failed"
+    ? missingGenerationEvidence(campaignGenerationContext(campaign))
+    : missingCampaignEvidence(campaign);
 }
 
 export function rescuePrefill(campaign: CampaignContextRecord) {
