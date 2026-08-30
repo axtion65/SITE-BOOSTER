@@ -100,7 +100,7 @@ export function validateEvidenceLedger(context: unknown, ledger: Evidence[]) {
     ledger.length > 0 &&
     ledger.length <= MAX_EVIDENCE_RECORDS &&
     ledger.every((fact) => {
-      const match = fact.source.match(/^(.*?)(?:\\[(\\d+)\\])?$/)!;
+      const match = fact.source.match(/^(.*?)(?:\[(\d+)\])?$/)!;
       const raw = at(context, match[1]);
       const value =
         match[2] === undefined ? raw : raw?.[Number(match[2])];
