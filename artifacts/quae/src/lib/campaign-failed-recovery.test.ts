@@ -81,9 +81,11 @@ test("incomplete legacy evidence is visible and blocks Start Strategy", async ()
     ),
   ]);
 
+  assert.match(context, /workspaceMissingCampaignEvidence/);
+  assert.match(context, /latestRun\?\.status === "failed"/);
   assert.match(
     context,
-    /missingCampaignEvidence[\s\S]*missingGenerationEvidence\(campaignGenerationContext\(campaign\)\)/,
+    /missingGenerationEvidence\(campaignGenerationContext\(campaign\)\)/,
   );
   assert.match(page, /const rescueRequired = Boolean\(data\.rescue\?\.required\)/);
   assert.match(page, /Complete Campaign Details/);
