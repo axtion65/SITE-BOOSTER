@@ -105,3 +105,22 @@ test("workspace exposes focused recovery only for a safely repairable source mis
   assert.match(route, /revisionRecovery/);
   assert.match(route, /SOURCE_REPAIR_EXPLANATION/);
 });
+
+test("legacy rebuild action routes a safely repairable draft through focused revision", async () => {
+  const source = await import("node:fs/promises").then((fs) =>
+    fs.readFile(new URL("../routes/campaigns.ts", import.meta.url), "utf8"),
+  );
+  const route = source.slice(
+    source.indexOf('router.post("/campaigns/:id/rebuild"'),
+    source.indexOf('router.post("/campaigns/:id/run-team"'),
+  );
+  assert.match(route, /latestValidation\?\.repairable/);
+  assert.match(route, /customerRevision:\s*\{/);
+  assert.match(route, /previousRunId: latest\.id/);
+  assert.match(route, /priorQualityFeedback/);
+  assert.match(route, /sourceRunId: latest\.id/);
+  assert.ok(
+    route.indexOf("latestValidation?.repairable") <
+      route.indexOf("canRecoverCampaignRun"),
+  );
+});
