@@ -536,6 +536,64 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
       return;
     }
   }
+  const latestValidation = latest ? validateRunSource(campaign, latest) : null;
+  if (latest && latestValidation?.repairable) {
+    const contextSnapshot = campaignGenerationContext(campaign);
+    const missingEvidence = missingGenerationEvidence(contextSnapshot);
+    if (missingEvidence.length > 0) {
+      res.status(409).json({
+        error:
+          "This campaign is missing confirmed business information. Review the campaign brief before restarting.",
+        code: "campaign_evidence_incomplete",
+        missing: missingEvidence,
+      });
+      return;
+    }
+    const notes =
+      "Repair the saved draft using the current confirmed campaign information and resolve every prior Fact Check and QA issue.";
+    const priorResult = publicCampaignResult(latest.final_result);
+    const result = await queueCampaignRun(pool, {
+      campaign,
+      idempotencyKey: `source-repair:${recoveryIdempotencyKey(campaign, latest)}`,
+      contextSnapshot: {
+        ...contextSnapshot,
+        campaignBrief: campaign.brief,
+        customerRevision: {
+          previousRunId: latest.id,
+          notes,
+          priorQualityFeedback: priorResult
+            ? {
+                factcheck: priorResult.factcheck,
+                qa: priorResult.qa,
+              }
+            : null,
+        },
+      },
+      revisionNotes: notes,
+      sourceRunId: latest.id,
+      concurrencyLimit: Math.max(
+        1,
+        Number(process.env.QUAE_CAMPAIGN_USER_CONCURRENCY || 1),
+      ),
+    });
+    if (result.kind === "superseded") {
+      res
+        .status(409)
+        .json({ error: "This campaign version has been superseded" });
+      return;
+    }
+    if (result.kind === "conflict") {
+      res.status(409).json({
+        error: "An AI team is already active for this account",
+        activeRunId: result.activeRun.id,
+      });
+      return;
+    }
+    res
+      .status(result.kind === "created" ? 202 : 200)
+      .json(publicCampaignRun(result.run, true));
+    return;
+  }
   if (!canRecoverCampaignRun(campaign, latest)) {
     res
       .status(409)
