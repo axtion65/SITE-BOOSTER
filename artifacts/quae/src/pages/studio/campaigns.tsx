@@ -328,4 +328,5 @@ export const statusLabel = (s: string) =>
     needs_revision: "Needs revision",
     approved: "Campaign Approved",
     failed: "Failed",
+    needs_rebuild: "Needs refresh",
   })[s] || "Draft";
