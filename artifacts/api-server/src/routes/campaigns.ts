@@ -34,6 +34,7 @@ import {
   recoveryIdempotencyKey,
   REBUILD_EXPLANATION,
   SOURCE_REPAIR_EXPLANATION,
+  repairableRunBehindFailures,
   validateRunSource,
 } from "../lib/campaignReview";
 const router = Router();
@@ -514,12 +515,14 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
     res.status(404).json({ error: "Campaign not found" });
     return;
   }
-  const latest = (
+  const runs = (
     await pool.query(
-      "SELECT * FROM campaign_runs WHERE campaign_id=$1 ORDER BY run_number DESC LIMIT 1",
+      "SELECT * FROM campaign_runs WHERE campaign_id=$1 ORDER BY run_number DESC",
       [campaign.id],
     )
-  ).rows[0];
+  ).rows;
+  const latest = runs[0];
+  const repairSource = repairableRunBehindFailures(campaign, runs);
   if (isFailedRecoveryRun(latest)) {
     if (["queued", "running"].includes(latest.status)) {
       res.json(
@@ -527,7 +530,7 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
       );
       return;
     }
-    if (isCurrentRecoveryRun(latest)) {
+    if (isCurrentRecoveryRun(latest) && !repairSource) {
       res.status(409).json({
         error:
           "We couldn’t restart this campaign. Please try again later or contact support.",
@@ -553,8 +556,7 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
     });
     return;
   }
-  const latestValidation = latest ? validateRunSource(campaign, latest) : null;
-  if (latest && latestValidation?.repairable) {
+  if (repairSource) {
     const contextSnapshot = campaignGenerationContext(campaign);
     const missingEvidence = missingGenerationEvidence(contextSnapshot);
     if (missingEvidence.length > 0) {
@@ -568,15 +570,15 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
     }
     const notes =
       "Repair the saved draft using the current confirmed campaign information and resolve every prior Fact Check and QA issue.";
-    const priorResult = publicCampaignResult(latest.final_result);
+    const priorResult = publicCampaignResult(repairSource.final_result);
     const result = await queueCampaignRun(pool, {
       campaign,
-      idempotencyKey: `source-repair:${recoveryIdempotencyKey(campaign, latest)}`,
+      idempotencyKey: `source-repair:v2:${repairSource.id}:${recoveryIdempotencyKey(campaign, repairSource)}`,
       contextSnapshot: {
         ...contextSnapshot,
         campaignBrief: campaign.brief,
         customerRevision: {
-          previousRunId: latest.id,
+          previousRunId: repairSource.id,
           notes,
           priorQualityFeedback: priorResult
             ? {
@@ -587,7 +589,8 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
         },
       },
       revisionNotes: notes,
-      sourceRunId: latest.id,
+      sourceRunId: repairSource.id,
+      allowFailedSuccessors: repairSource.id !== latest.id,
       concurrencyLimit: Math.max(
         1,
         Number(process.env.QUAE_CAMPAIGN_USER_CONCURRENCY || 1),
