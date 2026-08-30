@@ -91,3 +91,17 @@ test("valid revision runs repair the saved draft before the full pipeline", asyn
       source.indexOf('await stage("research")'),
   );
 });
+
+test("workspace exposes focused recovery only for a safely repairable source mismatch", async () => {
+  const source = await import("node:fs/promises").then((fs) =>
+    fs.readFile(new URL("../routes/campaigns.ts", import.meta.url), "utf8"),
+  );
+  const route = source.slice(
+    source.indexOf('router.get("/campaigns/:id/workspace"'),
+    source.indexOf('router.get("/campaigns/:id"'),
+  );
+  assert.match(route, /reviewReason: latestValidation\.reason/);
+  assert.match(route, /latestValidation\.repairable/);
+  assert.match(route, /revisionRecovery/);
+  assert.match(route, /SOURCE_REPAIR_EXPLANATION/);
+});
