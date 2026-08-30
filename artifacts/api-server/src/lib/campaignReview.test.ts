@@ -108,7 +108,7 @@ test("one legacy failed recovery receives one current-revision retry identity", 
     id: "legacy-recovery",
     status: "failed",
     context_snapshot: correctContext,
-    idempotency_key: `failed-recovery:failed-run:${rebuildIdempotencyKey(campaign)}`,
+    idempotency_key: `failed-recovery:research-evidence-v2:failed-run:${rebuildIdempotencyKey(campaign)}`,
   };
   assert.equal(isFailedRecoveryRun(legacyRecovery), true);
   assert.equal(isCurrentRecoveryRun(legacyRecovery), false);
