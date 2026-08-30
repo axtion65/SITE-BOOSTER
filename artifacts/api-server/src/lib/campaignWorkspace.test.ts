@@ -63,3 +63,31 @@ test("aggregate workspace scopes campaign and every asset query to its owner", a
   assert.doesNotMatch(route, /prompt_version|structured_output|agents,/);
   assert.match(route, /publicCampaignRun/);
 });
+
+test("revision queue preserves the prior quality feedback for the repair run", async () => {
+  const source = await import("node:fs/promises").then((fs) =>
+    fs.readFile(new URL("../routes/campaigns.ts", import.meta.url), "utf8"),
+  );
+  const route = source.slice(
+    source.indexOf('router.post("/campaigns/:id/request-changes"'),
+    source.indexOf("export default router"),
+  );
+  assert.match(route, /const sourceRun = await ownedCampaignRun/);
+  assert.match(route, /publicCampaignResult\(sourceRun\.final_result\)/);
+  assert.match(route, /priorQualityFeedback/);
+  assert.match(route, /factcheck: priorResult\.factcheck/);
+  assert.match(route, /qa: priorResult\.qa/);
+});
+
+test("valid revision runs repair the saved draft before the full pipeline", async () => {
+  const source = await import("node:fs/promises").then((fs) =>
+    fs.readFile(new URL("../agents/pipeline.ts", import.meta.url), "utf8"),
+  );
+  assert.match(source, /rewrite-customer-revision\.v1/);
+  assert.match(source, /previous\.status IN \('ready_for_review','needs_revision'\)/);
+  assert.match(source, /Do not restart ideation or invent new facts/);
+  assert.ok(
+    source.indexOf("await this.executeRevision") <
+      source.indexOf('await stage("research")'),
+  );
+});

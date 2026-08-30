@@ -142,6 +142,163 @@ export class CampaignPipeline {
       }
     }
   }
+  private async completeQuality(
+    runId: string,
+    context: unknown,
+    ledger: any[],
+    base: {
+      research: unknown;
+      strategy: z.infer<typeof strategyOutputSchema>;
+      hooks: unknown;
+      winningScript: unknown;
+      finalScript: z.infer<typeof scriptOutputSchema>;
+      judge: any;
+    },
+    stage: (name: string) => Promise<unknown>,
+  ) {
+    let { finalScript } = base;
+    const quality = await runBoundedQualityCycle({
+      finalScript,
+      ledger,
+      strategy: base.strategy,
+      judge: base.judge,
+      checkFacts: async (script, deterministicInvalid, cycle) => {
+        await stage("fact_checking");
+        return this.agent(
+          runId,
+          70 + cycle * 20,
+          "factcheck",
+          cycle ? "factcheck-repair.v1" : versions.factcheck,
+          factCheckOutputSchema,
+          "Semantically validate every claim and every modifier against the authoritative evidence ledger.",
+          factCheckInputSchema.parse({
+            ledger,
+            finalScript: script,
+            deterministicInvalid,
+          }),
+        );
+      },
+      checkQa: async (script, checkedFacts, cycle) => {
+        await stage("quality_checking");
+        return this.agent(
+          runId,
+          80 + cycle * 20,
+          "qa",
+          cycle ? "qa-repair.v1" : versions.qa,
+          qaOutputSchema,
+          "Apply the quality floor. Never fake PASS.",
+          qaInputSchema.parse({
+            context,
+            strategy: base.strategy,
+            judge: base.judge,
+            finalScript: script,
+            factcheck: checkedFacts,
+          }),
+        );
+      },
+      repair: async (repairInput) => {
+        await stage("repairing");
+        return this.agent(
+          runId,
+          90,
+          "rewriter",
+          "rewrite-qa-repair.v1",
+          scriptOutputSchema,
+          `Remove or rewrite every unsupported claim identified by Fact Check, QA, or deterministic evidence validation while preserving supported persuasive content. Never invent facts. Never turn an exact value into “starting at”, “from”, “up to”, a range, discount, guarantee, scarcity, availability, or performance claim unless that modifier is explicitly supported by the evidence ledger. Prefer deletion or conservative wording whenever support is uncertain.`,
+          repairInput,
+        );
+      },
+    });
+    ({ finalScript } = quality);
+    const { factcheck, qa } = quality;
+    const ready = qualityCycleReady(
+      quality,
+      Number(process.env.QUAE_CAMPAIGN_MIN_SCORE || 75),
+    );
+    const result = { ...base, finalScript, ledger, factcheck, qa };
+    await pool.query(
+      `UPDATE campaign_runs SET status=$2,current_stage=$3,final_result=$4,judge_score=$5,qa_status=$6,completed_at=NOW(),lease_owner=NULL,lease_expires_at=NULL,updated_at=NOW() WHERE id=$1`,
+      [
+        runId,
+        ready ? "ready_for_review" : "needs_revision",
+        ready ? "customer_review" : "quality_review_failed",
+        result,
+        typeof base.judge?.winningScore === "number"
+          ? base.judge.winningScore
+          : null,
+        ready ? "pass" : "failed",
+      ],
+    );
+    await pool.query(
+      "UPDATE campaigns SET status=$2,updated_at=NOW() WHERE id=(SELECT campaign_id FROM campaign_runs WHERE id=$1)",
+      [runId, ready ? "ready_for_review" : "needs_revision"],
+    );
+  }
+  private async executeRevision(
+    runId: string,
+    context: unknown,
+    ledger: any[],
+    snapshot: any,
+    stage: (name: string) => Promise<unknown>,
+  ) {
+    const previousRunId = snapshot?.customerRevision?.previousRunId;
+    if (typeof previousRunId !== "string") return false;
+    const source = (
+      await pool.query(
+        `SELECT previous.final_result FROM campaign_runs previous JOIN campaign_runs current ON current.campaign_id=previous.campaign_id WHERE current.id=$1 AND previous.id=$2 AND previous.status IN ('ready_for_review','needs_revision') LIMIT 1`,
+        [runId, previousRunId],
+      )
+    ).rows[0]?.final_result;
+    const strategy = strategyOutputSchema.safeParse(source?.strategy);
+    const finalScript = scriptOutputSchema.safeParse(source?.finalScript);
+    if (!strategy.success || !finalScript.success) return false;
+    const factcheck = factCheckOutputSchema.safeParse(source?.factcheck);
+    const qa = qaOutputSchema.safeParse(source?.qa);
+    const factcheckFailures = factcheck.success
+      ? [
+          ...factcheck.data.unsupportedClaims,
+          ...factcheck.data.conciseReasons,
+        ]
+      : [];
+    const qaIssues = qa.success
+      ? [qa.data.customerSummary, ...qa.data.issues].filter(Boolean)
+      : [];
+    await stage("repairing_revision");
+    const repaired = await this.agent(
+      runId,
+      60,
+      "rewriter",
+      "rewrite-customer-revision.v1",
+      scriptOutputSchema,
+      "Revise the saved draft once. Follow the customer's requested change and resolve every prior Fact Check and QA issue. Use only the authoritative evidence ledger; delete any claim that cannot be supported. Do not restart ideation or invent new facts.",
+      rewriteInputSchema.parse({
+        winner: finalScript.data,
+        judge: {
+          customerRevision: snapshot.customerRevision,
+          priorJudge: source?.judge ?? null,
+        },
+        strategy: strategy.data,
+        ledger,
+        qaIssues,
+        factcheckFailures,
+      }),
+    );
+    await this.completeQuality(
+      runId,
+      context,
+      ledger,
+      {
+        research: source?.research ?? null,
+        strategy: strategy.data,
+        hooks: source?.hooks ?? { hooks: [] },
+        winningScript: source?.winningScript ?? finalScript.data,
+        finalScript: repaired,
+        judge: source?.judge ?? {},
+      },
+      stage,
+    );
+    return true;
+  }
   async execute(runId: string, context: unknown) {
     const stage = async (name: string) =>
       pool.query(
@@ -152,6 +309,8 @@ export class CampaignPipeline {
     const ledger = buildEvidenceLedger(snapshot);
     if (!validateEvidenceLedger(snapshot, ledger))
       throw new CampaignError("INVALID_EVIDENCE_LEDGER", "permanent");
+    if (await this.executeRevision(runId, context, ledger, snapshot, stage))
+      return;
     const researchInput = buildResearchInput(snapshot, ledger);
     await stage("research");
     const research = await this.agent(
@@ -315,89 +474,12 @@ export class CampaignPipeline {
         ledger,
       }),
     );
-    const quality = await runBoundedQualityCycle({
-      finalScript,
+    await this.completeQuality(
+      runId,
+      context,
       ledger,
-      strategy,
-      judge,
-      checkFacts: async (script, deterministicInvalid, cycle) => {
-        await stage("fact_checking");
-        return this.agent(
-          runId,
-          70 + cycle * 20,
-          "factcheck",
-          cycle ? "factcheck-repair.v1" : versions.factcheck,
-          factCheckOutputSchema,
-          "Semantically validate every claim and every modifier against the authoritative evidence ledger.",
-          factCheckInputSchema.parse({
-            ledger,
-            finalScript: script,
-            deterministicInvalid,
-          }),
-        );
-      },
-      checkQa: async (script, checkedFacts, cycle) => {
-        await stage("quality_checking");
-        return this.agent(
-          runId,
-          80 + cycle * 20,
-          "qa",
-          cycle ? "qa-repair.v1" : versions.qa,
-          qaOutputSchema,
-          "Apply the quality floor. Never fake PASS.",
-          qaInputSchema.parse({
-            context,
-            strategy,
-            judge,
-            finalScript: script,
-            factcheck: checkedFacts,
-          }),
-        );
-      },
-      repair: async (repairInput) => {
-        await stage("repairing");
-        return this.agent(
-          runId,
-          90,
-          "rewriter",
-          "rewrite-qa-repair.v1",
-          scriptOutputSchema,
-          `Remove or rewrite every unsupported claim identified by Fact Check, QA, or deterministic evidence validation while preserving supported persuasive content. Never invent facts. Never turn an exact value into “starting at”, “from”, “up to”, a range, discount, guarantee, scarcity, availability, or performance claim unless that modifier is explicitly supported by the evidence ledger. Prefer deletion or conservative wording whenever support is uncertain.`,
-          repairInput,
-        );
-      },
-    });
-    ({ finalScript } = quality);
-    const { factcheck, qa } = quality;
-    const ready = qualityCycleReady(
-      quality,
-      Number(process.env.QUAE_CAMPAIGN_MIN_SCORE || 75),
-    );
-    const result = {
-      ledger,
-      research,
-      strategy,
-      hooks,
-      winningScript,
-      finalScript,
-      judge,
-      factcheck,
-      qa,
-    };
-    await pool.query(
-      `UPDATE campaign_runs SET status=$2,current_stage=$3,final_result=$4,judge_score=$5,qa_status=$6,completed_at=NOW(),lease_owner=NULL,lease_expires_at=NULL,updated_at=NOW() WHERE id=$1`,
-      [
-        runId,
-        ready ? "ready_for_review" : "needs_revision",
-        ready ? "customer_review" : "quality_review_failed",
-        result,
-        judge.winningScore,
-        ready ? "pass" : "failed",
-      ],
-    );
-    await pool.query(
-      "UPDATE campaigns SET status=$2,updated_at=NOW() WHERE id=(SELECT campaign_id FROM campaign_runs WHERE id=$1)",
-      [runId, ready ? "ready_for_review" : "needs_revision"],
+      { research, strategy, hooks, winningScript, finalScript, judge },
+      stage,
     );
   }
   private async finishFailed(runId: string, result: unknown) {

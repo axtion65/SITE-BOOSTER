@@ -26,6 +26,7 @@ import {
   campaignWorkspaceProgress,
 } from "../lib/campaignWorkspace";
 import {
+  publicCampaignResult,
   publicCampaignRun,
   canRecoverCampaignRun,
   isCurrentRecoveryRun,
@@ -693,9 +694,13 @@ router.post("/campaigns/:id/request-changes", async (req, res) => {
     res.status(400).json({ error: "Revision guidance is required" });
     return;
   }
-  if (
-    !(await ownedCampaignRun(pool, userId, req.params.id, parsed.data.runId))
-  ) {
+  const sourceRun = await ownedCampaignRun(
+    pool,
+    userId,
+    req.params.id,
+    parsed.data.runId,
+  );
+  if (!sourceRun) {
     res.status(404).json({ error: "Not found" });
     return;
   }
@@ -744,6 +749,7 @@ router.post("/campaigns/:id/request-changes", async (req, res) => {
     res.status(409).json({ error: "Marketing context is incomplete" });
     return;
   }
+  const priorResult = publicCampaignResult(sourceRun.final_result);
   const result = await queueCampaignRun(pool, {
     campaign,
     idempotencyKey: parsed.data.idempotencyKey,
@@ -753,6 +759,12 @@ router.post("/campaigns/:id/request-changes", async (req, res) => {
       customerRevision: {
         previousRunId: parsed.data.runId,
         notes: parsed.data.notes,
+        priorQualityFeedback: priorResult
+          ? {
+              factcheck: priorResult.factcheck,
+              qa: priorResult.qa,
+            }
+          : null,
       },
     },
     revisionNotes: parsed.data.notes,

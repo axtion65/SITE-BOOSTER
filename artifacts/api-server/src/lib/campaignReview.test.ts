@@ -266,3 +266,34 @@ test("customer projection fails closed for JSON and AI internal text", () => {
     /fact_1|secret/,
   );
 });
+
+test("customer projection includes safe quality feedback without internal evidence data", () => {
+  const result = publicCampaignResult({
+    ...final(),
+    factcheck: {
+      pass: false,
+      unsupportedClaims: [
+        "Remove the unsupported affordability claim.",
+        "evidenceIds: fact_001",
+      ],
+      conciseReasons: ["Affordability was not confirmed."],
+    },
+    qa: {
+      pass: false,
+      score: 68,
+      issues: ["Use only the confirmed service list."],
+      customerSummary: "One unsupported modifier still needs revision.",
+    },
+  });
+  assert.deepEqual(result?.factcheck.unsupportedClaims, [
+    "Remove the unsupported affordability claim.",
+  ]);
+  assert.deepEqual(result?.factcheck.conciseReasons, [
+    "Affordability was not confirmed.",
+  ]);
+  assert.equal(result?.qa.score, 68);
+  assert.deepEqual(result?.qa.issues, [
+    "Use only the confirmed service list.",
+  ]);
+  assert.doesNotMatch(JSON.stringify(result), /fact_001|evidenceIds/);
+});
