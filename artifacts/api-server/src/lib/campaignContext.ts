@@ -132,14 +132,6 @@ export function missingGenerationEvidence(context: any): string[] {
 export function missingCampaignEvidence(
   campaign: CampaignContextRecord,
 ): string[] {
-  if (
-    !(
-      campaign.website_import_id ||
-      campaign.context_snapshot?.source === "website_import" ||
-      campaign.context_snapshot?.sourceUrl
-    )
-  )
-    return [];
   return missingGenerationEvidence(campaignGenerationContext(campaign));
 }
 
