@@ -536,13 +536,14 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
       !repairSource,
   );
   if (isTerminalQualityRebuildRun(latest)) {
+    const terminalValidation = validateRunSource(campaign, latest);
     if (["queued", "running"].includes(latest.status)) {
       res.json(
-        publicCampaignRun(latest, validateRunSource(campaign, latest).valid),
+        publicCampaignRun(latest, terminalValidation.valid),
       );
       return;
     }
-    if (latest.status === "failed") {
+    if (latest.status === "failed" || !terminalValidation.valid) {
       res.status(409).json({
         error:
           "This campaign stopped after its one safe rebuild. No additional work was started.",
