@@ -1,9 +1,6 @@
-import { Router } from "express";
 import { db, projectsTable, usersTable, creditLedgerTable } from "@workspace/db";
 import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 import { MODEL_CREDIT_COSTS, extractFalRequestId } from "../lib/falvideo";
-
-const router = Router();
 
 function getCreditCost(modelId: string): number {
   return MODEL_CREDIT_COSTS[modelId] ?? MODEL_CREDIT_COSTS["ovi"];
@@ -14,13 +11,23 @@ function getCreditCost(modelId: string): number {
  * in a single transaction. Only performs the refund when the status transition wins,
  * preventing duplicate refunds from concurrent timeout/poll/webhook paths.
  */
-async function failAndRefund(projectId: string, userId: string, creditCost: number): Promise<boolean> {
+async function failAndRefund(
+  projectId: string,
+  userId: string,
+  creditCost: number,
+  expectedToken?: string,
+): Promise<boolean> {
   let won = false;
   await db.transaction(async (tx) => {
     const updated = await tx
       .update(projectsTable)
       .set({ status: "failed", refundedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(projectsTable.id, projectId), isNull(projectsTable.refundedAt), inArray(projectsTable.status, ["processing", "narrating"])))
+      .where(and(
+        eq(projectsTable.id, projectId),
+        isNull(projectsTable.refundedAt),
+        inArray(projectsTable.status, ["processing", "narrating"]),
+        expectedToken ? eq(projectsTable.thumbnailUrl, expectedToken) : undefined,
+      ))
       .returning({ id: projectsTable.id, renderAttempt: projectsTable.renderAttempt });
 
     if (updated.length === 0) return;
@@ -36,22 +43,23 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
   return won;
 }
 
-// fal.ai webhook — called by fal.ai when a render completes or fails.
-// Payload: { request_id, status, output: { video: { url } } }
-// We look up the project by matching the stored fal token (thumbnailUrl = "fal:<model>:<requestId>")
-router.post("/webhooks/fal", async (req, res) => {
-  const payload = req.body as {
-    request_id?: string;
-    status?: string;
-    output?: Record<string, unknown>;
-    error?: string;
-  };
+export type FalCompletionEvent = {
+  request_id: string;
+  gateway_request_id?: string;
+  status: "OK" | "ERROR";
+  payload?: Record<string, unknown> | null;
+  payload_error?: string;
+  error?: string;
+};
 
-  const requestId = payload?.request_id;
-  if (!requestId) {
-    res.status(400).json({ error: "Missing request_id" });
-    return;
-  }
+/**
+ * Persist one terminal fal event. The raw HTTP boundary verifies fal's
+ * signature before calling this function. request_id is the idempotency key:
+ * the first conditional project update wins and duplicate deliveries become
+ * harmless acknowledgements.
+ */
+export async function processFalCompletion(payload: FalCompletionEvent): Promise<void> {
+  const requestId = payload.request_id;
 
   console.log(`[webhook/fal] ${requestId} status=${payload.status}`);
 
@@ -69,16 +77,15 @@ router.post("/webhooks/fal", async (req, res) => {
   );
 
   if (!project) {
-    // Could be a re-render or a race — not an error, just acknowledge
+    // Duplicate delivery or a render attempt that has already been replaced.
     console.log(`[webhook/fal] No processing project found for request_id ${requestId}`);
-    res.json({ ok: true });
     return;
   }
 
-  if (payload.status === "FAILED" || payload.error) {
+  if (payload.status === "ERROR" || payload.error) {
     console.error(`[webhook/fal] Render FAILED for project ${project.id}:`, payload.error);
     const creditCost = project.creditCharge;
-    const wonFail = await failAndRefund(project.id, project.userId, creditCost);
+    const wonFail = await failAndRefund(project.id, project.userId, creditCost, project.thumbnailUrl!);
     if (wonFail) {
       const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
       if (owner) {
@@ -87,18 +94,11 @@ router.post("/webhooks/fal", async (req, res) => {
         );
       }
     }
-    res.json({ ok: true });
     return;
   }
 
-  if (payload.status !== "COMPLETED") {
-    // IN_QUEUE or IN_PROGRESS — nothing to do yet
-    res.json({ ok: true });
-    return;
-  }
-
-  // Extract video URL from output (handles various fal.ai output shapes)
-  const output = payload.output ?? {};
+  // fal webhooks use status=OK and put the complete model result in payload.
+  const output = payload.payload ?? {};
   const url =
     (output as any)?.video?.url ??
     (output as any)?.video_url ??
@@ -108,7 +108,7 @@ router.post("/webhooks/fal", async (req, res) => {
     null;
 
   if (url && typeof url === "string") {
-    console.log(`[webhook/fal] Render COMPLETED for project ${project.id} — starting narration`);
+    console.log(`[webhook/fal] Render OK for project ${project.id} — starting narration`);
     // Store the fal URL as a sentinel and clear the token so further polls skip fal.ai.
     // Status stays "processing" — the archival job below owns the final "completed"
     // transition after TTS narration and upload are done.
@@ -117,7 +117,11 @@ router.post("/webhooks/fal", async (req, res) => {
     const won = await db
       .update(projectsTable)
       .set({ videoUrl: url, thumbnailUrl: null, updatedAt: new Date() })
-      .where(and(eq(projectsTable.id, project.id), eq(projectsTable.status, "processing")))
+      .where(and(
+        eq(projectsTable.id, project.id),
+        eq(projectsTable.status, "processing"),
+        eq(projectsTable.thumbnailUrl, project.thumbnailUrl!),
+      ))
       .returning({ id: projectsTable.id });
 
     if (won.length > 0) {
@@ -211,10 +215,10 @@ router.post("/webhooks/fal", async (req, res) => {
       });
     }
   } else {
-    console.error(`[webhook/fal] COMPLETED but no URL for project ${project.id}. Keys:`, Object.keys(output));
+    console.error(`[webhook/fal] OK but no URL for project ${project.id}. Keys:`, Object.keys(output), "payload_error=", payload.payload_error);
     // Fail + refund atomically
     const creditCost = project.creditCharge;
-    const won = await failAndRefund(project.id, project.userId, creditCost);
+    const won = await failAndRefund(project.id, project.userId, creditCost, project.thumbnailUrl!);
     if (won) {
       const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
       if (owner) {
@@ -225,7 +229,4 @@ router.post("/webhooks/fal", async (req, res) => {
     }
   }
 
-  res.json({ ok: true });
-});
-
-export default router;
+}

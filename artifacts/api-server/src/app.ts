@@ -5,6 +5,8 @@ import type { Request, Response } from "express";
 import router from "./routes";
 import { WebhookHandlers } from "./webhookHandlers";
 import { logger } from "./lib/logger";
+import { readFalWebhookHeaders, verifyFalWebhookSignature } from "./lib/falWebhookSignature";
+import { processFalCompletion, type FalCompletionEvent } from "./routes/webhooks";
 
 const app: Express = express();
 
@@ -24,6 +26,45 @@ app.post(
       res.status(400).json({ error: "Webhook error" });
     }
   }
+);
+
+// fal completion must also be registered before express.json(): signature
+// verification covers the exact raw bytes fal sent, not re-serialized JSON.
+app.post(
+  "/api/webhooks/fal",
+  express.raw({ type: "application/json", limit: "2mb" }),
+  async (req, res) => {
+    const rawBody = req.body as Buffer;
+    const headers = readFalWebhookHeaders(req.headers);
+    if (!headers || !Buffer.isBuffer(rawBody)) {
+      res.status(401).json({ error: "Invalid fal webhook" });
+      return;
+    }
+
+    try {
+      if (!await verifyFalWebhookSignature(rawBody, headers)) {
+        res.status(401).json({ error: "Invalid fal webhook signature" });
+        return;
+      }
+
+      const event = JSON.parse(rawBody.toString("utf8")) as Partial<FalCompletionEvent>;
+      if (
+        event.request_id !== headers.requestId ||
+        (event.status !== "OK" && event.status !== "ERROR")
+      ) {
+        res.status(400).json({ error: "Invalid fal webhook payload" });
+        return;
+      }
+
+      await processFalCompletion(event as FalCompletionEvent);
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      // A transient JWKS/database problem must return non-2xx so fal retries the
+      // same request_id. The completion path itself is idempotent.
+      logger.error({ err }, "fal webhook processing failed");
+      res.status(503).json({ error: "Webhook temporarily unavailable" });
+    }
+  },
 );
 
 app.use(pinoHttp({

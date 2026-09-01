@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildFalQueueToken, buildFalRenderRequest, buildVideoPrompt, extractFalRequestId, isFalToken, parseFalQueueToken, pollFalVideoRender, sanitizeVisualPrompt, type ExpandedScript } from "./falvideo";
+import { buildFalQueueToken, buildFalRenderRequest, buildFalWebhookUrl, buildVideoPrompt, extractFalRequestId, isFalToken, isWebhookFalToken, parseFalQueueToken, pollFalVideoRender, sanitizeVisualPrompt, type ExpandedScript } from "./falvideo";
 import { compileVideoRenderBrief } from "./videoRenderBrief";
 
 const apparel: ExpandedScript = {
@@ -74,6 +74,32 @@ test("submission token preserves fal's exact versioned Wan queue URLs", () => {
   });
   assert.equal(isFalToken(token), true);
   assert.equal(extractFalRequestId(token), "wan-request");
+});
+
+test("webhook renders use a distinct token and never depend on a response endpoint", () => {
+  const statusUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/wan-webhook/status";
+  const token = buildFalQueueToken({
+    modelPath: "fal-ai/wan/v2.2/text-to-video",
+    requestId: "wan-webhook",
+    statusUrl,
+    responseUrl: "https://queue.fal.run/broken/response",
+    webhookRegistered: true,
+  });
+  assert.equal(token, `fal3:wan-webhook|||${statusUrl}`);
+  assert.equal(isWebhookFalToken(token), true);
+  assert.deepEqual(parseFalQueueToken(token), {
+    modelPath: "fal-ai/wan/v2.2/text-to-video",
+    requestId: "wan-webhook",
+    statusUrl,
+    webhookRegistered: true,
+  });
+});
+
+test("production webhook targets Railway's API directly without a redirect", () => {
+  assert.equal(buildFalWebhookUrl({
+    RAILWAY_PUBLIC_DOMAIN: "site-booster-production.up.railway.app",
+    APP_URL: "https://quae.ai",
+  }), "https://site-booster-production.up.railway.app/api/webhooks/fal");
 });
 
 test("completed legacy Wan jobs canonicalize fal's live response_url to the documented response endpoint", async (t) => {

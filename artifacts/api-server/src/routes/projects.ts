@@ -4,7 +4,7 @@ import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
 import { PLAN_BY_SLUG, isPlanSlug } from "@workspace/plans";
 import {
-  submitFalVideoRender, pollFalVideoRender, isFalToken,
+  submitFalVideoRender, pollFalVideoRender, isFalToken, isWebhookFalToken,
   MODEL_CREDIT_COSTS, buildFalWebhookUrl, type ExpandedScript
 } from "../lib/falvideo";
 import {
@@ -519,7 +519,10 @@ router.get("/projects/:id", async (req, res) => {
   // retrieved. The timeout path intentionally preserves the original token,
   // so a later project read can recover that same provider result without
   // submitting or charging for another render.
-  if (["processing", "failed"].includes(project.status) && token) {
+  // New renders are completed by fal's signed webhook. Do not race that
+  // authoritative payload with reconstructed result endpoints in a page GET.
+  // The polling block remains only for legacy jobs submitted without webhooks.
+  if (["processing", "failed"].includes(project.status) && token && !isWebhookFalToken(token)) {
     // fal.ai needs ~15s to register a newly submitted job in their queue.
     // Polling before that returns 405 and we incorrectly mark it failed.
     const secsSinceSubmit = (Date.now() - project.updatedAt.getTime()) / 1000;
