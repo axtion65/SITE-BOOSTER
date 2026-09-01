@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildFalRenderRequest, buildVideoPrompt, sanitizeVisualPrompt, type ExpandedScript } from "./falvideo";
+import { buildFalQueueToken, buildFalRenderRequest, buildVideoPrompt, extractFalRequestId, isFalToken, parseFalQueueToken, pollFalVideoRender, sanitizeVisualPrompt, type ExpandedScript } from "./falvideo";
 import { compileVideoRenderBrief } from "./videoRenderBrief";
 
 const apparel: ExpandedScript = {
@@ -59,4 +59,53 @@ test("no image falls back and unsupported models safely ignore images", () => {
   assert.match(noImage.modelPath, /text-to-video/);
   assert.equal(noImage.input.image_url, undefined);
   assert.throws(() => buildFalRenderRequest(apparel, "instagram", "30s", "ovi", undefined, "animate", "https://signed.example/product.jpg"));
+});
+
+test("submission token preserves fal's exact versioned Wan queue URLs", () => {
+  const statusUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/wan-request/status";
+  const responseUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/wan-request";
+  const token = buildFalQueueToken({ modelPath: "fal-ai/wan/v2.2/text-to-video", requestId: "wan-request", statusUrl, responseUrl });
+  assert.equal(token, `fal2:wan-request|||${statusUrl}|||${responseUrl}`);
+  assert.deepEqual(parseFalQueueToken(token), {
+    modelPath: "fal-ai/wan/v2.2/text-to-video",
+    requestId: "wan-request",
+    statusUrl,
+    responseUrl,
+  });
+  assert.equal(isFalToken(token), true);
+  assert.equal(extractFalRequestId(token), "wan-request");
+});
+
+test("completed legacy Wan jobs use fal's returned response_url instead of a reconstructed endpoint", async (t) => {
+  const responseUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/01a05b73-62c5-7a32-a77d-15d0dc02791a";
+  const fetchMock = t.mock.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    assert.equal(String(input), responseUrl);
+    assert.equal((init?.headers as Record<string, string>).Authorization, "Key test-key");
+    return new Response(JSON.stringify({ video: { url: "https://cdn.example/video.mp4" } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  assert.deepEqual(
+    await pollFalVideoRender(
+      "fal:fal-ai/wan/v2.2/text-to-video:01a05b73-62c5-7a32-a77d-15d0dc02791a",
+      {
+        credentials: "test-key",
+        status: async () => ({ status: "COMPLETED", response_url: responseUrl }),
+        result: async () => { throw new Error("queue.result must not reconstruct a versioned Wan endpoint"); },
+        fetch: fetchMock,
+      },
+    ),
+    { status: "done", url: "https://cdn.example/video.mp4" },
+  );
+  assert.equal((fetchMock as any).mock.callCount(), 1);
+});
+
+test("completed jobs stop polling after a permanent result-fetch failure", async (t) => {
+  const responseUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/gone";
+  assert.deepEqual(await pollFalVideoRender("fal:fal-ai/wan/v2.2/text-to-video:gone", {
+    credentials: "test-key",
+    status: async () => ({ status: "COMPLETED", response_url: responseUrl }),
+    fetch: t.mock.fn(async () => new Response("not found", { status: 404 })) as typeof fetch,
+  }), { status: "failed" });
 });
