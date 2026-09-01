@@ -43,6 +43,42 @@ export function parseProductionDuration(value: unknown): ProductionDuration {
   return seconds as ProductionDuration;
 }
 
+function words(value: string): string[] {
+  return value.trim().split(/\s+/).filter(Boolean);
+}
+
+export function voiceoverWordBudget(duration: unknown): number {
+  const seconds = parseProductionDuration(duration);
+  return Math.max(8, Math.floor((seconds - 1) * 2.1));
+}
+
+export function constrainVoiceoverText(input: {
+  script: ExpandedScript;
+  duration: unknown;
+  brandName: string;
+  maxWords?: number;
+}): string {
+  const source = (input.script.voiceoverText || input.script.script).trim();
+  const cta = input.script.callToAction.trim();
+  const brand = input.brandName.trim();
+  const budget = Math.max(8, input.maxWords ?? voiceoverWordBudget(input.duration));
+  const ctaWords = words(cta);
+  const brandMissing = brand && !source.toLocaleLowerCase().includes(brand.toLocaleLowerCase());
+  const brandWords = brandMissing ? words(brand) : [];
+  const escapedCta = cta.replace(/[.*+?^$()|[\]\\]/g, "\\export function parseProductionDuration(value: unknown): ProductionDuration {
+  const seconds = Number.parseInt(String(value ?? "30"), 10);
+  if (!PRODUCTION_DURATIONS.includes(seconds as ProductionDuration)) {
+    throw new Error("Full advert duration must be 15s, 30s, or 45s");
+  }
+  return seconds as ProductionDuration;
+}
+");
+  const sourceWithoutCta = cta ? source.replace(new RegExp(escapedCta, "gi"), "").trim() : source;
+  const available = Math.max(0, budget - brandWords.length - ctaWords.length);
+  const bodyWords = words(sourceWithoutCta).slice(0, available);
+  return [...brandWords, ...bodyWords, ...ctaWords].join(" ").replace(/\s+([,.!?])/g, "$1").trim();
+}
+
 function splitSentences(value: string): string[] {
   return value.match(/[^.!?\n]+(?:[.!?]+|$)/g)?.map((part) => part.trim()).filter(Boolean) ?? [];
 }
