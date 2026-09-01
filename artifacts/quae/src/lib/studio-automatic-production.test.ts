@@ -26,3 +26,11 @@ test("final customer confirmation describes production without exposing a provid
   const finalReview = source.slice(source.indexOf("STEP 4 — Storyboard"));
   assert.doesNotMatch(finalReview, />Model<\/span>/);
 });
+
+test("product upload guidance stays provider neutral", async () => {
+  const source = await studioSource();
+  const describeStep = source.slice(source.indexOf("STEP 1 — Describe"), source.indexOf("STEP 2 — Script"));
+  assert.match(describeStep, /Helps Quae create product-accurate scenes/);
+  assert.match(describeStep, /Helps Quae create accurate scenes/);
+  assert.doesNotMatch(describeStep, /LTX|Kling|provider/i);
+});
