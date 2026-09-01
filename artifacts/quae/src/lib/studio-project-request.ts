@@ -23,7 +23,8 @@ export function buildStudioProjectRequest(input: StudioProjectRequestInput): Pro
   if (!model) throw new Error("Choose a supported rendering model.");
   if (!input.expandedScript) throw new Error("Complete the AI script before rendering.");
 
-  const canAnimate = input.renderIntent === "animate" && model.supports.imageToVideo && Boolean(input.productImageUrl);
+  const hasPreparedCampaignVisual = !input.campaignId || Boolean(input.campaignVideoBriefId);
+  const canAnimate = input.renderIntent === "animate" && hasPreparedCampaignVisual && model.supports.imageToVideo && Boolean(input.productImageUrl);
   const productImageUrl = canAnimate ? input.productImageUrl : null;
   const sourceAssetId = productImageUrl?.startsWith("/api/storage/")
     ? productImageUrl.slice("/api/storage".length)

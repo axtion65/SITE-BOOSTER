@@ -165,6 +165,8 @@ function Wizard() {
   // Visuals are deliberately session-scoped: a saved/stale draft may never opt a
   // later render into image-to-video.
   const [productImageUrl, setProductImageUrl] = useState<string | null>(approvedMockup ? `/api/storage${approvedMockup.authoritativeImagePath}` : null);
+  const [campaignProductImageUrl, setCampaignProductImageUrl] = useState<string | null>(null);
+  const [campaignVisualIdentity, setCampaignVisualIdentity] = useState<{ projectId: string; versionId: string } | null>(null);
   const [renderIntent, setRenderIntent] = useState<RenderIntent>("create_new");
   // imagePreviewUrl: local data URL for thumbnail display only — NOT persisted in draft
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -323,6 +325,9 @@ function Wizard() {
     let cancelled = false;
     const loadCampaign = async () => {
       setCampaignLoading(true);
+      setCampaignHandoff(null);
+      setCampaignProductImageUrl(null);
+      setCampaignVisualIdentity(null);
       try {
         const token = localStorage.getItem("quae_token") || "";
         const response = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}`, {
@@ -332,7 +337,7 @@ function Wizard() {
         const campaign=await response.json();
         const optionsResponse=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/visual-options`,{headers:{Authorization:`Bearer ${token}`}});
         if(optionsResponse.ok)setVisualOptions(await optionsResponse.json());
-        const attached=campaign.attachedVisuals||[];setSelectedVisualIds(attached.map((v:any)=>v.version_id));setApprovedRunId(campaign.approved_run_id||"");const primary=attached.find((v:any)=>v.is_primary);if(primary){setProductImageUrl(`/api/storage${primary.object_path}`);setProductImageFileName(`${primary.name} · Version ${primary.version_number}`);setRenderIntent("animate");setCampaignMessage("Animate Existing · Confirmed campaign visual loaded. No generation starts until you explicitly continue.");}
+        const attached=campaign.attachedVisuals||[];const primary=attached.find((v:any)=>v.is_primary);setSelectedVisualIds(primary?[primary.version_id,...attached.filter((v:any)=>v.version_id!==primary.version_id).map((v:any)=>v.version_id)]:attached.map((v:any)=>v.version_id));setApprovedRunId(campaign.approved_run_id||"");if(primary){const primaryUrl=`/api/storage${primary.object_path}`;setProductImageUrl(primaryUrl);setCampaignProductImageUrl(primaryUrl);setCampaignVisualIdentity({projectId:String(primary.project_id),versionId:String(primary.version_id)});setProductImageFileName(`${primary.name} · Version ${primary.version_number}`);setRenderIntent("animate");setCampaignMessage(briefId?"Animate Existing · Confirmed campaign visual loaded. No generation starts until you explicitly continue.":"Animate Existing · Quae will prepare this confirmed campaign visual when you start the render.");}
         let handoff: ApprovedCampaignHandoff | null = null;
         if (briefId) {
           const briefResponse = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/video-brief?briefId=${encodeURIComponent(briefId)}`,{headers:{Authorization:`Bearer ${token}`}});
@@ -368,7 +373,7 @@ function Wizard() {
     return () => { cancelled = true; };
   }, [campaignId, briefId]);
 
-  async function saveVisualSelection(ids:string[]){if(!campaignId||!approvedRunId||!ids.length)return;const token=localStorage.getItem("quae_token")||"";const response=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/asset-selection`,{method:"PUT",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`,"Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({approvedRunId,versionId:ids[0]})});if(!response.ok){toast({title:"That visual could not be attached",variant:"destructive"});return;}setSelectedVisualIds([ids[0]]);const selected=visualOptions.find(v=>v.version_id===ids[0]);if(selected){setProductImageUrl(`/api/storage${selected.object_path}`);setProductImageFileName(`${selected.name} · Version ${selected.version_number}`);setRenderIntent("animate");}}
+  async function saveVisualSelection(ids:string[]){if(!campaignId||!approvedRunId||!ids.length)return;const token=localStorage.getItem("quae_token")||"";const response=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/asset-selection`,{method:"PUT",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`,"Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({approvedRunId,versionId:ids[0]})});if(!response.ok){toast({title:"That visual could not be attached",variant:"destructive"});return;}setSelectedVisualIds([ids[0]]);const selected=visualOptions.find(v=>v.version_id===ids[0]);if(selected){const selectedUrl=`/api/storage${selected.object_path}`;setProductImageUrl(selectedUrl);setCampaignProductImageUrl(selectedUrl);setCampaignVisualIdentity({projectId:String(selected.project_id),versionId:String(selected.version_id)});setProductImageFileName(`${selected.name} · Version ${selected.version_number}`);setRenderIntent("animate");}}
 
   // Pre-fill from template URL params (only when navigating from template picker)
   const templateApplied = useRef(false);
@@ -449,6 +454,10 @@ function Wizard() {
   };
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (campaignId) {
+      toast({ title: "Use a confirmed campaign visual", description: "Choose the campaign visual below so the render stays attached to the approved campaign.", variant: "destructive" });
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -523,21 +532,34 @@ function Wizard() {
     }
     try {
       const canonicalDuration = normalizeClipLength(modelId, duration);
-      const campaignIdempotencyKey=campaignVideoIdempotencyKey({campaignId,approvedRunId,briefId,renderIntent,modelId,duration:canonicalDuration});
+      const submissionRenderIntent: RenderIntent = renderIntent;
+      let submissionBriefId = briefId;
+      let submissionHandoff = campaignHandoff;
+      if (campaignId && submissionRenderIntent === "animate" && !submissionBriefId) {
+        if (!approvedRunId || !campaignVisualIdentity || !campaignProductImageUrl) throw new Error("Confirm an owned campaign visual before rendering.");
+        const token = localStorage.getItem("quae_token") || "";
+        const response = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/video-brief`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
+        const preparedBrief = await response.json();
+        if (!response.ok) throw new Error(preparedBrief.error || "Could not prepare the confirmed campaign visual.");
+        submissionBriefId = String(preparedBrief.id || "");
+        submissionHandoff = preparedVideoBriefToStudio(preparedBrief, { briefId: submissionBriefId, campaignId, approvedRunId, selectedVisualProjectId: campaignVisualIdentity.projectId, selectedVisualVersionId: campaignVisualIdentity.versionId });
+        if (!submissionBriefId || !submissionHandoff) throw new Error("The prepared campaign video did not match the confirmed visual.");
+      }
+      const campaignIdempotencyKey=campaignVideoIdempotencyKey({campaignId,approvedRunId,briefId:submissionBriefId,renderIntent:submissionRenderIntent,modelId,duration:canonicalDuration});
       const res = await createMutation.mutateAsync({
         data: buildStudioProjectRequest({
           campaignId,
-          campaignVideoBriefId: briefId,
+          campaignVideoBriefId: submissionBriefId,
           idempotencyKey: campaignIdempotencyKey ?? crypto.randomUUID(),
           productName,
           description,
           modelId,
-          expandedScript,
-          platform,
+          expandedScript: submissionHandoff?.expandedScript ?? expandedScript,
+          platform: submissionHandoff?.platform ?? platform,
           duration: canonicalDuration,
           templateId,
-          renderIntent,
-          productImageUrl,
+          renderIntent: submissionRenderIntent,
+          productImageUrl: campaignId ? campaignProductImageUrl : productImageUrl,
           voiceId,
         })
       });
@@ -585,6 +607,7 @@ function Wizard() {
 
   // Whether the selected model supports image conditioning
   const selectedModelSupportsImage = RENDERING_MODEL_BY_ID[modelId]?.supports.imageToVideo === true;
+  const canAnimateSelectedVisual = selectedModelSupportsImage && Boolean(productImageUrl) && (!campaignId || Boolean(campaignVisualIdentity));
 
   const nativeDurationSeconds = RENDERING_MODEL_BY_ID[modelId]?.nativeDurationSeconds ?? 10;
   const previewRenderBrief = expandedScript
@@ -786,14 +809,18 @@ function Wizard() {
                         <p className="text-sm font-medium text-white truncate">{productImageFileName}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Image ready — available to the full scene production plan</p>
                       </div>
-                      <button
+                      {!campaignId && <button
                         type="button"
                         onClick={handleRemoveImage}
                         className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-white transition-colors flex-shrink-0"
                         title="Remove image"
                       >
                         <X className="h-4 w-4" />
-                      </button>
+                      </button>}
+                    </div>
+                  ) : campaignId ? (
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-4 text-sm text-muted-foreground">
+                      Choose an owned campaign visual below. New uploads must be added through My Visuals before they can become the confirmed campaign source.
                     </div>
                   ) : (
                     <button
@@ -875,9 +902,9 @@ function Wizard() {
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-3xl font-bold tracking-tight text-white mb-2">{campaignHandoff ? "Approved Script Ready for Production" : "Cinematic Script Generated"}</h2>
-                  <p className="text-muted-foreground">{campaignHandoff ? "The approved campaign copy is the source of truth. Any changes here are creative edits and do not change the campaign approval or history." : "Fine-tune any scene or the hook — your edits carry forward to the render."}</p>
+                  <p className="text-muted-foreground">{campaignHandoff ? "The approved campaign copy is locked as the production source of truth." : "Fine-tune any scene or the hook — your edits carry forward to the render."}</p>
                 </div>
-                <Button
+                {!campaignHandoff && <Button
                   variant="outline"
                   onClick={() => {
                     if (scriptEdited) {
@@ -888,7 +915,7 @@ function Wizard() {
                     }
                     setStep(1);
                   }}
-                >Back</Button>
+                >Back</Button>}
               </div>
 
               <Card className="border-primary/20 bg-primary/5">
@@ -900,6 +927,7 @@ function Wizard() {
                   </div>
                   <Textarea
                     value={expandedScript.hook}
+                    readOnly={Boolean(campaignHandoff)}
                     onChange={(e) => updateHook(e.target.value)}
                     className="text-lg font-medium italic bg-black/20 border-white/10 focus:border-primary/50 resize-none min-h-[60px] leading-relaxed"
                     rows={2}
@@ -1005,6 +1033,7 @@ function Wizard() {
                           </div>
                           <Textarea
                             value={scene.description}
+                            readOnly={Boolean(campaignHandoff)}
                             onChange={(e) => updateScene(idx, "description", e.target.value)}
                             className="text-sm bg-black/20 border-white/10 focus:border-primary/50 resize-none min-h-[56px]"
                             rows={2}
@@ -1020,6 +1049,7 @@ function Wizard() {
                           </div>
                           <Textarea
                             value={scene.visualDirection}
+                            readOnly={Boolean(campaignHandoff)}
                             onChange={(e) => updateScene(idx, "visualDirection", e.target.value)}
                             className="text-sm bg-black/40 border-white/10 focus:border-primary/50 resize-none min-h-[56px] text-white/80"
                             rows={2}
@@ -1040,6 +1070,7 @@ function Wizard() {
                 </div>
                 <Textarea
                   value={expandedScript.voiceoverText}
+                  readOnly={Boolean(campaignHandoff)}
                   onChange={(e) => updateVoiceover(e.target.value)}
                   className="text-sm leading-relaxed bg-transparent border-white/10 focus:border-primary/50 resize-none min-h-[80px]"
                   rows={4}
@@ -1068,11 +1099,16 @@ function Wizard() {
                   <strong className="block text-white">Create a new AI video</strong>
                   <span className="text-xs text-muted-foreground">Builds each approved scene and uses owned business assets when available.</span>
                 </button>
-                <button type="button" disabled={!productImageUrl || !selectedModelSupportsImage} onClick={() => productImageUrl && selectedModelSupportsImage && setRenderIntent("animate")} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${renderIntent === "animate" ? "border-primary bg-primary/10" : "border-white/10"}`}>
+                <button type="button" disabled={!canAnimateSelectedVisual} onClick={() => canAnimateSelectedVisual && setRenderIntent("animate")} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${renderIntent === "animate" ? "border-primary bg-primary/10" : "border-white/10"}`}>
                   <strong className="block text-white">Animate my selected visual</strong>
                   <span className="text-xs text-muted-foreground">Animates only the visual shown below with a supported model.</span>
                 </button>
               </div>
+              {campaignId && !briefId && productImageUrl && (
+                <div className="rounded-xl border border-amber-400/30 bg-amber-500/5 p-3 text-sm text-amber-300">
+                  Quae will prepare the exact confirmed campaign visual before the render starts. No provider or credits are used during preparation.
+                </div>
+              )}
 
               <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-300/90 flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 flex-shrink-0" />

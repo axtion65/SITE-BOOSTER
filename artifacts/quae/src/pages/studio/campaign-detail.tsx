@@ -340,13 +340,20 @@ export default function CampaignDetail() {
                 )}
               </button>
             ) : (
-            <Link
-              href={continueHref}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
-            >
-              {continueLabel}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            data.nextAction === "create_video" && data.attachedVisuals?.length ? (
+              <button onClick={prepareVideo} disabled={busy === "video"} className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white disabled:opacity-50">
+                {busy === "video" ? "Preparing video…" : continueLabel}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <Link
+                href={continueHref}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
+              >
+                {continueLabel}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )
             )}
           </div>
           {strategyPending && (
@@ -516,7 +523,7 @@ export default function CampaignDetail() {
                 <p className="mt-3 text-sm text-slate-400">
                   No videos have been created for this campaign yet.
                 </p>
-                {data.status === "approved" && (
+                {data.status === "approved" && !data.attachedVisuals?.length && (
                   <Link
                     href={`/studio?campaignId=${data.id}`}
                     className="mt-4 inline-flex font-bold text-violet-200"
@@ -563,12 +570,7 @@ export default function CampaignDetail() {
               >
                 Product Visual
               </Link>
-              <Link
-                className="rounded-xl bg-[#263754] px-4 py-2 font-bold"
-                href={`/studio?campaignId=${data.id}`}
-              >
-                Video
-              </Link>
+              {data.attachedVisuals?.length ? <button onClick={prepareVideo} disabled={busy === "video"} className="rounded-xl bg-[#263754] px-4 py-2 font-bold disabled:opacity-50">Video</button> : <Link className="rounded-xl bg-[#263754] px-4 py-2 font-bold" href={`/studio?campaignId=${data.id}`}>Video</Link>}
               <a
                 className="rounded-xl bg-[#263754] px-4 py-2 font-bold"
                 href="#campaign-copy"
@@ -821,12 +823,7 @@ export default function CampaignDetail() {
             >
               Create Product Visual <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href={`/studio?campaignId=${encodeURIComponent(data.id)}`}
-              className="mt-5 inline-flex items-center gap-2 font-bold text-violet-200"
-            >
-              Continue to Creative <ArrowRight className="h-4 w-4" />
-            </Link>
+            {data.attachedVisuals?.length ? <button onClick={prepareVideo} disabled={busy === "video"} className="mt-5 inline-flex items-center gap-2 font-bold text-violet-200 disabled:opacity-50">Continue to Creative <ArrowRight className="h-4 w-4" /></button> : <Link href={`/studio?campaignId=${encodeURIComponent(data.id)}`} className="mt-5 inline-flex items-center gap-2 font-bold text-violet-200">Continue to Creative <ArrowRight className="h-4 w-4" /></Link>}
           </PremiumCard>
         )}
         {active && !result && (
