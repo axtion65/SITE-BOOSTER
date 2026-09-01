@@ -3,7 +3,10 @@ import { pool } from "@workspace/db";
 import { z } from "@workspace/api-zod";
 import { resolveUserIdFromToken } from "./auth";
 import { getMarketingContext } from "../lib/marketingContext";
-import { queueCampaignRun } from "../lib/campaignQueue";
+import {
+  queueCampaignRun,
+  resumeFailedCampaignRun,
+} from "../lib/campaignQueue";
 import {
   campaignGenerationContext,
   missingCampaignEvidence,
@@ -531,9 +534,30 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
       return;
     }
     if (isCurrentRecoveryRun(latest) && !repairSource) {
+      const resumed = await resumeFailedCampaignRun(pool, {
+        campaign,
+        runId: latest.id,
+        concurrencyLimit: Math.max(
+          1,
+          Number(process.env.QUAE_CAMPAIGN_USER_CONCURRENCY || 1),
+        ),
+      });
+      if (resumed.kind === "resumed" || resumed.kind === "existing") {
+        res.status(resumed.kind === "resumed" ? 202 : 200).json(
+          publicCampaignRun(resumed.run, true),
+        );
+        return;
+      }
+      if (resumed.kind === "conflict") {
+        res.status(409).json({
+          error: "An AI team is already active for this account",
+          activeRunId: resumed.activeRun.id,
+        });
+        return;
+      }
       res.status(409).json({
         error:
-          "We couldn’t restart this campaign. Please try again later or contact support.",
+          "This campaign stopped on a non-retryable quality check. No additional work was started.",
         code: "campaign_recovery_failed",
       });
       return;
