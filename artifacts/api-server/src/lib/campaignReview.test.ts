@@ -7,6 +7,7 @@ import {
   workspaceMissingCampaignEvidence,
 } from "./campaignContext";
 import {
+  finalizeTerminalQualityDraft,
   publicCampaignResult,
   rebuildIdempotencyKey,
   canRecoverCampaignRun,
@@ -380,6 +381,40 @@ test("unsafe completed quality output receives one stable fresh rebuild identity
     ),
     key,
   );
+});
+
+test("completed terminal rebuild is finalized without queueing provider work", async () => {
+  const latest = {
+    id: "terminal-run",
+    status: "needs_revision",
+    current_stage: "quality_review_failed",
+    idempotency_key: terminalQualityRebuildIdempotencyKey(campaign, {
+      id: "unsafe-quality-draft",
+    }),
+    context_snapshot: correctContext,
+    final_result: { finalScript: { script: '{"evidenceIds":["internal"]}' } },
+  };
+  const calls: Array<{ sql: string; values?: unknown[] }> = [];
+  const client = {
+    async query(sql: string, values?: unknown[]) {
+      calls.push({ sql, values });
+      if (sql.startsWith("SELECT * FROM campaign_runs")) return { rows: [latest] };
+      if (sql.includes("UPDATE campaign_runs"))
+        return { rows: [{ ...latest, status: "ready_for_review", current_stage: "customer_review", context_snapshot: values?.[2], final_result: values?.[3], qa_status: "pass" }] };
+      return { rows: [] };
+    },
+    release() {},
+  };
+  const result = await finalizeTerminalQualityDraft(
+    { async connect() { return client; } },
+    { campaign, runId: latest.id },
+  );
+  assert.equal(result.kind, "finalized");
+  assert.equal(result.kind === "finalized" && result.run.status, "ready_for_review");
+  assert.ok(result.kind === "finalized" && publicCampaignResult(result.run.final_result));
+  assert.equal(calls.some(({ sql }) => /INSERT INTO campaign_runs/.test(sql)), false);
+  assert.equal(calls.some(({ sql }) => /agent_runs/.test(sql)), false);
+  assert.equal(calls.at(-1)?.sql, "COMMIT");
 });
 
 test("focused repair may recover the newest safe draft behind failed attempts", () => {
