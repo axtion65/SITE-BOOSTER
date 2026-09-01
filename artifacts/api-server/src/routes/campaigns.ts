@@ -32,6 +32,7 @@ import {
   publicCampaignResult,
   publicCampaignRun,
   canRecoverCampaignRun,
+  finalizeTerminalQualityDraft,
   isLegacyCompletedQualityReview,
   isCurrentRecoveryRun,
   isFailedRecoveryRun,
@@ -544,10 +545,26 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
       return;
     }
     if (latest.status === "failed" || !terminalValidation.valid) {
+      const finalized = await finalizeTerminalQualityDraft(pool, {
+        campaign,
+        runId: latest.id,
+      });
+      if (finalized.kind === "finalized" || finalized.kind === "existing") {
+        res.json(publicCampaignRun(finalized.run, true));
+        return;
+      }
       res.status(409).json({
         error:
-          "This campaign stopped after its one safe rebuild. No additional work was started.",
-        code: "campaign_recovery_failed",
+          finalized.kind === "blocked"
+            ? "This campaign is missing confirmed business information. Review the campaign brief before continuing."
+            : "This campaign version has been superseded.",
+        code:
+          finalized.kind === "blocked"
+            ? finalized.reason
+            : "campaign_superseded",
+        ...(finalized.kind === "blocked" && finalized.missing.length
+          ? { missing: finalized.missing }
+          : {}),
       });
       return;
     }
