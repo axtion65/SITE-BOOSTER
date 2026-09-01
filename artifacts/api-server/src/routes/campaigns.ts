@@ -40,6 +40,7 @@ import {
   repairableRunBehindFailures,
   validateRunSource,
 } from "../lib/campaignReview";
+import { logger } from "../lib/logger";
 const router = Router();
 async function reviewAuthority(campaignId: string, userId: string) {
   const campaign = (
@@ -555,6 +556,21 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
         });
         return;
       }
+      logger.warn(
+        {
+          event: "campaign_recovery_blocked",
+          campaignId: campaign.id,
+          runId: resumed.kind === "blocked" ? resumed.run.id : latest.id,
+          failureCode:
+            resumed.kind === "blocked" ? resumed.run.failure_code : null,
+          retryCount:
+            resumed.kind === "blocked" ? resumed.run.retry_count : null,
+          currentStage:
+            resumed.kind === "blocked" ? resumed.run.current_stage : null,
+          recoveryResult: resumed.kind,
+        },
+        "Campaign recovery was not resumed",
+      );
       res.status(409).json({
         error:
           "This campaign stopped on a non-retryable quality check. No additional work was started.",
