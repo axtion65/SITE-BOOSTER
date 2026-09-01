@@ -76,13 +76,13 @@ function buildModelParams(modelKey: string, durationSec: number): Record<string,
 
   switch (modelKey) {
     case 'ltx-fast': {
-      // LTX 2.3 Fast accepts an enumerated seconds string, not num_frames.
+      // LTX 2.3 Fast accepts numeric seconds enums, not strings or num_frames.
       // Scene plans cap clips at 10s, so round up to avoid cutting the edit short.
-      const duration = durationSec <= 6 ? '6' : durationSec <= 8 ? '8' : '10';
+      const duration = durationSec <= 6 ? 6 : durationSec <= 8 ? 8 : 10;
       return {
         duration,
         resolution: '1080p',
-        fps: '25',
+        fps: 25,
         generate_audio: false,
       };
     }

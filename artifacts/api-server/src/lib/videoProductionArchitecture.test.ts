@@ -9,11 +9,23 @@ test("scene payloads use current full-ad providers and exact scene duration", ()
   const ltx = buildFalSceneRequest({ prompt: "Approved product benefit", durationSeconds: 6.8, renderingModelId: "ltx-fast", platform: "instagram" });
   assert.equal(ltx.modelPath, "fal-ai/ltx-2.3/text-to-video/fast");
   assert.equal(ltx.input.aspect_ratio, "9:16");
-  assert.equal(ltx.input.duration, "8");
+  assert.equal(ltx.input.duration, 8);
   assert.equal(ltx.input.resolution, "1080p");
-  assert.equal(ltx.input.fps, "25");
+  assert.equal(ltx.input.fps, 25);
   assert.equal(ltx.input.generate_audio, false);
   assert.equal(ltx.input.num_frames, undefined);
+
+  const fourSecondEdit = buildFalSceneRequest({
+    prompt: "Approved four-second edit slot",
+    durationSeconds: 4,
+    renderingModelId: "ltx-fast",
+    platform: "tiktok",
+  });
+  assert.equal(fourSecondEdit.input.duration, 6);
+  assert.equal(typeof fourSecondEdit.input.duration, "number");
+  assert.equal(fourSecondEdit.input.fps, 25);
+  assert.equal(typeof fourSecondEdit.input.fps, "number");
+
   const kling = buildFalSceneRequest({ prompt: "Approved premium benefit", durationSeconds: 7, renderingModelId: "kling", platform: "youtube" });
   assert.equal(kling.modelPath, "fal-ai/kling-video/v3/standard/text-to-video");
   assert.equal(kling.input.duration, "7");
