@@ -22,6 +22,11 @@ export function shouldRestoreStudioDraft(search: string): boolean {
   return !params.get("campaignId")?.trim() && !hasTemplate;
 }
 
+export function campaignVideoIdempotencyKey(input:{campaignId:string|null;approvedRunId:string;briefId:string|null;renderIntent:"create_new"|"animate";modelId:string;duration:string}):string|null{
+  if(!input.campaignId||!input.approvedRunId)return null;
+  return `campaign-video:${input.approvedRunId}:${input.renderIntent}:${input.briefId||"approved-copy"}:${input.modelId}:${input.duration}`;
+}
+
 type CampaignRecord = Record<string, any>;
 
 const SUPPORTED_PLATFORMS = ["tiktok", "instagram", "youtube", "amazon"];

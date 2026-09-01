@@ -16,6 +16,7 @@ import { TEMPLATES } from "./templates";
 import { logger } from "../lib/logger";
 import { isNativeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 import { ObjectPermission } from "../lib/objectAcl";
+import { deriveApprovedTextVideoBrief } from "../lib/campaignAssets";
 
 /** Log every field PostgreSQL/Drizzle exposes on a DB error. */
 function logDbError(context: string, err: any): void {
@@ -299,10 +300,12 @@ router.post("/projects", async (req, res) => {
   let authoritativeCampaignScript: ExpandedScript | null = null;
   let authoritativeCampaignPlatform: string | null = null;
   if (campaignId) {
-    if (req.body?.confirmed !== true || !campaignVideoBriefId) {
-      res.status(409).json({ error: "Review and explicitly confirm the prepared campaign video before rendering." }); return;
+    if (req.body?.confirmed !== true) {
+      res.status(409).json({ error: "Review and explicitly confirm the campaign video before rendering." }); return;
     }
-    production = (await pool.query(`SELECT vb.*,c.name campaign_name,b.name business_name,mv.object_path
+    if(parsed.data.renderIntent==="animate"){
+      if(!campaignVideoBriefId){res.status(409).json({error:"Prepare and confirm the selected campaign visual before animating it."});return;}
+      production = (await pool.query(`SELECT vb.*,c.name campaign_name,b.name business_name,mv.object_path
       FROM campaign_video_briefs vb
       JOIN campaigns c ON c.id=vb.campaign_id AND c.user_id=vb.customer_id AND c.business_id=vb.business_id
         AND c.approved_run_id=vb.campaign_run_id AND c.status='approved'
@@ -314,9 +317,16 @@ router.post("/projects", async (req, res) => {
       JOIN mockup_projects mp ON mp.id=vb.mockup_project_id AND mp.user_id=vb.customer_id AND mp.business_id=vb.business_id
       JOIN mockup_versions mv ON mv.id=vb.mockup_version_id AND mv.mockup_project_id=mp.id AND mv.status='completed'
       WHERE vb.id=$1 AND vb.campaign_id=$2 AND vb.customer_id=$3`, [campaignVideoBriefId, campaignId, userId])).rows[0];
-    if (!production) { res.status(409).json({ error: "That prepared campaign video is stale, mismatched, or unavailable." }); return; }
-    if (parsed.data.renderIntent !== "animate" || parsed.data.sourceAssetId !== production.object_path || parsed.data.productImageUrl !== `/api/storage${production.object_path}`) {
-      res.status(409).json({ error: "The render source must be the exact confirmed visual version." }); return;
+      if (!production) { res.status(409).json({ error: "That prepared campaign video is stale, mismatched, or unavailable." }); return; }
+      if (parsed.data.sourceAssetId !== production.object_path || parsed.data.productImageUrl !== `/api/storage${production.object_path}`) {
+        res.status(409).json({ error: "The render source must be the exact confirmed visual version." }); return;
+      }
+    }else{
+      if(campaignVideoBriefId||parsed.data.sourceAssetId||parsed.data.productImageUrl){res.status(409).json({error:"Create New must use only the approved campaign copy and no visual source."});return;}
+      const authority=(await pool.query(`SELECT c.*,b.user_id business_owner_id,b.name business_name,b.website business_website,b.description business_description,b.target_customer business_target_customer,b.products_services business_products_services,b.primary_cta business_primary_cta,wi.id import_id,wi.approved_campaign_id import_approved_campaign_id,wi.user_id import_user_id,wi.business_id import_business_id,wi.source_url import_source_url,wi.content import_content,r.id campaign_run_id,r.status campaign_run_status,r.context_snapshot run_context,r.final_result run_final_result FROM campaigns c JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id JOIN campaign_runs r ON r.id=c.approved_run_id AND r.campaign_id=c.id LEFT JOIN website_import_drafts wi ON wi.id=c.website_import_id WHERE c.id=$1 AND c.user_id=$2 AND c.status='approved'`,[campaignId,userId])).rows[0];
+      const approvedBrief=authority?deriveApprovedTextVideoBrief(authority,{id:authority.campaign_run_id,status:authority.campaign_run_status,context_snapshot:authority.run_context,final_result:authority.run_final_result}):null;
+      if(!authority||!approvedBrief){res.status(409).json({error:"The approved campaign copy is stale, unsafe, or unavailable. Return to the campaign before rendering."});return;}
+      production={campaign_run_id:authority.campaign_run_id,brief:approvedBrief};
     }
     try {
       authoritativeCampaignScript = approvedCampaignBriefToExpandedScript(production.brief);

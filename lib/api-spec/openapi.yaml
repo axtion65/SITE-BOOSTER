@@ -809,6 +809,15 @@ components:
       type: object
       required: [title, renderingModelId, renderIntent]
       properties:
+        campaignId:
+          type: ["string", "null"]
+        campaignVideoBriefId:
+          type: ["string", "null"]
+        confirmed:
+          type: boolean
+        idempotencyKey:
+          type: string
+          maxLength: 200
         title:
           type: string
         description:

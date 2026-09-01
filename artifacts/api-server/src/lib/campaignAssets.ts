@@ -1,3 +1,5 @@
+import { publicCampaignResult, validateRunSource } from "./campaignReview";
+
 export type CampaignAssetDb={query(sql:string,values?:unknown[]):Promise<{rows:any[]}>};
 
 export async function attachCampaignVisual(db:CampaignAssetDb,input:{customerId:string;campaignId:string;runId:string;versionId:string;idempotencyKey:string}){
@@ -25,4 +27,16 @@ export function deriveProductionBrief(row:any){
   const benefits=Array.isArray(product.benefits)?product.benefits.join(", "):product.benefits;
   const productDescription=[product.description,benefits,product.offer,business.description].filter(Boolean).join("\n\n");
   return {customerId:row.user_id,businessId:row.business_id,campaignId:row.campaign_id,approvedCampaignRunId:row.campaign_run_id,selectedVisualProjectId:row.mockup_project_id,selectedVisualVersionId:row.mockup_version_id,campaignName:row.campaign_name,productName:String(product.name??business.name??row.campaign_name??"").trim(),productDescription:productDescription||String(brief.objective??row.campaign_name??"").trim(),strategy:result.strategy||result.campaignStrategy||result,hook:typeof candidate==="object"&&candidate?String(candidate.hook??"").trim():"",approvedCopy,targetAudience:String(generation.audienceEvidence??context.audienceEvidence??product.targetAudience??brief.targetAudience??"").trim(),offer:String(generation.offerEvidence??context.offerEvidence??product.offer??brief.promotion??"").trim(),cta:approvedCta,platform:String(brief.channel??"").trim(),duration:String(brief.duration??result.estimatedDuration??"30s").trim(),sourceWebsiteUrl:row.source_url||null,renderIntent:"animate" as const};
+}
+
+/** Builds a no-visual video brief only from the exact current approved run. */
+export function deriveApprovedTextVideoBrief(campaign:any,run:any){
+  if(campaign?.status!=="approved"||!campaign?.approved_run_id||campaign.approved_run_id!==run?.id||run?.status!=="ready_for_review")return null;
+  if(!validateRunSource(campaign,run).valid)return null;
+  const result=publicCampaignResult(run.final_result);
+  if(!result||result.factcheck.pass!==true||result.qa.pass!==true)return null;
+  const finalScript=result.finalScript,approvedCopy=String(finalScript.script??"").trim();
+  if(!approvedCopy)return null;
+  const brief=campaign.brief||{};
+  return {customerId:campaign.user_id,businessId:campaign.business_id,campaignId:campaign.id,approvedCampaignRunId:run.id,campaignName:String(campaign.name??"").trim(),hook:String(finalScript.hook??"").trim(),approvedCopy,cta:String(finalScript.callToAction??"").trim(),platform:String(brief.channel??"").trim(),duration:String(brief.duration??"30s").trim(),renderIntent:"create_new" as const};
 }

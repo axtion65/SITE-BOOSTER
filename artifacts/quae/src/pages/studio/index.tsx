@@ -16,7 +16,7 @@ import { ExpandedScript } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { approvedCampaignToStudio, preparedVideoBriefToStudio, shouldRestoreStudioDraft, type ApprovedCampaignHandoff } from "@/lib/campaign-handoff";
+import { approvedCampaignToStudio, campaignVideoIdempotencyKey, preparedVideoBriefToStudio, shouldRestoreStudioDraft, type ApprovedCampaignHandoff } from "@/lib/campaign-handoff";
 import { compilePreviewRenderBrief } from "@/lib/render-brief";
 import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
@@ -485,6 +485,7 @@ function Wizard() {
     setProductImageUrl(null);
     setImagePreviewUrl(null);
     setProductImageFileName(null);
+    setRenderIntent("create_new");
     if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
@@ -519,12 +520,13 @@ function Wizard() {
       return;
     }
     try {
+      const campaignIdempotencyKey=campaignVideoIdempotencyKey({campaignId,approvedRunId,briefId,renderIntent,modelId,duration});
       const res = await createMutation.mutateAsync({
         data: {
           campaignId,
           campaignVideoBriefId: briefId,
           confirmed: true,
-          idempotencyKey: campaignId && briefId ? `campaign-video:${briefId}:${modelId}:${duration}` : crypto.randomUUID(),
+          idempotencyKey: campaignIdempotencyKey ?? crypto.randomUUID(),
           title: `${productName} Ad`,
           description,
           renderingModelId: modelId,
