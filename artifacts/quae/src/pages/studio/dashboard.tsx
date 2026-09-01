@@ -254,6 +254,18 @@ function StatusBadge({ status }: { status: string }) {
           Processing
         </span>
       );
+    case "preparing":
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+          Voiceover
+        </span>
+      );
+    case "assembling":
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          Assembling
+        </span>
+      );
     case "narrating":
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-sky-500/10 text-sky-400 border border-sky-500/20">

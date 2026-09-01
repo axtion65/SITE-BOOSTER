@@ -49,7 +49,7 @@ test("short apparel prompt is one product-hero concept with comprehensive text s
 });
 
 test("provider request prefers supported image conditioning without making provider calls", () => {
-  const request = buildFalRenderRequest(apparel, "instagram", "30s", "wan", undefined, "animate", "https://signed.example/product.jpg");
+  const request = buildFalRenderRequest(apparel, "instagram", "30s", "kling", undefined, "animate", "https://signed.example/product.jpg");
   assert.match(request.modelPath, /image-to-video/);
   assert.equal(request.input.image_url, "https://signed.example/product.jpg");
 });

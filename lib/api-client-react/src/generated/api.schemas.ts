@@ -168,7 +168,9 @@ export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus];
 
 export const ProjectStatus = {
   draft: 'draft',
+  preparing: 'preparing',
   processing: 'processing',
+  assembling: 'assembling',
   narrating: 'narrating',
   completed: 'completed',
   failed: 'failed',
@@ -257,7 +259,9 @@ export type ProjectUpdateStatus = typeof ProjectUpdateStatus[keyof typeof Projec
 
 export const ProjectUpdateStatus = {
   draft: 'draft',
+  preparing: 'preparing',
   processing: 'processing',
+  assembling: 'assembling',
   narrating: 'narrating',
   completed: 'completed',
   failed: 'failed',
@@ -415,4 +419,3 @@ export type ListTemplatesParams = {
  */
 category?: string;
 };
-

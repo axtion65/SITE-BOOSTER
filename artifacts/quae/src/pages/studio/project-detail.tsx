@@ -16,19 +16,21 @@ import { apiHeaders } from "@/lib/marketing-api";
 
 // Realistic estimates based on actual fal.ai queue times
 const MODEL_ESTIMATES: Record<string, number> = {
+  'ltx-fast':  600,
   'ovi':       300,
   'quae-v1':   300,
   'wan':       360,
-  'kling':     420,
+  'kling':     900,
   'kling-1.6': 420,
   'veo3':      600,
 };
 
 const MODEL_CLIP_LENGTH: Record<string, string> = {
+  'ltx-fast':  '15–45 sec complete advert',
   'ovi':       '~5 sec clip',
   'quae-v1':   '~5 sec clip',
   'wan':       '~8–10 sec clip',
-  'kling':     '~10 sec clip',
+  'kling':     '15–45 sec complete advert',
   'kling-1.6': '~10 sec clip',
   'veo3':      '~8 sec clip',
 };
@@ -66,6 +68,18 @@ function StatusPill({ status }: { status: string }) {
           Rendering
         </span>
       );
+    case "preparing":
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 animate-pulse">
+          Preparing Voiceover
+        </span>
+      );
+    case "assembling":
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 animate-pulse">
+          Assembling Advert
+        </span>
+      );
     case "narrating":
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30 animate-pulse">
@@ -99,7 +113,7 @@ export default function StudioProjectDetail() {
   const [downloading, setDownloading] = useState(false);
   const { toast } = useToast();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isProcessing = project?.status === "processing" || project?.status === "narrating";
+  const isProcessing = ["preparing", "processing", "assembling", "narrating"].includes(project?.status ?? "");
   const elapsed = useElapsed(isProcessing, project?.createdAt);
   const signedProductImageUrl = usePrivateImageUrl(project?.productImageUrl);
 
@@ -165,7 +179,7 @@ export default function StudioProjectDetail() {
 
   const modelKey = (project as any).renderingModelId ?? 'ovi';
   const estimateSec = MODEL_ESTIMATES[modelKey] ?? 360;
-  const clipLength = MODEL_CLIP_LENGTH[modelKey] ?? '~5 sec clip';
+  const clipLength = project.duration ? `${project.duration.replace("s", "")}-second complete advert` : (MODEL_CLIP_LENGTH[modelKey] ?? '30-second complete advert');
   const pct = isProcessing ? Math.min(88, Math.round((elapsed / estimateSec) * 100)) : 100;
   const overEstimate = isProcessing && elapsed > estimateSec;
 
@@ -273,7 +287,17 @@ export default function StudioProjectDetail() {
                         <div className={`absolute inset-0 rounded-full border-2 animate-spin ${project?.status === "narrating" ? "border-sky-500/30" : "border-violet-500/30"}`} style={{ animationDuration: '3s' }} />
                       </div>
 
-                      {project?.status === "narrating" ? (
+                      {project?.status === "preparing" ? (
+                        <>
+                          <p className="text-white font-black text-xl mb-1">Preparing your voiceover…</p>
+                          <p className="text-[#AAB6CA] text-sm mb-5 max-w-sm">Quae measures the approved narration before any visual scene is submitted.</p>
+                        </>
+                      ) : project?.status === "assembling" ? (
+                        <>
+                          <p className="text-white font-black text-xl mb-1">Assembling your complete advert…</p>
+                          <p className="text-[#AAB6CA] text-sm mb-5 max-w-sm">All scenes are ready. Quae is adding captions, voiceover, branding, and the final CTA.</p>
+                        </>
+                      ) : project?.status === "narrating" ? (
                         <>
                           <p className="text-white font-black text-xl mb-1">Adding voiceover…</p>
                           <p className="text-[#AAB6CA] text-sm mb-5 max-w-sm">
@@ -289,14 +313,11 @@ export default function StudioProjectDetail() {
                         </>
                       )}
 
-                      {project?.status !== "narrating" && (
+                      {project?.status !== "narrating" && project?.status !== "preparing" && (
                         <>
                           <div className="mb-5 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs text-[#AAB6CA] max-w-xs">
                             <span className="text-white/70 font-semibold">Output: {clipLength}</span>
-                            {" "}— AI video models generate short clips regardless of script length.
-                            {modelKey !== 'kling' && modelKey !== 'kling-1.6' && (
-                              <span className="text-violet-400"> Upgrade to Kling for 10-sec clips.</span>
-                            )}
+                            {" "}— multiple script-matched scenes with measured voiceover, captions, brand end card, and CTA.
                           </div>
 
                           <div className="w-full max-w-xs mb-2">

@@ -6,9 +6,9 @@ import { buildFalRenderRequest, type ExpandedScript } from "./falvideo";
 
 const approved: ExpandedScript = { script:"approved brief", hook:"approved hook", callToAction:"approved CTA", voiceoverText:"approved voiceover", scenes:[{sceneNumber:1,description:"approved scene brief",duration:"5s",visualDirection:"approved camera direction"}],suggestedMusic:"quiet",estimatedDuration:"5s" };
 
-test("shared catalogue is authoritative and LTX Fast is text-only", () => {
+test("shared catalogue is authoritative and LTX Fast can use owned business imagery", () => {
   assert.equal(RENDERING_MODELS.find(m => m.id === "ltx-fast"), RENDERING_MODEL_BY_ID["ltx-fast"]);
-  assert.equal(RENDERING_MODEL_BY_ID["ltx-fast"].supports.imageToVideo, false);
+  assert.equal(RENDERING_MODEL_BY_ID["ltx-fast"].supports.imageToVideo, true);
 });
 
 test("Create New never sends image_url and approved scene brief reaches text-to-video", () => {
@@ -19,8 +19,8 @@ test("Create New never sends image_url and approved scene brief reaches text-to-
 });
 
 test("Create New rejects stale images while Animate accepts its one explicit source", () => {
-  assert.throws(() => buildFalRenderRequest(approved,"instagram","5s","wan",undefined,"create_new","https://example.test/stale.png"));
-  const request = buildFalRenderRequest(approved,"instagram","5s","wan",undefined,"animate","https://example.test/owned.png");
+  assert.throws(() => buildFalRenderRequest(approved,"instagram","5s","kling",undefined,"create_new","https://example.test/stale.png"));
+  const request = buildFalRenderRequest(approved,"instagram","5s","kling",undefined,"animate","https://example.test/owned.png");
   assert.equal(request.input.image_url,"https://example.test/owned.png");
 });
 

@@ -774,7 +774,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [draft, processing, narrating, completed, failed]
+          enum: [draft, preparing, processing, assembling, narrating, completed, failed]
         renderingModelId:
           type: string
         script:
@@ -863,7 +863,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [draft, processing, narrating, completed, failed]
+          enum: [draft, preparing, processing, assembling, narrating, completed, failed]
         voiceId:
           type: ["string", "null"]
 

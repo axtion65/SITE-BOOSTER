@@ -12,7 +12,12 @@ test("campaign production is bound to the approved brief, run, owner, business a
   assert.match(source, /req\.body\?\.confirmed !== true/);
   assert.match(source, /approvedCampaignBriefToExpandedScript\(production\.brief\)/);
   assert.match(source, /matchesApprovedCampaignScript\(submittedCampaignScript, authoritativeCampaignScript\)/);
-  assert.ok(source.indexOf("tx.insert(projectsTable)") < source.indexOf("const token = await submitFalVideoRender"));
+  assert.ok(source.indexOf("tx.insert(projectsTable)") < source.indexOf("startVideoProduction(project.id)"));
+  const createRoute = source.slice(
+    source.indexOf('router.post("/projects"'),
+    source.indexOf('router.get("/projects/:id"'),
+  );
+  assert.doesNotMatch(createRoute, /submitFalVideoRender/);
 });
 
 test("approved no-image campaigns use the exact safe run without weakening animation checks",async()=>{const source=await readFile(new URL("../routes/projects.ts",import.meta.url),"utf8");assert.match(source,/parsed\.data\.renderIntent==="animate"/);assert.match(source,/deriveApprovedTextVideoBrief\(authority/);assert.match(source,/campaignVideoBriefId\|\|parsed\.data\.sourceAssetId\|\|parsed\.data\.productImageUrl/);assert.match(source,/production=\{campaign_run_id:authority\.campaign_run_id,brief:approvedBrief\}/);});

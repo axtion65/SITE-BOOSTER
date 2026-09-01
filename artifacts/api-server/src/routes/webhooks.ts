@@ -1,10 +1,7 @@
 import { db, projectsTable, usersTable, creditLedgerTable } from "@workspace/db";
 import { eq, and, sql, inArray, isNull } from "drizzle-orm";
-import { MODEL_CREDIT_COSTS, extractFalRequestId } from "../lib/falvideo";
-
-function getCreditCost(modelId: string): number {
-  return MODEL_CREDIT_COSTS[modelId] ?? MODEL_CREDIT_COSTS["ovi"];
-}
+import { extractFalRequestId } from "../lib/falvideo";
+import { processProductionSceneCompletion } from "../lib/videoProduction";
 
 /**
  * Atomically transition a project from "processing" → "failed" and refund credits
@@ -62,6 +59,23 @@ export async function processFalCompletion(payload: FalCompletionEvent): Promise
   const requestId = payload.request_id;
 
   console.log(`[webhook/fal] ${requestId} status=${payload.status}`);
+
+  const sceneOutput = payload.payload ?? {};
+  const sceneVideoUrl =
+    (sceneOutput as any)?.video?.url ??
+    (sceneOutput as any)?.video_url ??
+    (sceneOutput as any)?.url ??
+    (sceneOutput as any)?.videos?.[0]?.url ??
+    (sceneOutput as any)?.video ??
+    null;
+  if (await processProductionSceneCompletion({
+    requestId,
+    status: payload.status,
+    videoUrl: typeof sceneVideoUrl === "string" ? sceneVideoUrl : null,
+    error: payload.error ?? payload.payload_error ?? null,
+  })) {
+    return;
+  }
 
   // Find the project whose token contains this requestId.
   // Supports both token formats:
