@@ -515,11 +515,15 @@ router.get("/projects/:id", async (req, res) => {
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
 
   const token = getFalToken(project);
-  if (project.status === "processing" && token) {
+  // A timeout may mark a job failed before fal's completed response can be
+  // retrieved. The timeout path intentionally preserves the original token,
+  // so a later project read can recover that same provider result without
+  // submitting or charging for another render.
+  if (["processing", "failed"].includes(project.status) && token) {
     // fal.ai needs ~15s to register a newly submitted job in their queue.
     // Polling before that returns 405 and we incorrectly mark it failed.
     const secsSinceSubmit = (Date.now() - project.updatedAt.getTime()) / 1000;
-    if (secsSinceSubmit < 15) {
+    if (project.status === "processing" && secsSinceSubmit < 15) {
       res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
       return;
     }
@@ -533,8 +537,12 @@ router.get("/projects/:id", async (req, res) => {
         // archival conditional UPDATE only wins if videoUrl still matches,
         // preventing a concurrent rerender from being overwritten.
         const updated = await db.update(projectsTable)
-          .set({ videoUrl: poll.url, thumbnailUrl: null, updatedAt: new Date() })
-          .where(and(eq(projectsTable.id, project.id), eq(projectsTable.status, "processing")))
+          .set({ status: "processing", videoUrl: poll.url, thumbnailUrl: null, updatedAt: new Date() })
+          .where(and(
+            eq(projectsTable.id, project.id),
+            inArray(projectsTable.status, ["processing", "failed"]),
+            eq(projectsTable.thumbnailUrl, token),
+          ))
           .returning();
         if (updated.length > 0) {
           // Extract voiceoverText for TTS narration

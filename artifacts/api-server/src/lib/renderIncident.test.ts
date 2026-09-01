@@ -38,3 +38,16 @@ test("credit debit, project persistence, and audit entry share one transaction",
   assert.match(source,/renderAttempt:\s*sql`\$\{projectsTable\.renderAttempt\}\s*\+\s*1`/);
   assert.match(source,/refundedAt:\s*null/);
 });
+
+test("a timed-out project recovers its completed provider result without starting another render", async () => {
+  const source = await readFile(new URL("../routes/projects.ts", import.meta.url), "utf8");
+  const getRoute = source.slice(
+    source.indexOf('router.get("/projects/:id"'),
+    source.indexOf('/** Authenticated download'),
+  );
+  assert.match(getRoute, /\["processing", "failed"\]\.includes\(project\.status\) && token/);
+  assert.match(getRoute, /inArray\(projectsTable\.status, \["processing", "failed"\]\)/);
+  assert.match(getRoute, /eq\(projectsTable\.thumbnailUrl, token\)/);
+  assert.match(getRoute, /pollFalVideoRender\(token\)/);
+  assert.doesNotMatch(getRoute, /submitFalVideoRender/);
+});
