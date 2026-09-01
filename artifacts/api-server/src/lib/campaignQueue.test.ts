@@ -94,6 +94,11 @@ function fakeDb() {
               status: "queued",
               current_stage: "resuming",
               failure_code: null,
+              idempotency_key:
+                typeof run.idempotency_key === "string" &&
+                run.idempotency_key.includes(":manual-resume-v1")
+                  ? run.idempotency_key
+                  : `${run.idempotency_key ?? ""}:manual-resume-v1`,
               completed_at: null,
             });
             return { rows: [run] };
@@ -269,7 +274,7 @@ test("failed-successor recovery still rejects a newer active source", async () =
   assert.equal(db.runs.length, 3);
 });
 
-test("only an exhausted transient or first schema failure can resume", () => {
+test("only an exhausted safe failure without a manual marker can resume", () => {
   assert.equal(
     isResumableCampaignFailure({
       status: "failed",
@@ -306,7 +311,25 @@ test("only an exhausted transient or first schema failure can resume", () => {
     isResumableCampaignFailure({
       status: "failed",
       failure_code: "PROVIDER_UNAVAILABLE",
-      retry_count: 4,
+      retry_count: 8,
+    }),
+    true,
+  );
+  assert.equal(
+    isResumableCampaignFailure({
+      status: "failed",
+      failure_code: "PIPELINE_PERMANENT_FAILURE",
+      retry_count: 6,
+    }),
+    true,
+  );
+  assert.equal(
+    isResumableCampaignFailure({
+      status: "failed",
+      failure_code: "PIPELINE_PERMANENT_FAILURE",
+      retry_count: 6,
+      idempotency_key:
+        "failed-recovery:owned-context-v4:run:key:manual-resume-v1",
     }),
     false,
   );
@@ -320,6 +343,7 @@ test("schema recovery resumes only the incomplete stage on the same run", async 
     status: "failed",
     failure_code: "SCHEMA_REPAIR_EXHAUSTED",
     retry_count: 1,
+    idempotency_key: "failed-recovery:owned-context-v4:schema-run:key",
     run_number: 5,
   });
 
@@ -335,7 +359,7 @@ test("schema recovery resumes only the incomplete stage on the same run", async 
 
   resumed.run.status = "failed";
   resumed.run.failure_code = "SCHEMA_REPAIR_EXHAUSTED";
-  resumed.run.retry_count = 2;
+  resumed.run.retry_count = 99;
   assert.equal(
     (
       await resumeFailedCampaignRun(db, {
@@ -356,6 +380,7 @@ test("manual recovery resumes the same run once instead of creating a run", asyn
     status: "failed",
     failure_code: "TEMPORARY_INFRASTRUCTURE_FAILURE",
     retry_count: 3,
+    idempotency_key: "failed-recovery:owned-context-v4:recovery-run:key",
     run_number: 4,
   });
 
@@ -372,7 +397,7 @@ test("manual recovery resumes the same run once instead of creating a run", asyn
 
   resumed.run.status = "failed";
   resumed.run.failure_code = "TEMPORARY_INFRASTRUCTURE_FAILURE";
-  resumed.run.retry_count = 4;
+  resumed.run.retry_count = 99;
   assert.equal(
     (
       await resumeFailedCampaignRun(db, {
