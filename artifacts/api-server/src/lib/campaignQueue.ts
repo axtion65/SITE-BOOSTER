@@ -8,6 +8,7 @@ const MANUAL_RESUMABLE_FAILURE_CODES = new Set([
   "SCHEMA_REPAIR_EXHAUSTED",
   "PIPELINE_PERMANENT_FAILURE",
 ]);
+const MANUAL_RESUME_MARKER = ":manual-resume-v1";
 type Db = {
   connect(): Promise<{
     query(sql: string, values?: unknown[]): Promise<{ rows: any[] }>;
@@ -17,11 +18,15 @@ type Db = {
 
 export function isResumableCampaignFailure(run: any) {
   const retryCount = Number(run?.retry_count);
+  const alreadyManuallyResumed =
+    typeof run?.idempotency_key === "string" &&
+    run.idempotency_key.includes(MANUAL_RESUME_MARKER);
   return Boolean(
     run?.status === "failed" &&
-      ((RESUMABLE_FAILURE_CODES.has(run.failure_code) && retryCount === 3) ||
+      !alreadyManuallyResumed &&
+      ((RESUMABLE_FAILURE_CODES.has(run.failure_code) && retryCount >= 3) ||
         (MANUAL_RESUMABLE_FAILURE_CODES.has(run.failure_code) &&
-          retryCount === 1)),
+          retryCount >= 1)),
   );
 }
 
@@ -65,11 +70,16 @@ export async function resumeFailedCampaignRun(
       await client.query(
         `UPDATE campaign_runs
          SET status='queued', current_stage='resuming', failure_code=NULL,
+           idempotency_key=CASE
+             WHEN POSITION($3 IN idempotency_key)=0
+               THEN idempotency_key || $3
+             ELSE idempotency_key
+           END,
            queued_at=NOW(), completed_at=NULL, lease_owner=NULL,
            lease_expires_at=NULL, heartbeat_at=NULL, updated_at=NOW()
          WHERE id=$1 AND campaign_id=$2 AND status='failed'
          RETURNING *`,
-        [args.runId, args.campaign.id],
+        [args.runId, args.campaign.id, MANUAL_RESUME_MARKER],
       )
     ).rows[0];
     if (!resumed) {
