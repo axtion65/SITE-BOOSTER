@@ -11,6 +11,7 @@ import {
   rebuildIdempotencyKey,
   canRecoverCampaignRun,
   isCurrentRecoveryRun,
+  isCompletedQualityReviewDraft,
   isFailedRecoveryRun,
   recoveryIdempotencyKey,
   repairableRunBehindFailures,
@@ -312,6 +313,39 @@ test("owned needs-revision output with stale source is eligible for focused repa
   const validation = validateRunSource(campaign, stale);
   assert.equal(validation.reason, "source_mismatch");
   assert.equal(validation.repairable, true);
+});
+
+test("completed legacy quality review is a focused-repair draft, not a crash", () => {
+  const draft = {
+    id: "quality-draft",
+    status: "failed",
+    current_stage: "quality_review_failed",
+    failure_code: null,
+    retry_count: 0,
+    qa_status: "failed",
+    idempotency_key:
+      "failed-recovery:owned-context-v4:quality-draft:source-rebuild:key",
+    context_snapshot: {
+      ...correctContext,
+      audienceEvidence: "An older audience",
+    },
+    final_result: final(),
+  };
+
+  assert.equal(isCompletedQualityReviewDraft(draft), true);
+  assert.deepEqual(validateRunSource(campaign, draft), {
+    valid: false,
+    reason: "source_mismatch",
+    repairable: true,
+  });
+  assert.equal(repairableRunBehindFailures(campaign, [draft])?.id, draft.id);
+  assert.equal(
+    isCompletedQualityReviewDraft({
+      ...draft,
+      failure_code: "PIPELINE_PERMANENT_FAILURE",
+    }),
+    false,
+  );
 });
 
 test("focused repair may recover the newest safe draft behind failed attempts", () => {
