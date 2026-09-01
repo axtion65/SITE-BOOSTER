@@ -6,12 +6,14 @@ import {
   usersTable,
   videoRenderScenesTable,
 } from "@workspace/db";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
 import { buildFalWebhookUrl, pollFalVideoRender, submitFalSceneRender, type ExpandedScript } from "./falvideo";
 import { generateSpeechBuffer } from "./tts";
 import { probeMediaBuffer } from "./mediaProbe";
 import {
   compileVideoProductionPlan,
+  decideProductionDuration,
   productionQualityGate,
   type ProductionBrand,
   type VideoProductionPlan,
@@ -23,23 +25,33 @@ const SCENE_FIRST_POLL_MS = 5 * 60_000;
 const SCENE_SECOND_POLL_MS = 15 * 60_000;
 const MAX_SCENE_POLLS = 2;
 const SCENE_TRANSITION_TIMEOUT_MS = 20 * 60_000;
+const PREPARATION_LEASE_MS = 5 * 60_000;
 
 function failureText(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, 1000);
 }
 
-async function failProductionProject(projectId: string, failureCode: string, error: unknown): Promise<void> {
+async function failProductionProject(
+  projectId: string,
+  failureCode: string,
+  error: unknown,
+  preparationToken?: string,
+): Promise<void> {
   await db.transaction(async (tx) => {
+    const conditions = [
+      eq(projectsTable.id, projectId),
+      inArray(projectsTable.status, ACTIVE_PROJECT_STATUSES),
+      isNull(projectsTable.refundedAt),
+    ];
+    if (preparationToken) conditions.push(eq(projectsTable.preparationToken, preparationToken));
     const [failed] = await tx.update(projectsTable).set({
       status: "failed",
       qualityStatus: failureCode,
       refundedAt: new Date(),
+      preparationToken: null,
+      preparationLeaseExpiresAt: null,
       updatedAt: new Date(),
-    }).where(and(
-      eq(projectsTable.id, projectId),
-      inArray(projectsTable.status, ACTIVE_PROJECT_STATUSES),
-      isNull(projectsTable.refundedAt),
-    )).returning();
+    }).where(and(...conditions)).returning();
     if (!failed) return;
     const [balance] = await tx.update(usersTable)
       .set({ credits: sql`${usersTable.credits} + ${failed.creditCharge}` })
@@ -57,6 +69,84 @@ async function failProductionProject(projectId: string, failureCode: string, err
     }
   });
   console.error(`[video-production] ${projectId} failed (${failureCode}): ${failureText(error)}`);
+}
+
+export function productionNarrationHash(expandedScript: string, voiceId: string | null): string {
+  const script = JSON.parse(expandedScript) as ExpandedScript;
+  return createHash("sha256")
+    .update(JSON.stringify({ text: script.voiceoverText || script.script, voiceId: voiceId || "alloy" }))
+    .digest("hex");
+}
+
+async function claimPreparation(projectId: string) {
+  const token = randomUUID();
+  const now = new Date();
+  const leaseExpiresAt = new Date(now.getTime() + PREPARATION_LEASE_MS);
+  const [claimed] = await db.update(projectsTable).set({
+    preparationToken: token,
+    preparationLeaseExpiresAt: leaseExpiresAt,
+    qualityStatus: "preparing_voiceover",
+    updatedAt: now,
+  }).where(and(
+    eq(projectsTable.id, projectId),
+    eq(projectsTable.status, "preparing"),
+    eq(projectsTable.productionVersion, VIDEO_PRODUCTION_VERSION),
+    isNull(projectsTable.productionPlan),
+    or(
+      isNull(projectsTable.preparationToken),
+      isNull(projectsTable.preparationLeaseExpiresAt),
+      lt(projectsTable.preparationLeaseExpiresAt, now),
+    ),
+  )).returning();
+  return claimed ? { project: claimed, token } : null;
+}
+
+async function pauseForDurationConfirmation(input: {
+  project: typeof projectsTable.$inferSelect;
+  preparationToken: string;
+  voiceoverPath: string;
+  voiceoverDurationMs: number;
+  voiceoverScriptHash: string;
+  recommendedDurationSeconds: number;
+}): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [paused] = await tx.update(projectsTable).set({
+      status: "failed",
+      qualityStatus: "duration_upgrade_required",
+      voiceoverPath: input.voiceoverPath,
+      voiceoverDurationMs: input.voiceoverDurationMs,
+      voiceoverScriptHash: input.voiceoverScriptHash,
+      targetDurationSeconds: input.recommendedDurationSeconds,
+      refundedAt: new Date(),
+      preparationToken: null,
+      preparationLeaseExpiresAt: null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(projectsTable.id, input.project.id),
+      eq(projectsTable.renderAttempt, input.project.renderAttempt),
+      eq(projectsTable.status, "preparing"),
+      eq(projectsTable.preparationToken, input.preparationToken),
+      isNull(projectsTable.refundedAt),
+    )).returning();
+    if (!paused) return;
+    const [balance] = await tx.update(usersTable)
+      .set({ credits: sql`${usersTable.credits} + ${paused.creditCharge}` })
+      .where(and(eq(usersTable.id, paused.userId), sql`${usersTable.isAdmin} = false`))
+      .returning({ credits: usersTable.credits });
+    if (balance && paused.creditCharge > 0) {
+      await tx.insert(creditLedgerTable).values({
+        userId: paused.userId,
+        projectId: paused.id,
+        attempt: paused.renderAttempt,
+        kind: "refund",
+        amount: paused.creditCharge,
+        balanceAfter: balance.credits,
+      });
+    }
+  });
+  console.info(
+    `[video-production] ${input.project.id} needs ${input.recommendedDurationSeconds}s for a ${Math.ceil(input.voiceoverDurationMs / 1000)}s voiceover; no visual job submitted`,
+  );
 }
 
 async function productionContext(project: typeof projectsTable.$inferSelect): Promise<{
@@ -99,47 +189,89 @@ async function productionContext(project: typeof projectsTable.$inferSelect): Pr
   return { brand, sourceAssetPaths };
 }
 
-async function preparePlan(project: typeof projectsTable.$inferSelect): Promise<VideoProductionPlan> {
-  if (project.productionPlan) return project.productionPlan as VideoProductionPlan;
+async function prepareClaimedPlan(
+  project: typeof projectsTable.$inferSelect,
+  preparationToken: string,
+): Promise<typeof projectsTable.$inferSelect | null> {
   if (!project.expandedScript) throw new Error("Approved script is missing");
   const script = JSON.parse(project.expandedScript) as ExpandedScript;
-  const voiceover = await generateSpeechBuffer(script.voiceoverText || script.script, project.voiceId);
-  if (!voiceover) throw new Error("Voiceover generation failed before visual submission");
-  const measured = await probeMediaBuffer(voiceover, "mp3");
-  if (!measured.hasAudio) throw new Error("Generated voiceover has no audio stream");
+  const scriptHash = productionNarrationHash(project.expandedScript, project.voiceId);
+  let voiceoverPath = project.voiceoverPath;
+  let voiceoverDurationMs = project.voiceoverDurationMs;
+  if (!voiceoverPath || !voiceoverDurationMs || project.voiceoverScriptHash !== scriptHash) {
+    const voiceover = await generateSpeechBuffer(script.voiceoverText || script.script, project.voiceId);
+    if (!voiceover) throw new Error("Voiceover generation failed before visual submission");
+    const measured = await probeMediaBuffer(voiceover, "mp3");
+    if (!measured.hasAudio) throw new Error("Generated voiceover has no audio stream");
+    const { ObjectStorageService } = await import("./objectStorage");
+    const storage = new ObjectStorageService();
+    voiceoverPath = await storage.uploadVoiceoverBuffer(voiceover, {
+      userId: project.userId,
+      projectId: project.id,
+      renderId: `${project.renderAttempt}-${VIDEO_PRODUCTION_VERSION}`,
+    });
+    voiceoverDurationMs = measured.durationMs;
+  }
+
+  const [owner] = await db.select({ isAdmin: usersTable.isAdmin }).from(usersTable).where(eq(usersTable.id, project.userId));
+  if (!owner) throw new Error("Project owner is missing");
+  const durationDecision = decideProductionDuration({
+    requestedDuration: project.duration ?? "30s",
+    voiceoverDurationMs,
+    isAdmin: owner.isAdmin,
+  });
+  if (durationDecision.action === "reject") {
+    throw new Error(`Voiceover is ${Math.ceil(voiceoverDurationMs / 1000)}s and exceeds the maximum 45s advert`);
+  }
+  const selectedDuration = durationDecision.durationSeconds;
+  if (durationDecision.action === "confirm") {
+    await pauseForDurationConfirmation({
+      project,
+      preparationToken,
+      voiceoverPath,
+      voiceoverDurationMs,
+      voiceoverScriptHash: scriptHash,
+      recommendedDurationSeconds: selectedDuration,
+    });
+    return null;
+  }
+
   const context = await productionContext(project);
   context.brand.callToAction = script.callToAction?.trim() || context.brand.callToAction;
   const plan = compileVideoProductionPlan({
     script,
-    duration: project.duration ?? "30s",
+    duration: `${selectedDuration}s`,
     platform: project.platform ?? "youtube",
-    voiceoverDurationMs: measured.durationMs,
+    voiceoverDurationMs,
     brand: context.brand,
     sourceAssetPaths: context.sourceAssetPaths,
   });
-  const { ObjectStorageService } = await import("./objectStorage");
-  const storage = new ObjectStorageService();
-  const renderId = `${project.renderAttempt}-${VIDEO_PRODUCTION_VERSION}`;
-  const voiceoverPath = await storage.uploadVoiceoverBuffer(voiceover, {
-    userId: project.userId,
-    projectId: project.id,
-    renderId,
-  });
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     const [won] = await tx.update(projectsTable).set({
+      duration: `${selectedDuration}s`,
+      script: JSON.stringify({
+        version: VIDEO_PRODUCTION_VERSION,
+        targetDuration: `${selectedDuration}s`,
+        approvedScript: true,
+      }),
       productionVersion: VIDEO_PRODUCTION_VERSION,
       productionPlan: plan,
       voiceoverPath,
-      voiceoverDurationMs: measured.durationMs,
+      voiceoverDurationMs,
+      voiceoverScriptHash: scriptHash,
       targetDurationSeconds: plan.targetDurationSeconds,
       qualityStatus: "scenes_pending",
+      preparationToken: null,
+      preparationLeaseExpiresAt: null,
       updatedAt: new Date(),
     }).where(and(
       eq(projectsTable.id, project.id),
       eq(projectsTable.renderAttempt, project.renderAttempt),
+      eq(projectsTable.status, "preparing"),
+      eq(projectsTable.preparationToken, preparationToken),
       isNull(projectsTable.productionPlan),
-    )).returning({ id: projectsTable.id });
-    if (!won) return;
+    )).returning();
+    if (!won) return null;
     await tx.insert(videoRenderScenesTable).values(plan.scenes.map((scene) => ({
       projectId: project.id,
       userId: project.userId,
@@ -152,8 +284,8 @@ async function preparePlan(project: typeof projectsTable.$inferSelect): Promise<
       sourceAssetPath: scene.sourceAssetPath,
       expectedDurationMs: scene.durationMs,
     }))).onConflictDoNothing();
+    return won;
   });
-  return plan;
 }
 
 async function submitScene(sceneId: string): Promise<void> {
@@ -196,14 +328,23 @@ async function submitScene(sceneId: string): Promise<void> {
 }
 
 export async function prepareVideoProduction(projectId: string): Promise<void> {
-  const [project] = await db.select().from(projectsTable).where(and(
+  let [project] = await db.select().from(projectsTable).where(and(
     eq(projectsTable.id, projectId),
     inArray(projectsTable.status, ["preparing", "processing"]),
     eq(projectsTable.productionVersion, VIDEO_PRODUCTION_VERSION),
   ));
   if (!project) return;
+  let preparationToken: string | undefined;
   try {
-    await preparePlan(project);
+    if (!project.productionPlan) {
+      const claim = await claimPreparation(project.id);
+      if (!claim) return;
+      preparationToken = claim.token;
+      const prepared = await prepareClaimedPlan(claim.project, claim.token);
+      if (!prepared) return;
+      project = prepared;
+      preparationToken = undefined;
+    }
     const scenes = await db.select().from(videoRenderScenesTable).where(and(
       eq(videoRenderScenesTable.projectId, project.id),
       eq(videoRenderScenesTable.renderAttempt, project.renderAttempt),
@@ -220,7 +361,7 @@ export async function prepareVideoProduction(projectId: string): Promise<void> {
         .where(and(eq(projectsTable.id, project.id), eq(projectsTable.renderAttempt, project.renderAttempt), eq(projectsTable.status, "preparing")));
     }
   } catch (error) {
-    await failProductionProject(project.id, "production_preparation_failed", error);
+    await failProductionProject(project.id, "production_preparation_failed", error, preparationToken);
   }
 }
 

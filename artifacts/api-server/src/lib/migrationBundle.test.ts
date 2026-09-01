@@ -23,12 +23,24 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0016_campaign_asset_production_handoff.sql",
     "0017_campaign_video_production.sql",
     "0018_video_production_pipeline.sql",
+    "0019_video_preparation_lease.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
     "utf8",
   );
   assert.match(build, /cp\([\s\S]*lib\/db\/migrations[\s\S]*recursive:\s*true/);
+});
+
+test("video preparation migration provides an additive durable lease", async () => {
+  const sql = await readFile(
+    new URL("lib/db/migrations/0019_video_preparation_lease.sql", root),
+    "utf8",
+  );
+  assert.match(sql, /preparation_token/);
+  assert.match(sql, /preparation_lease_expires_at/);
+  assert.match(sql, /voiceover_script_hash/);
+  assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
 });
 
 test("video production pipeline migration is durable and retry-bounded", async () => {

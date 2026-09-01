@@ -69,3 +69,7 @@ jobs:
           cmp \
             lib/db/migrations/0012_website_import_drafts.sql \
             artifacts/api-server/dist/migrations/0012_website_import_drafts.sql
+          test -f artifacts/api-server/dist/migrations/0019_video_preparation_lease.sql
+          cmp \
+            lib/db/migrations/0019_video_preparation_lease.sql \
+            artifacts/api-server/dist/migrations/0019_video_preparation_lease.sql

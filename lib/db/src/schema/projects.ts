@@ -35,7 +35,10 @@ export const projectsTable = pgTable("projects", {
   productionPlan: jsonb("production_plan"),
   voiceoverPath: text("voiceover_path"),
   voiceoverDurationMs: integer("voiceover_duration_ms"),
+  voiceoverScriptHash: text("voiceover_script_hash"),
   targetDurationSeconds: integer("target_duration_seconds"),
+  preparationToken: text("preparation_token"),
+  preparationLeaseExpiresAt: timestamp("preparation_lease_expires_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
