@@ -83,21 +83,12 @@ async function productionContext(project: typeof projectsTable.$inferSelect): Pr
     accentColor: row.accent_color ?? null,
     callToAction: String(row.default_cta ?? row.primary_cta ?? "Learn more").trim(),
   };
-  const assetResult = await pool.query(`
-    SELECT object_path FROM (
-      SELECT pi.object_path,0 priority,pi.sort_order::numeric ordering
-      FROM businesses b JOIN products p ON p.business_id=b.id AND p.active
-      JOIN product_images pi ON pi.product_id=p.id WHERE b.user_id=$1
-      UNION ALL
-      SELECT mv.object_path,1 priority,mv.version_number::numeric ordering
-      FROM mockup_projects mp JOIN mockup_versions mv ON mv.mockup_project_id=mp.id
-      WHERE mp.user_id=$1 AND mv.status='completed' AND mv.object_path IS NOT NULL
-    ) owned_assets ORDER BY priority,ordering LIMIT 8
-  `, [project.userId]);
-  const owned = assetResult.rows.map((asset) => String(asset.object_path)).filter(Boolean);
+  // Preserve the customer's render intent at the provider boundary. Create New
+  // must remain text-to-video; only Animate may condition scenes on the one
+  // explicitly selected and ownership-checked source asset.
   const sourceAssetPaths = project.renderIntent === "animate"
     ? [project.sourceAssetId].filter((value): value is string => Boolean(value))
-    : Array.from(new Set(owned));
+    : [];
   return { brand, sourceAssetPaths };
 }
 

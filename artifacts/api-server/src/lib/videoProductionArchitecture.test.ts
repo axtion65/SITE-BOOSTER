@@ -73,3 +73,14 @@ test("production retries only the failed scene once", async () => {
   assert.match(source, /submitScene\(retry\.id\)/);
   assert.match(source, /provider_scene_failed_twice/);
 });
+
+test("create-new scene production never injects unrelated stored images", async () => {
+  const source = await readFile(new URL("artifacts/api-server/src/lib/videoProduction.ts", root), "utf8");
+  const context = source.slice(
+    source.indexOf("async function productionContext"),
+    source.indexOf("async function preparePlan"),
+  );
+  assert.match(context, /project\.renderIntent === "animate"\s*\?\s*\[project\.sourceAssetId\]\.filter/s);
+  assert.match(context, /:\s*\[\];/);
+  assert.doesNotMatch(context, /product_images|mockup_versions|Array\.from\(new Set\(owned\)\)/);
+});
