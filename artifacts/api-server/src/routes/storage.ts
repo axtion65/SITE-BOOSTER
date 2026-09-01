@@ -4,9 +4,9 @@ import {
   RequestUploadUrlResponse,
 } from '@workspace/api-zod';
 import { Router, type IRouter, type Request, type Response } from 'express';
-import { db } from '@workspace/db';
+import { pool } from '@workspace/db';
 
-import { ObjectPermission } from '../lib/objectAcl';
+import { ObjectPermission, setObjectAclPolicy } from '../lib/objectAcl';
 import {
   ObjectNotFoundError,
   ObjectStorageService,
@@ -19,6 +19,55 @@ import {
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+
+export const persistedMarketingObjectOwnersQuery = `
+  SELECT COALESCE(BOOL_AND(owner_id = $1), FALSE) AS owned
+  FROM (
+    SELECT mp.user_id AS owner_id
+    FROM mockup_versions mv
+    JOIN mockup_projects mp ON mp.id = mv.mockup_project_id
+    WHERE mv.object_path = $2
+
+    UNION ALL
+
+    SELECT b.user_id AS owner_id
+    FROM product_images pi
+    JOIN products p ON p.id = pi.product_id
+    JOIN businesses b ON b.id = p.business_id
+    WHERE pi.object_path = $2
+
+    UNION ALL
+
+    SELECT b.user_id AS owner_id
+    FROM brand_kits bk
+    JOIN businesses b ON b.id = bk.business_id
+    WHERE bk.logo_object_path = $2 OR bk.secondary_logo_object_path = $2
+
+    UNION ALL
+
+    SELECT b.user_id AS owner_id
+    FROM brand_models bm
+    JOIN businesses b ON b.id = bm.business_id
+    WHERE bm.reference_object_paths @> JSONB_BUILD_ARRAY($2::TEXT)
+
+    UNION ALL
+
+    SELECT p.user_id AS owner_id
+    FROM projects p
+    WHERE p.product_image_url = $2
+  ) persisted_owners
+`;
+
+async function isExclusivelyOwnedPersistedMarketingObject(
+  userId: string,
+  objectPath: string,
+): Promise<boolean> {
+  const result = await pool.query<{ owned: boolean }>(
+    persistedMarketingObjectOwnersQuery,
+    [userId, objectPath],
+  );
+  return result.rows[0]?.owned === true;
+}
 
 // ---------------------------------------------------------------------------
 // Upload intent token store — single-use, server-issued, short-lived
@@ -205,11 +254,25 @@ router.get('/storage/object-signed-url/*path', async (req: Request, res: Respons
     const objectPath = `/objects/${wildcardPath}`;
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
-    const allowed = await objectStorageService.canAccessObjectEntity({
+    let allowed = await objectStorageService.canAccessObjectEntity({
       userId,
       objectFile,
       requestedPermission: ObjectPermission.READ,
     });
+    if (
+      !allowed
+      && await isExclusivelyOwnedPersistedMarketingObject(userId, objectPath)
+    ) {
+      await setObjectAclPolicy(objectFile, {
+        owner: userId,
+        visibility: 'private',
+      });
+      allowed = true;
+      req.log.info(
+        { userId, objectPath },
+        'Repaired legacy marketing object ACL from exclusive persisted ownership',
+      );
+    }
     if (!allowed) {
       res.status(403).json({ error: 'Forbidden' });
       return;
