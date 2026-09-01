@@ -310,21 +310,32 @@ function getModelKey(renderingModelId: string): string {
 }
 
 // Returns a publicly reachable base URL for this server (used for fal.ai webhooks)
-function getPublicBaseUrl(): string {
+function getPublicBaseUrl(env: NodeJS.ProcessEnv): string {
+  // Railway exposes the API service's public domain automatically. Prefer it
+  // over APP_URL, which points at the Vercel frontend and cannot receive API
+  // webhooks directly.
+  const railwayDomain = env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railwayDomain) return `https://${railwayDomain.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+
+  const railwayUrl =
+    env.RAILWAY_STATIC_URL?.trim() ||
+    env.RAILWAY_SERVICE_SITE_BOOSTER_URL?.trim();
+  if (railwayUrl) return railwayUrl.replace(/\/$/, "");
+
   // REPLIT_DOMAINS is comma-separated list of deployed domains
-  const domains = process.env.REPLIT_DOMAINS;
+  const domains = env.REPLIT_DOMAINS;
   if (domains) {
     const first = domains.split(',')[0]?.trim();
     if (first) return `https://${first}`;
   }
   // Fall back to the dev preview domain
-  const devDomain = process.env.REPLIT_DEV_DOMAIN;
+  const devDomain = env.REPLIT_DEV_DOMAIN;
   if (devDomain) return `https://${devDomain}`;
   return '';
 }
 
-export function buildFalWebhookUrl(): string {
-  const base = getPublicBaseUrl();
+export function buildFalWebhookUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const base = getPublicBaseUrl(env);
   return base ? `${base}/api/webhooks/fal` : '';
 }
 
@@ -393,6 +404,7 @@ type FalQueueToken = {
   requestId: string;
   statusUrl?: string;
   responseUrl?: string;
+  webhookRegistered?: boolean;
 };
 
 function isTrustedFalQueueUrl(value: unknown): value is string {
@@ -439,6 +451,9 @@ function canonicalFalQueueUrl(
 
 export function buildFalQueueToken(input: FalQueueToken): string {
   const statusUrl = canonicalFalQueueUrl(input.statusUrl, input.requestId, "status");
+  if (input.webhookRegistered && statusUrl) {
+    return `fal3:${input.requestId}|||${statusUrl}`;
+  }
   const responseUrl = canonicalFalQueueUrl(input.responseUrl, input.requestId, "response");
   if (statusUrl && responseUrl) {
     return `fal2:${input.requestId}|||${statusUrl}|||${responseUrl}`;
@@ -478,6 +493,7 @@ export async function submitFalVideoRender(
 ): Promise<string> {
   const falKey = process.env.FAL_KEY;
   if (!falKey) throw new Error('FAL_KEY not configured');
+  if (!webhookUrl) throw new Error('Public fal webhook URL not configured');
 
   // Upload image to fal.ai CDN if provided.
   // We intentionally do NOT silently swallow failures — if the caller supplied an image
@@ -496,13 +512,17 @@ export async function submitFalVideoRender(
   // Use the official @fal-ai/client — no manual URL construction, no custom auth headers.
   fal.config({ credentials: falKey });
 
-  const enqueued = await (fal.queue as any).submit(modelPath, { input });
+  const enqueued = await (fal.queue as any).submit(modelPath, {
+    input,
+    ...(webhookUrl ? { webhookUrl } : {}),
+  });
   const requestId: string = enqueued.request_id;
   const token = buildFalQueueToken({
     modelPath,
     requestId,
     statusUrl: enqueued.status_url,
     responseUrl: enqueued.response_url,
+    webhookRegistered: Boolean(webhookUrl),
   });
   console.log(`[fal-video] Submitted | modelPath="${modelPath}" | requestId="${requestId}"`);
   return token;
@@ -516,6 +536,20 @@ export async function submitFalVideoRender(
 export function parseFalQueueToken(
   token: string,
 ): FalQueueToken | null {
+  if (token.startsWith("fal3:")) {
+    const [requestSegment, rawStatusUrl] = token.split("|||");
+    const requestId = requestSegment.substring("fal3:".length);
+    const statusUrl = canonicalFalQueueUrl(rawStatusUrl, requestId, "status");
+    if (!requestId || !statusUrl) return null;
+    const marker = `/requests/${requestId}`;
+    const markerIndex = new URL(statusUrl).pathname.indexOf(marker);
+    const modelPath = markerIndex > 1
+      ? new URL(statusUrl).pathname.substring(1, markerIndex)
+      : "";
+    if (!modelPath) return null;
+    return { modelPath, requestId, statusUrl, webhookRegistered: true };
+  }
+
   if (token.startsWith("fal2:")) {
     const [requestSegment, rawStatusUrl, rawResponseUrl] = token.split("|||");
     const requestId = requestSegment.substring("fal2:".length);
@@ -644,6 +678,10 @@ export async function pollFalVideoRender(
 
 export function isFalToken(value: string | null): boolean {
   return typeof value === "string" && parseFalQueueToken(value) !== null;
+}
+
+export function isWebhookFalToken(value: string | null): boolean {
+  return typeof value === "string" && parseFalQueueToken(value)?.webhookRegistered === true;
 }
 /**
  * Extract the fal.ai request_id from a stored token.
