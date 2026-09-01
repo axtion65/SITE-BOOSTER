@@ -122,6 +122,7 @@ test("legacy rebuild action routes a safely repairable draft through focused rev
   assert.match(route, /allowFailedSuccessors/);
   assert.match(route, /terminalQualityRebuildIdempotencyKey/);
   assert.match(route, /isTerminalQualityRebuildRun/);
+  assert.match(route, /latest\.status === "failed" \|\| !terminalValidation\.valid/);
   assert.ok(
     route.indexOf("canRecoverCampaignRun") <
       route.indexOf("if (repairSource)"),
