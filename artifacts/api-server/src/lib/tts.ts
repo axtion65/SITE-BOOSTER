@@ -1,14 +1,36 @@
 /**
  * Text-to-speech via OpenAI TTS API.
- * Uses the AI_INTEGRATIONS_OPENAI_BASE_URL / AI_INTEGRATIONS_OPENAI_API_KEY
- * env vars (Replit AI Integrations proxy).
+ * Uses the standard OPENAI_API_KEY in production. A complete pair of legacy
+ * Replit AI Integrations variables remains supported for older environments.
  *
- * Returns null (instead of throwing) on any failure so callers can
- * fall back to delivering the video without audio rather than surfacing errors.
+ * Returns null (instead of throwing) on failure so each caller can apply its
+ * own legacy fallback or production failure policy.
  */
 
 const VALID_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
 type TtsVoice = typeof VALID_VOICES[number];
+
+const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
+
+function resolveOpenAiConfig(): { apiKey: string; baseUrl: string } | null {
+  const legacyApiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY?.trim();
+  const legacyBaseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL?.trim();
+
+  if (legacyApiKey && legacyBaseUrl) {
+    return {
+      apiKey: legacyApiKey,
+      baseUrl: legacyBaseUrl.replace(/\/+$/, ""),
+    };
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  return {
+    apiKey,
+    baseUrl: (process.env.OPENAI_BASE_URL?.trim() || OPENAI_API_BASE_URL).replace(/\/+$/, ""),
+  };
+}
 
 function resolveVoice(voice: string | null | undefined): TtsVoice {
   if (voice && (VALID_VOICES as readonly string[]).includes(voice)) {
@@ -18,11 +40,10 @@ function resolveVoice(voice: string | null | undefined): TtsVoice {
 }
 
 export async function generateSpeechBuffer(text: string, voice?: string | null): Promise<Buffer | null> {
-  const openaiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  const openaiBase = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const openai = resolveOpenAiConfig();
 
-  if (!openaiKey || !openaiBase) {
-    console.warn('[tts] AI_INTEGRATIONS_OPENAI env vars not set — skipping TTS narration');
+  if (!openai) {
+    console.warn('[tts] OPENAI_API_KEY is not set — skipping TTS narration');
     return null;
   }
 
@@ -31,10 +52,10 @@ export async function generateSpeechBuffer(text: string, voice?: string | null):
   if (!input) return null;
 
   try {
-    const res = await fetch(`${openaiBase}/audio/speech`, {
+    const res = await fetch(`${openai.baseUrl}/audio/speech`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${openaiKey}`,
+        Authorization: `Bearer ${openai.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
