@@ -1,10 +1,89 @@
 export type QueueCampaign = { id: string; user_id: string };
+const RESUMABLE_FAILURE_CODES = new Set([
+  "PROVIDER_RATE_LIMIT",
+  "PROVIDER_UNAVAILABLE",
+  "TEMPORARY_INFRASTRUCTURE_FAILURE",
+]);
 type Db = {
   connect(): Promise<{
     query(sql: string, values?: unknown[]): Promise<{ rows: any[] }>;
     release(): void;
   }>;
 };
+
+export function isResumableCampaignFailure(run: any) {
+  return Boolean(
+    run?.status === "failed" &&
+    RESUMABLE_FAILURE_CODES.has(run.failure_code) &&
+    Number(run.retry_count) === 3,
+  );
+}
+
+export async function resumeFailedCampaignRun(
+  db: Db,
+  args: { campaign: QueueCampaign; runId: string; concurrencyLimit: number },
+) {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `campaign-user:${args.campaign.user_id}`,
+    ]);
+    const latest = (
+      await client.query(
+        "SELECT * FROM campaign_runs WHERE campaign_id=$1 ORDER BY run_number DESC LIMIT 1 FOR UPDATE",
+        [args.campaign.id],
+      )
+    ).rows[0];
+    if (!latest || latest.id !== args.runId) {
+      await client.query("ROLLBACK");
+      return { kind: "superseded" as const };
+    }
+    if (["queued", "running"].includes(latest.status)) {
+      await client.query("COMMIT");
+      return { kind: "existing" as const, run: latest };
+    }
+    if (!isResumableCampaignFailure(latest)) {
+      await client.query("ROLLBACK");
+      return { kind: "blocked" as const, run: latest };
+    }
+    const active = await client.query(
+      "SELECT r.* FROM campaign_runs r JOIN campaigns c ON c.id=r.campaign_id WHERE c.user_id=$1 AND r.status IN ('queued','running') LIMIT $2",
+      [args.campaign.user_id, args.concurrencyLimit],
+    );
+    if (active.rows.length >= args.concurrencyLimit) {
+      await client.query("ROLLBACK");
+      return { kind: "conflict" as const, activeRun: active.rows[0] };
+    }
+    const resumed = (
+      await client.query(
+        `UPDATE campaign_runs
+         SET status='queued', current_stage='resuming', failure_code=NULL,
+           queued_at=NOW(), completed_at=NULL, lease_owner=NULL,
+           lease_expires_at=NULL, heartbeat_at=NULL, updated_at=NOW()
+         WHERE id=$1 AND campaign_id=$2 AND status='failed'
+         RETURNING *`,
+        [args.runId, args.campaign.id],
+      )
+    ).rows[0];
+    if (!resumed) {
+      await client.query("ROLLBACK");
+      return { kind: "superseded" as const };
+    }
+    await client.query(
+      "UPDATE campaigns SET status='queued',updated_at=NOW() WHERE id=$1",
+      [args.campaign.id],
+    );
+    await client.query("COMMIT");
+    return { kind: "resumed" as const, run: resumed };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function queueCampaignRun(
   db: Db,
   args: {

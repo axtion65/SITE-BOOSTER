@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { queueCampaignRun } from "./campaignQueue";
+import {
+  isResumableCampaignFailure,
+  queueCampaignRun,
+  resumeFailedCampaignRun,
+} from "./campaignQueue";
 
 function fakeDb() {
   const runs: any[] = [];
@@ -73,6 +77,25 @@ function fakeDb() {
                 Math.max(0, ...previousRuns.map((item) => item.run_number)) + 1,
             };
             runs.push(run);
+            return { rows: [run] };
+          }
+          if (
+            sql.includes("UPDATE campaign_runs") &&
+            sql.includes("resuming")
+          ) {
+            const run = runs.find(
+              (item) =>
+                item.id === values[0] &&
+                item.campaign_id === values[1] &&
+                item.status === "failed",
+            );
+            if (!run) return { rows: [] };
+            Object.assign(run, {
+              status: "queued",
+              current_stage: "resuming",
+              failure_code: null,
+              completed_at: null,
+            });
             return { rows: [run] };
           }
           return { rows: [] };
@@ -244,4 +267,97 @@ test("failed-successor recovery still rejects a newer active source", async () =
   });
   assert.equal(result.kind, "superseded");
   assert.equal(db.runs.length, 3);
+});
+
+test("only an exhausted transient failure can resume", () => {
+  assert.equal(
+    isResumableCampaignFailure({
+      status: "failed",
+      failure_code: "PROVIDER_UNAVAILABLE",
+      retry_count: 3,
+    }),
+    true,
+  );
+  assert.equal(
+    isResumableCampaignFailure({
+      status: "failed",
+      failure_code: "SCHEMA_REPAIR_EXHAUSTED",
+      retry_count: 3,
+    }),
+    false,
+  );
+  assert.equal(
+    isResumableCampaignFailure({
+      status: "failed",
+      failure_code: "PROVIDER_UNAVAILABLE",
+      retry_count: 4,
+    }),
+    false,
+  );
+});
+
+test("manual recovery resumes the same run once instead of creating a run", async () => {
+  const db = fakeDb();
+  db.runs.push({
+    id: "recovery-run",
+    campaign_id: "c1",
+    status: "failed",
+    failure_code: "TEMPORARY_INFRASTRUCTURE_FAILURE",
+    retry_count: 3,
+    run_number: 4,
+  });
+
+  const resumed = await resumeFailedCampaignRun(db, {
+    campaign: { id: "c1", user_id: "u1" },
+    runId: "recovery-run",
+    concurrencyLimit: 1,
+  });
+
+  assert.equal(resumed.kind, "resumed");
+  assert.equal(resumed.run.id, "recovery-run");
+  assert.equal(resumed.run.status, "queued");
+  assert.equal(db.runs.length, 1);
+
+  resumed.run.status = "failed";
+  resumed.run.failure_code = "TEMPORARY_INFRASTRUCTURE_FAILURE";
+  resumed.run.retry_count = 4;
+  assert.equal(
+    (
+      await resumeFailedCampaignRun(db, {
+        campaign: { id: "c1", user_id: "u1" },
+        runId: "recovery-run",
+        concurrencyLimit: 1,
+      })
+    ).kind,
+    "blocked",
+  );
+});
+
+test("manual recovery preserves the account concurrency limit", async () => {
+  const db = fakeDb();
+  db.runs.push(
+    {
+      id: "recovery-run",
+      campaign_id: "c1",
+      status: "failed",
+      failure_code: "PROVIDER_RATE_LIMIT",
+      retry_count: 3,
+      run_number: 1,
+    },
+    {
+      id: "other-active-run",
+      campaign_id: "c2",
+      status: "running",
+      run_number: 1,
+    },
+  );
+
+  const result = await resumeFailedCampaignRun(db, {
+    campaign: { id: "c1", user_id: "u1" },
+    runId: "recovery-run",
+    concurrencyLimit: 1,
+  });
+
+  assert.equal(result.kind, "conflict");
+  assert.equal(db.runs[0].status, "failed");
 });
