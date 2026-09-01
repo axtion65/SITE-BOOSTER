@@ -13,6 +13,7 @@ import { ExpandedScript } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 import { apiHeaders } from "@/lib/marketing-api";
+import { getProductionCreditCost } from "@workspace/plans";
 
 // Realistic estimates based on actual fal.ai queue times
 const MODEL_ESTIMATES: Record<string, number> = {
@@ -116,6 +117,9 @@ export default function StudioProjectDetail() {
   const isProcessing = ["preparing", "processing", "assembling", "narrating"].includes(project?.status ?? "");
   const elapsed = useElapsed(isProcessing, project?.createdAt);
   const signedProductImageUrl = usePrivateImageUrl(project?.productImageUrl);
+  const durationUpgradeRequired = project?.status === "failed" &&
+    project.qualityStatus === "duration_upgrade_required" &&
+    Boolean(project.targetDurationSeconds);
 
   async function downloadVideo() {
     setDownloading(true);
@@ -190,21 +194,28 @@ export default function StudioProjectDetail() {
     }
   };
 
-  const handleRerender = async () => {
+  const handleRerender = async (confirmDurationUpgrade = false) => {
     setRerendering(true);
     setVideoError(false);
     try {
       const token = localStorage.getItem("quae_token");
       const res = await fetch(`/api/projects/${id}/rerender`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(confirmDurationUpgrade ? { confirmDurationUpgrade: true } : {}),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `Server error ${res.status}`);
       }
       await queryClient.invalidateQueries({ queryKey: getGetProjectQueryKey(id) });
-      toast({ title: "Re-render started", description: "Your video is queued. Check back in a few minutes." });
+      toast({
+        title: confirmDurationUpgrade ? `${project.targetDurationSeconds}-second advert started` : "Re-render started",
+        description: "Your saved narration is approved and visual scenes are queued.",
+      });
     } catch (err: any) {
       toast({ title: "Re-render failed", description: err.message || "Could not start the render.", variant: "destructive" });
     } finally {
@@ -239,7 +250,7 @@ export default function StudioProjectDetail() {
               {project.expandedScript && (
                 <Button
                   variant="outline"
-                  onClick={handleRerender}
+                  onClick={() => handleRerender(durationUpgradeRequired)}
                   disabled={rerendering || isProcessing}
                   className="h-9 px-4 rounded-xl border-white/[0.08] bg-white/[0.03] text-white/60 hover:text-white hover:border-violet-500/40 text-sm font-bold gap-2 transition-all"
                 >
@@ -382,7 +393,7 @@ export default function StudioProjectDetail() {
                         This legacy video is no longer available. New renders are secured in Quae storage and do not expire with provider links.
                       </p>
                       <Button
-                        onClick={handleRerender}
+                        onClick={() => handleRerender(false)}
                         disabled={rerendering}
                         className="rounded-xl bg-violet-600 hover:bg-violet-500 font-bold gap-2 px-6 py-2.5 text-base shadow-lg shadow-violet-600/30"
                       >
@@ -394,7 +405,29 @@ export default function StudioProjectDetail() {
                   )}
 
                   {/* FAILED */}
-                  {project.status === 'failed' && (
+                  {project.status === 'failed' && durationUpgradeRequired && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
+                      <div className="h-16 w-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
+                        <Clock className="h-8 w-8 text-amber-400" />
+                      </div>
+                      <p className="text-white font-black text-lg mb-1">Use a {project.targetDurationSeconds}-second advert</p>
+                      <p className="text-sm text-[#AAB6CA] mb-5 max-w-md">
+                        Your approved narration is {Math.ceil((project.voiceoverDurationMs ?? 0) / 1000)} seconds. It has been saved, your earlier charge was refunded, and no visual scene was submitted. Approve the duration that fits before rendering.
+                      </p>
+                      <Button
+                        onClick={() => handleRerender(true)}
+                        disabled={rerendering}
+                        className="rounded-xl bg-violet-600 hover:bg-violet-500 font-bold gap-2"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        {rerendering
+                          ? "Starting…"
+                          : `Approve ${project.targetDurationSeconds}s — ${getProductionCreditCost(modelKey, `${project.targetDurationSeconds}s`)} credits`}
+                      </Button>
+                    </div>
+                  )}
+
+                  {project.status === 'failed' && !durationUpgradeRequired && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
                       <div className="h-16 w-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-5">
                         <VideoOff className="h-8 w-8 text-red-400" />
@@ -402,7 +435,7 @@ export default function StudioProjectDetail() {
                       <p className="text-white font-black text-lg mb-1">Render failed</p>
                       <p className="text-sm text-[#AAB6CA] mb-5">Your video could not be made ready. If generation finished, Quae may still have been securing the final file. Please try again shortly; your credits have been refunded.</p>
                       <Button
-                        onClick={handleRerender}
+                        onClick={() => handleRerender(false)}
                         disabled={rerendering}
                         className="rounded-xl bg-violet-600 hover:bg-violet-500 font-bold gap-2"
                       >

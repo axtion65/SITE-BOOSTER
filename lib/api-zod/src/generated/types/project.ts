@@ -15,6 +15,7 @@ export interface Project {
   /** @nullable */
   description?: string | null;
   status: ProjectStatus;
+  qualityStatus: string;
   renderingModelId: string;
   /** @nullable */
   script?: string | null;
@@ -24,6 +25,10 @@ export interface Project {
   platform?: string | null;
   /** @nullable */
   duration?: string | null;
+  /** @nullable */
+  voiceoverDurationMs?: number | null;
+  /** @nullable */
+  targetDurationSeconds?: number | null;
   /** @nullable */
   videoUrl?: string | null;
   /** @nullable */

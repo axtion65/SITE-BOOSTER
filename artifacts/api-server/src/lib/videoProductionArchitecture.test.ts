@@ -57,6 +57,31 @@ test("the worker has a bounded provider-free fallback and prevents duplicate arc
   assert.match(source, /scene_submission_indeterminate/);
 });
 
+test("preparation has one durable owner and paid duration changes stop before visual submission", async () => {
+  const source = await readFile(new URL("artifacts/api-server/src/lib/videoProduction.ts", root), "utf8");
+  const claim = source.slice(source.indexOf("async function claimPreparation"), source.indexOf("async function pauseForDurationConfirmation"));
+  assert.match(claim, /preparationToken:\s*token/);
+  assert.match(claim, /preparationLeaseExpiresAt:\s*leaseExpiresAt/);
+  assert.match(claim, /isNull\(projectsTable\.productionPlan\)/);
+  assert.match(claim, /lt\(projectsTable\.preparationLeaseExpiresAt, now\)/);
+
+  const prepare = source.slice(source.indexOf("async function prepareClaimedPlan"), source.indexOf("async function submitScene"));
+  assert.match(prepare, /project\.voiceoverScriptHash !== scriptHash/);
+  assert.match(prepare, /durationDecision\.action === "confirm"/);
+  assert.match(prepare, /pauseForDurationConfirmation/);
+  assert.doesNotMatch(prepare, /submitFalSceneRender/);
+});
+
+test("duration confirmation charges the fitted duration and reuses only matching narration", async () => {
+  const source = await readFile(new URL("artifacts/api-server/src/routes/projects.ts", root), "utf8");
+  const rerender = source.slice(source.indexOf('router.post("/projects/:id/rerender"'), source.indexOf('router.patch("/projects/:id"'));
+  assert.match(rerender, /qualityStatus === "duration_upgrade_required"/);
+  assert.match(rerender, /confirmDurationUpgrade/);
+  assert.match(rerender, /productionNarrationHash\(project\.expandedScript, project\.voiceId\)/);
+  assert.match(rerender, /getCreditCost\([^\n]+renderDuration\)/);
+  assert.ok(rerender.indexOf("getCreditCost") < rerender.indexOf("startVideoProduction"));
+});
+
 test("assembly includes voiceover, ordered scenes, deterministic captions, and end card", async () => {
   const source = await readFile(new URL("artifacts/api-server/src/lib/videoAssembler.ts", root), "utf8");
   assert.match(source, /buildAdvertSubtitles/);

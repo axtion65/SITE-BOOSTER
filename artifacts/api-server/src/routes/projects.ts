@@ -15,7 +15,7 @@ import { logger } from "../lib/logger";
 import { getProductionCreditCost, isNativeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 import { ObjectPermission } from "../lib/objectAcl";
 import { deriveApprovedTextVideoBrief } from "../lib/campaignAssets";
-import { startVideoProduction } from "../lib/videoProduction";
+import { productionNarrationHash, startVideoProduction } from "../lib/videoProduction";
 import { VIDEO_PRODUCTION_VERSION } from "../lib/videoProductionPlan";
 
 /** Log every field PostgreSQL/Drizzle exposes on a DB error. */
@@ -638,8 +638,37 @@ router.post("/projects/:id/rerender", async (req, res) => {
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
   if (!project.expandedScript) { res.status(400).json({ error: "No script — generate one first." }); return; }
 
+  const validRerenderObject = req.body === undefined ||
+    (req.body !== null && typeof req.body === "object" && !Array.isArray(req.body));
+  const rerenderKeys = validRerenderObject && req.body ? Object.keys(req.body) : [];
+  const confirmDurationUpgrade = req.body?.confirmDurationUpgrade;
+  if (!validRerenderObject || rerenderKeys.some((key) => key !== "confirmDurationUpgrade") ||
+      (confirmDurationUpgrade !== undefined && typeof confirmDurationUpgrade !== "boolean")) {
+    res.status(400).json({ error: "Invalid re-render request" }); return;
+  }
+  const upgradeRequired = project.qualityStatus === "duration_upgrade_required" &&
+    project.targetDurationSeconds !== null;
+  if (upgradeRequired && confirmDurationUpgrade !== true) {
+    res.status(409).json({
+      error: `Your measured narration needs a ${project.targetDurationSeconds}-second advert. Confirm that duration before rendering.`,
+    });
+    return;
+  }
+  if (confirmDurationUpgrade === true && !upgradeRequired) {
+    res.status(409).json({ error: "This project does not have a pending duration change." });
+    return;
+  }
+
+  const renderDuration = upgradeRequired ? `${project.targetDurationSeconds}s` : (project.duration ?? "30s");
+  const canReuseVoiceover = Boolean(
+    upgradeRequired &&
+    project.voiceoverPath &&
+    project.voiceoverDurationMs &&
+    project.voiceoverScriptHash === productionNarrationHash(project.expandedScript, project.voiceId),
+  );
+
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1", project.duration);
+  const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1", renderDuration);
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
 
   let reset: typeof projectsTable.$inferSelect;
@@ -668,13 +697,17 @@ router.post("/projects/:id/rerender", async (req, res) => {
           status: "preparing",
           videoUrl: null,
           thumbnailUrl: null,
-          script: JSON.stringify({ version: VIDEO_PRODUCTION_VERSION, targetDuration: project.duration ?? "30s", approvedScript: true }),
+          duration: renderDuration,
+          script: JSON.stringify({ version: VIDEO_PRODUCTION_VERSION, targetDuration: renderDuration, approvedScript: true }),
           productionVersion: VIDEO_PRODUCTION_VERSION,
           productionPlan: null,
-          voiceoverPath: null,
-          voiceoverDurationMs: null,
+          voiceoverPath: canReuseVoiceover ? project.voiceoverPath : null,
+          voiceoverDurationMs: canReuseVoiceover ? project.voiceoverDurationMs : null,
+          voiceoverScriptHash: canReuseVoiceover ? project.voiceoverScriptHash : null,
           targetDurationSeconds: null,
           qualityStatus: "preparing",
+          preparationToken: null,
+          preparationLeaseExpiresAt: null,
           creditCharge: user.isAdmin ? 0 : creditCost,
           refundedAt: null,
           renderAttempt: sql`${projectsTable.renderAttempt} + 1`,

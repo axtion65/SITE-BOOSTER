@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileVideoProductionPlan, productionQualityGate } from "./videoProductionPlan";
+import { compileVideoProductionPlan, decideProductionDuration, fitProductionDuration, productionQualityGate } from "./videoProductionPlan";
 import type { ExpandedScript } from "./falvideo";
 
 const script: ExpandedScript = {
@@ -47,6 +47,29 @@ test("voiceover is measured before any provider plan can be accepted", () => {
     voiceoverDurationMs: 15_000,
     brand: { name: "Quae", callToAction: "Start now" },
   }), /does not fit/);
+});
+
+test("measured narration selects the next valid product duration", () => {
+  assert.equal(fitProductionDuration("15s", 21_000), 30);
+  assert.equal(fitProductionDuration("30s", 21_000), 30);
+  assert.equal(fitProductionDuration("15s", 44_600), 45);
+  assert.equal(fitProductionDuration("15s", 44_700), null);
+  assert.throws(() => fitProductionDuration("20s", 10_000), /15s, 30s, or 45s/);
+});
+
+test("duration fitting auto-upgrades admins but requires paid customer consent", () => {
+  assert.deepEqual(decideProductionDuration({ requestedDuration: "15s", voiceoverDurationMs: 21_000, isAdmin: true }), {
+    action: "proceed", durationSeconds: 30, autoUpgraded: true,
+  });
+  assert.deepEqual(decideProductionDuration({ requestedDuration: "15s", voiceoverDurationMs: 21_000, isAdmin: false }), {
+    action: "confirm", durationSeconds: 30,
+  });
+  assert.deepEqual(decideProductionDuration({ requestedDuration: "30s", voiceoverDurationMs: 21_000, isAdmin: false }), {
+    action: "proceed", durationSeconds: 30, autoUpgraded: false,
+  });
+  assert.deepEqual(decideProductionDuration({ requestedDuration: "45s", voiceoverDurationMs: 44_700, isAdmin: true }), {
+    action: "reject",
+  });
 });
 
 test("45-second production splits into bounded independent scenes", () => {

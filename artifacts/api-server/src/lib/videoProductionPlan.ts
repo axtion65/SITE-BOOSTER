@@ -43,6 +43,35 @@ export function parseProductionDuration(value: unknown): ProductionDuration {
   return seconds as ProductionDuration;
 }
 
+/** Choose the smallest customer product duration that can contain measured narration. */
+export function fitProductionDuration(value: unknown, voiceoverDurationMs: number): ProductionDuration | null {
+  const requested = parseProductionDuration(value);
+  if (!Number.isFinite(voiceoverDurationMs) || voiceoverDurationMs <= 0) {
+    throw new Error("A measured voiceover is required before choosing advert duration");
+  }
+  return PRODUCTION_DURATIONS.find((seconds) =>
+    seconds >= requested && voiceoverDurationMs <= seconds * 1000 - 350
+  ) ?? null;
+}
+
+export type DurationFitDecision =
+  | { action: "proceed"; durationSeconds: ProductionDuration; autoUpgraded: boolean }
+  | { action: "confirm"; durationSeconds: ProductionDuration }
+  | { action: "reject" };
+
+export function decideProductionDuration(input: {
+  requestedDuration: unknown;
+  voiceoverDurationMs: number;
+  isAdmin: boolean;
+}): DurationFitDecision {
+  const requested = parseProductionDuration(input.requestedDuration);
+  const fitted = fitProductionDuration(requested, input.voiceoverDurationMs);
+  if (!fitted) return { action: "reject" };
+  if (fitted === requested) return { action: "proceed", durationSeconds: fitted, autoUpgraded: false };
+  if (input.isAdmin) return { action: "proceed", durationSeconds: fitted, autoUpgraded: true };
+  return { action: "confirm", durationSeconds: fitted };
+}
+
 function splitSentences(value: string): string[] {
   return value.match(/[^.!?\n]+(?:[.!?]+|$)/g)?.map((part) => part.trim()).filter(Boolean) ?? [];
 }
