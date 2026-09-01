@@ -112,7 +112,7 @@ export function publicCampaignResult(value: unknown) {
 
 export function isLegacyCompletedQualityReview(run: any) {
   return Boolean(
-    run?.status === "failed" &&
+    ["failed", "needs_revision"].includes(run?.status) &&
       run?.current_stage === "quality_review_failed" &&
       run?.failure_code == null &&
       Number(run?.retry_count ?? 0) === 0 &&

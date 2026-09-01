@@ -336,6 +336,10 @@ test("completed legacy quality review is a focused-repair draft, not a crash", (
 
   assert.equal(isCompletedQualityReviewDraft(draft), true);
   assert.equal(isLegacyCompletedQualityReview(draft), true);
+  assert.equal(
+    isLegacyCompletedQualityReview({ ...draft, status: "needs_revision" }),
+    true,
+  );
   assert.deepEqual(validateRunSource(campaign, draft), {
     valid: false,
     reason: "source_mismatch",

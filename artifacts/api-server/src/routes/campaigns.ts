@@ -595,6 +595,8 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
             resumed.kind === "blocked" ? resumed.run.retry_count : null,
           currentStage:
             resumed.kind === "blocked" ? resumed.run.current_stage : null,
+          runStatus:
+            resumed.kind === "blocked" ? resumed.run.status : null,
           recoveryResult: resumed.kind,
         },
         "Campaign recovery was not resumed",
