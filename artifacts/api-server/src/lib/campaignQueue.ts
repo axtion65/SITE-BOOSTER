@@ -146,7 +146,6 @@ export async function queueCampaignRun(
                      source.current_stage='quality_review_failed' AND
                      source.failure_code IS NULL AND
                      COALESCE(source.retry_count,0)=0 AND
-                     source.qa_status='failed' AND
                      source.idempotency_key LIKE 'failed-recovery:owned-context-v4:%' AND
                      source.final_result IS NOT NULL
                    )
