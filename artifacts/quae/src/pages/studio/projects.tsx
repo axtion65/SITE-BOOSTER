@@ -198,7 +198,7 @@ function ProjectCard({
               <div className="h-12 w-12 rounded-2xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center">
                 {p.status === "completed"
                   ? <CheckCircle2 className="h-6 w-6 text-emerald-400/60" />
-                  : p.status === "processing" || p.status === "narrating"
+                  : ["preparing", "processing", "assembling", "narrating"].includes(p.status)
                   ? <Clock className="h-6 w-6 text-amber-400/60" />
                   : <Zap className="h-6 w-6 text-violet-400/60" />
                 }
@@ -274,6 +274,18 @@ function StatusBadge({ status }: { status: string }) {
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest uppercase bg-violet-500/20 text-violet-300 border border-violet-500/30 backdrop-blur-md">
           Rendering
+        </span>
+      );
+    case "preparing":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 backdrop-blur-md">
+          Voiceover
+        </span>
+      );
+    case "assembling":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 backdrop-blur-md">
+          Assembling
         </span>
       );
     case "narrating":

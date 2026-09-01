@@ -4,19 +4,19 @@ import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
 import { PLAN_BY_SLUG, isPlanSlug } from "@workspace/plans";
 import {
-  submitFalVideoRender, pollFalVideoRender, isFalToken, isWebhookFalToken,
-  MODEL_CREDIT_COSTS, buildFalWebhookUrl, type ExpandedScript
+  pollFalVideoRender, isFalToken, isWebhookFalToken,
+  MODEL_CREDIT_COSTS, type ExpandedScript
 } from "../lib/falvideo";
 import {
   approvedCampaignBriefToExpandedScript,
   approvedCampaignPlatform,
-  compileVideoRenderBrief,
 } from "../lib/videoRenderBrief";
-import { TEMPLATES } from "./templates";
 import { logger } from "../lib/logger";
-import { isNativeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
+import { getProductionCreditCost, isNativeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 import { ObjectPermission } from "../lib/objectAcl";
 import { deriveApprovedTextVideoBrief } from "../lib/campaignAssets";
+import { startVideoProduction } from "../lib/videoProduction";
+import { VIDEO_PRODUCTION_VERSION } from "../lib/videoProductionPlan";
 
 /** Log every field PostgreSQL/Drizzle exposes on a DB error. */
 function logDbError(context: string, err: any): void {
@@ -202,8 +202,10 @@ function getFalToken(project: { thumbnailUrl: string | null }): string | null {
   return isFalToken(project.thumbnailUrl) ? project.thumbnailUrl! : null;
 }
 
-function getCreditCost(modelId: string): number {
-  return MODEL_CREDIT_COSTS[modelId] ?? MODEL_CREDIT_COSTS["ovi"];
+function getCreditCost(modelId: string, duration?: string | null): number {
+  return RENDERING_MODEL_BY_ID[modelId]
+    ? getProductionCreditCost(modelId, duration)
+    : MODEL_CREDIT_COSTS[modelId] ?? MODEL_CREDIT_COSTS["ovi"];
 }
 
 class InsufficientCreditsError extends Error {}
@@ -222,7 +224,7 @@ async function failAndRefund(projectId: string, userId: string, creditCost: numb
     const updated = await tx
       .update(projectsTable)
       .set({ status: "failed", refundedAt: isAdmin ? null : new Date(), updatedAt: new Date() })
-      .where(and(eq(projectsTable.id, projectId), isNull(projectsTable.refundedAt), inArray(projectsTable.status, ["processing", "narrating"])))
+      .where(and(eq(projectsTable.id, projectId), isNull(projectsTable.refundedAt), inArray(projectsTable.status, ["preparing", "processing", "assembling", "narrating"])))
       .returning({ id: projectsTable.id, renderAttempt: projectsTable.renderAttempt });
 
     if (updated.length === 0) return; // Another path already resolved this project
@@ -249,6 +251,7 @@ router.get("/projects/stats", async (req, res) => {
   const projects = await db.select().from(projectsTable).where(eq(projectsTable.userId, userId));
   const byStatus = { draft: 0, processing: 0, narrating: 0, completed: 0, failed: 0 };
   for (const p of projects) {
+    if (p.status === "preparing" || p.status === "assembling") { byStatus.processing++; continue; }
     const s = p.status as keyof typeof byStatus;
     if (s in byStatus) byStatus[s]++;
   }
@@ -348,7 +351,7 @@ router.post("/projects", async (req, res) => {
   const model = RENDERING_MODEL_BY_ID[parsed.data.renderingModelId];
   if (!model?.supports.textToVideo) { res.status(400).json({ error: "Unsupported rendering model" }); return; }
   if (!isNativeClipLength(parsed.data.renderingModelId, parsed.data.duration)) {
-    res.status(400).json({ error: `Clip length must be ${model.nativeDurationSeconds}s for ${model.name}` }); return;
+    res.status(400).json({ error: "Full advert duration must be 15s, 30s, or 45s" }); return;
   }
   if (renderIntent === "create_new" && (parsed.data.sourceAssetId || parsed.data.productImageUrl)) {
     res.status(400).json({ error: "Create New cannot include a source asset" }); return;
@@ -401,18 +404,20 @@ router.post("/projects", async (req, res) => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
 
-  const creditCost = getCreditCost(parsed.data.renderingModelId ?? "quae-v1");
+  const creditCost = getCreditCost(parsed.data.renderingModelId ?? "ltx-fast", parsed.data.duration);
 
   let renderScript: ExpandedScript | null = authoritativeCampaignScript;
   if (!renderScript && parsed.data.expandedScript) {
     try { renderScript = JSON.parse(parsed.data.expandedScript) as ExpandedScript; }
     catch { /* malformed non-campaign input remains handled by the existing render boundary */ }
   }
-  let renderArtifact: string | null = parsed.data.script ?? null;
-  if (renderScript) {
-    const brief = compileVideoRenderBrief(renderScript, parsed.data.duration ?? "30s", parsed.data.renderingModelId ?? "quae-v1");
-    renderArtifact = JSON.stringify({ version: brief.version, modelNativeDurationSeconds: brief.modelNativeDurationSeconds, renderBrief: brief });
+  if (!renderScript?.voiceoverText?.trim() || !renderScript.scenes?.length) {
+    res.status(400).json({ error: "A complete approved script and scene plan are required before production." });
+    return;
   }
+  const renderArtifact: string | null = renderScript
+    ? JSON.stringify({ version: VIDEO_PRODUCTION_VERSION, targetDuration: parsed.data.duration ?? "30s", approvedScript: true })
+    : parsed.data.script ?? null;
 
   let project: typeof projectsTable.$inferSelect;
   try {
@@ -438,6 +443,7 @@ router.post("/projects", async (req, res) => {
         idempotencyKey,
         confirmedAt: new Date(),
         qualityStatus: "preparing",
+        productionVersion: VIDEO_PRODUCTION_VERSION,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         renderingModelId: parsed.data.renderingModelId,
@@ -451,7 +457,7 @@ router.post("/projects", async (req, res) => {
         sourceAssetId: ownedSourcePath,
         creditCharge: user.isAdmin ? 0 : creditCost,
         voiceId: parsed.data.voiceId ?? null,
-        status: "processing",
+        status: "preparing",
       }).returning();
 
       if (!user.isAdmin) {
@@ -484,24 +490,9 @@ router.post("/projects", async (req, res) => {
     throw err;
   }
 
-  // Submit fal.ai video render synchronously before responding
-  if (process.env.FAL_KEY && renderScript) {
-    try {
-      const scriptObj = renderScript;
-      const platform = authoritativeCampaignPlatform ?? parsed.data.platform ?? "youtube";
-      const duration = parsed.data.duration ?? "30s";
-      const templateType = TEMPLATES.find(t => t.id === parsed.data.templateId)?.templateType;
-      const webhookUrl = buildFalWebhookUrl();
-      const token = await submitFalVideoRender(scriptObj, platform, duration, parsed.data.renderingModelId ?? "quae-v1", templateType, ownedSourcePath, webhookUrl || undefined, renderIntent);
-      await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
-    } catch (err) {
-      console.error("[fal-video] submit error — refunding credits", err);
-      // Render never started — fail+refund atomically. Project was just inserted so
-      // status is guaranteed "processing"; no race window, but use failAndRefund for
-      // consistency so refund is always transactional.
-      await failAndRefund(project.id, userId, creditCost, user.isAdmin);
-    }
-  }
+  // Full adverts are prepared asynchronously. The worker generates and measures
+  // voiceover first, persists every scene, and only then submits visual jobs.
+  startVideoProduction(project.id);
 
   res.status(201).json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
 });
@@ -584,7 +575,7 @@ router.get("/projects/:id", async (req, res) => {
         return;
       }
       if (poll.status === "failed") {
-        const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1");
+        const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1", project.duration);
         const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, project.userId));
         const isAdmin = owner?.isAdmin ?? false;
         // Atomic transition + refund in a single transaction
@@ -648,12 +639,8 @@ router.post("/projects/:id/rerender", async (req, res) => {
   if (!project.expandedScript) { res.status(400).json({ error: "No script — generate one first." }); return; }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1");
+  const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1", project.duration);
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
-
-  const approvedScript: ExpandedScript = JSON.parse(project.expandedScript);
-  const rerenderBrief = compileVideoRenderBrief(approvedScript, project.duration ?? "30s", project.renderingModelId ?? "quae-v1");
-  const rerenderArtifact = JSON.stringify({ version: rerenderBrief.version, modelNativeDurationSeconds: rerenderBrief.modelNativeDurationSeconds, renderBrief: rerenderBrief });
 
   let reset: typeof projectsTable.$inferSelect;
   try {
@@ -663,7 +650,7 @@ router.post("/projects/:id/rerender", async (req, res) => {
         .where(and(eq(projectsTable.id, project.id), eq(projectsTable.userId, userId)))
         .for("update");
       if (!locked) throw new Error("Project disappeared during re-render");
-      if (["processing", "narrating"].includes(locked.status)) throw new RenderAlreadyActiveError();
+      if (["preparing", "processing", "assembling", "narrating"].includes(locked.status)) throw new RenderAlreadyActiveError();
 
       let balanceAfter = user.credits;
       if (!user.isAdmin) {
@@ -678,10 +665,16 @@ router.post("/projects/:id/rerender", async (req, res) => {
 
       const [updated] = await tx.update(projectsTable)
         .set({
-          status: "processing",
+          status: "preparing",
           videoUrl: null,
           thumbnailUrl: null,
-          script: rerenderArtifact,
+          script: JSON.stringify({ version: VIDEO_PRODUCTION_VERSION, targetDuration: project.duration ?? "30s", approvedScript: true }),
+          productionVersion: VIDEO_PRODUCTION_VERSION,
+          productionPlan: null,
+          voiceoverPath: null,
+          voiceoverDurationMs: null,
+          targetDurationSeconds: null,
+          qualityStatus: "preparing",
           creditCharge: user.isAdmin ? 0 : creditCost,
           refundedAt: null,
           renderAttempt: sql`${projectsTable.renderAttempt} + 1`,
@@ -714,16 +707,7 @@ router.post("/projects/:id/rerender", async (req, res) => {
     throw err;
   }
 
-  try {
-    const templateType = TEMPLATES.find(t => t.id === project.templateId)?.templateType;
-    const webhookUrl = buildFalWebhookUrl();
-    const token = await submitFalVideoRender(approvedScript, project.platform ?? "youtube", project.duration ?? "30s", project.renderingModelId ?? "quae-v1", templateType, project.sourceAssetId, webhookUrl || undefined, project.renderIntent as RenderIntent);
-    await db.update(projectsTable).set({ thumbnailUrl: token, updatedAt: new Date() }).where(eq(projectsTable.id, project.id));
-  } catch (err) {
-    console.error("[fal-video] rerender submit error — refunding credits", err);
-    // Render never started — fail+refund atomically
-    await failAndRefund(project.id, userId, creditCost, user.isAdmin);
-  }
+  startVideoProduction(project.id);
 
   res.json({ ...reset, createdAt: reset.createdAt.toISOString(), updatedAt: reset.updatedAt.toISOString() });
 });

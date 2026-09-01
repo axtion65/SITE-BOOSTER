@@ -22,12 +22,26 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0015_campaign_identity_guards.sql",
     "0016_campaign_asset_production_handoff.sql",
     "0017_campaign_video_production.sql",
+    "0018_video_production_pipeline.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
     "utf8",
   );
   assert.match(build, /cp\([\s\S]*lib\/db\/migrations[\s\S]*recursive:\s*true/);
+});
+
+test("video production pipeline migration is durable and retry-bounded", async () => {
+  const sql = await readFile(
+    new URL("lib/db/migrations/0018_video_production_pipeline.sql", root),
+    "utf8",
+  );
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS video_render_scenes/);
+  assert.match(sql, /production_plan JSONB/);
+  assert.match(sql, /voiceover_duration_ms/);
+  assert.match(sql, /retry_count BETWEEN 0 AND 1/);
+  assert.match(sql, /UNIQUE INDEX[\s\S]*project_id,render_attempt,scene_index/);
+  assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
 });
 
 test("campaign asset handoff migration is additive, historical, and provider-free", async () => {

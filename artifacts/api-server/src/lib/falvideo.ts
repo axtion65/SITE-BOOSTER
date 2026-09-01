@@ -30,32 +30,31 @@ const FAL_MODEL_IDS: Record<string, string> = {
   'ovi':         'fal-ai/ovi',
   'wan':         'fal-ai/wan/v2.2/text-to-video',
   'wan-img':     'fal-ai/wan/v2.2/image-to-video',
-  'kling':       'fal-ai/kling-video/v2.5/standard/text-to-video',
-  'kling-img':   'fal-ai/kling-video/v2.5/standard/image-to-video',
+  'kling':       'fal-ai/kling-video/v3/standard/text-to-video',
+  'kling-img':   'fal-ai/kling-video/v3/standard/image-to-video',
   'veo3':        'fal-ai/veo3',
 };
 
-// Credits charged per model (1 credit = $0.01)
-// LTX Fast costs ~$0.015/clip → 15 credits = $0.15 → ~10x margin
-// Ovi costs $0.20/clip flat → 30 credits = $0.30 → 1.5x margin
+// Legacy/default 30-second reporting values. New customer charges are calculated
+// by duration in @workspace/plans.getProductionCreditCost.
 export const MODEL_CREDIT_COSTS: Record<string, number> = {
-  'ltx':       15,
-  'ltx-fast':  15,
+  'ltx':      180,
+  'ltx-fast': 180,
   'quae-v1':   30,
   'ovi':       30,
   'wan':      200,
-  'kling':    300,
-  'kling-1.6': 300,
+  'kling':    390,
+  'kling-1.6': 390,
   'veo3':    1500,
 };
 
 // Estimated render time in seconds — shown in the waiting UI
 export const MODEL_RENDER_ESTIMATE: Record<string, number> = {
   'ltx':      60,  // ~1 min (very fast)
-  'ltx-fast': 30,  // ~30 sec (LTX 2.3 Fast — the new default)
+  'ltx-fast': 600, // complete advert: multiple independent scenes + assembly
   'ovi':     120,  // ~2 min
   'wan':     180,  // ~3 min
-  'kling':   240,  // ~4 min
+  'kling':   900,  // complete premium advert: multiple scenes + assembly
   'veo3':    480,  // ~8 min
 };
 
@@ -76,18 +75,30 @@ function buildModelParams(modelKey: string, durationSec: number): Record<string,
   const capped = Math.min(durationSec, MODEL_MAX_SECONDS[modelKey] ?? 10);
 
   switch (modelKey) {
-    case 'ltx-fast':
-    case 'ltx':
-      // LTX 2.3 Fast / LTX Video: 24fps, 121 frames ≈ 5 seconds
+    case 'ltx-fast': {
+      // LTX 2.3 Fast accepts an enumerated seconds string, not num_frames.
+      // Scene plans cap clips at 10s, so round up to avoid cutting the edit short.
+      const duration = durationSec <= 6 ? '6' : durationSec <= 8 ? '8' : '10';
       return {
-        num_frames: 121,
-       negative_prompt:
-  'text, words, letters, captions, subtitles, logos, watermarks, signs, labels, typography, written language, misspelled text, gibberish text, low quality, blurry, distorted faces',
+        duration,
+        resolution: '1080p',
+        fps: '25',
+        generate_audio: false,
+      };
+    }
+
+    case 'ltx':
+      // Legacy LTX model contract.
+      return {
+        num_frames: Math.min(Math.round(durationSec * 24) + 1, 481),
+        negative_prompt:
+          'text, words, letters, captions, subtitles, logos, watermarks, signs, labels, typography, written language, misspelled text, gibberish text, low quality, blurry, distorted faces',
       };
 
     case 'kling':
-      // Kling only accepts "5" or "10" as a string
-      return { duration: capped >= 8 ? '10' : '5' };
+      // Kling 3 Standard accepts every whole second from 3–15. Round up so the
+      // generated clip always covers its planned edit slot.
+      return { duration: String(Math.max(3, Math.ceil(capped))) };
 
     case 'wan':
       // Wan uses num_frames; ~13 fps, max 129 frames (~10s)
@@ -103,6 +114,79 @@ function buildModelParams(modelKey: string, durationSec: number): Record<string,
       // Ovi has no documented duration param — max is inherent in the model (~10s)
       return {};
   }
+}
+
+export interface FalSceneSubmission {
+  token: string;
+  requestId: string;
+  modelPath: string;
+}
+
+/** Pure payload builder for one persisted advert scene. */
+export function buildFalSceneRequest(input: {
+  prompt: string;
+  durationSeconds: number;
+  renderingModelId: string;
+  platform: string;
+  providerImageUrl?: string;
+}): { modelPath: string; input: Record<string, unknown> } {
+  if (!Number.isFinite(input.durationSeconds) || input.durationSeconds < 2.5 || input.durationSeconds > 10) {
+    throw new Error("Scene duration must be between 2.5 and 10 seconds");
+  }
+  if (!["ltx-fast", "kling"].includes(input.renderingModelId)) {
+    throw new Error("Full adverts support LTX 2.3 Fast or Kling 3 Standard");
+  }
+  const hasImage = Boolean(input.providerImageUrl);
+  const modelPath = getModelId(input.renderingModelId, hasImage);
+  const aspectRatio = input.platform === "tiktok" || input.platform === "instagram" ? "9:16" : "16:9";
+  const providerInput: Record<string, unknown> = {
+    prompt: sanitizeVisualPrompt(input.prompt),
+    ...buildModelParams(getModelKey(input.renderingModelId), input.durationSeconds),
+  };
+  // Kling image-to-video derives its frame shape from start_image_url and does
+  // not accept aspect_ratio. All other production scene endpoints do.
+  if (!(input.renderingModelId === "kling" && hasImage)) providerInput.aspect_ratio = aspectRatio;
+  if (input.renderingModelId === "kling") providerInput.generate_audio = false;
+  if (input.providerImageUrl) {
+    providerInput[input.renderingModelId === "kling" ? "start_image_url" : "image_url"] = input.providerImageUrl;
+  }
+  return { modelPath, input: providerInput };
+}
+
+/** Submit exactly one already-persisted scene. The caller stores this result on that scene row. */
+export async function submitFalSceneRender(input: {
+  prompt: string;
+  durationSeconds: number;
+  renderingModelId: string;
+  platform: string;
+  sourceAssetPath?: string | null;
+  webhookUrl: string;
+}): Promise<FalSceneSubmission> {
+  const falKey = process.env.FAL_KEY;
+  if (!falKey) throw new Error("FAL_KEY not configured");
+  if (!input.webhookUrl) throw new Error("Public fal webhook URL not configured");
+  const providerImageUrl = input.sourceAssetPath
+    ? await uploadImageToFal(input.sourceAssetPath, falKey)
+    : undefined;
+  const request = buildFalSceneRequest({ ...input, providerImageUrl });
+  fal.config({ credentials: falKey });
+  const enqueued = await (fal.queue as any).submit(request.modelPath, {
+    input: request.input,
+    webhookUrl: input.webhookUrl,
+  });
+  const requestId = String(enqueued.request_id ?? "");
+  if (!requestId) throw new Error("fal did not return a request id for the scene");
+  return {
+    requestId,
+    modelPath: request.modelPath,
+    token: buildFalQueueToken({
+      modelPath: request.modelPath,
+      requestId,
+      statusUrl: enqueued.status_url,
+      responseUrl: enqueued.response_url,
+      webhookRegistered: true,
+    }),
+  };
 }
 
 // Template-type specific cinematic direction

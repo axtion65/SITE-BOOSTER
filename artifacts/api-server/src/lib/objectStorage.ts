@@ -304,8 +304,21 @@ export interface VideoStorageIdentity {
   renderId: string;
 }
 
+export interface VideoProductionAssetIdentity extends VideoStorageIdentity {
+  sceneIndex?: number;
+}
+
 export function videoObjectName(identity: VideoStorageIdentity): string {
   return `videos/${safePathSegment(identity.userId)}/${safePathSegment(identity.projectId)}/${safePathSegment(identity.renderId)}.mp4`;
+}
+
+export function voiceoverObjectName(identity: VideoStorageIdentity): string {
+  return `video-production/${safePathSegment(identity.userId)}/${safePathSegment(identity.projectId)}/${safePathSegment(identity.renderId)}/voiceover.mp3`;
+}
+
+export function sceneVideoObjectName(identity: VideoProductionAssetIdentity): string {
+  if (!Number.isInteger(identity.sceneIndex) || identity.sceneIndex! < 0) throw new Error("Invalid scene index");
+  return `video-production/${safePathSegment(identity.userId)}/${safePathSegment(identity.projectId)}/${safePathSegment(identity.renderId)}/scene-${identity.sceneIndex}.mp4`;
 }
 
 /** Reject provider error documents and non-MP4 payloads before they reach storage. */
@@ -620,6 +633,34 @@ export class ObjectStorageService {
       `[objectStorage] Uploaded video buffer → s3://${storageConfig.bucket}/${objectName} (${buffer.length} bytes)`,
     );
 
+    return internalObjectPath(objectName);
+  }
+
+  /** Stores the voice track before any visual provider work is submitted. */
+  async uploadVoiceoverBuffer(buffer: Buffer, identity: VideoStorageIdentity): Promise<string> {
+    if (!buffer.length || buffer.length > 50 * 1024 * 1024) throw new Error("Voiceover payload is empty or too large");
+    const objectName = voiceoverObjectName(identity);
+    const objectFile = new S3ObjectFile(storageConfig.bucket, objectName);
+    const [alreadyStored] = await objectFile.exists();
+    if (!alreadyStored) {
+      await objectFile.save(buffer, { contentType: "audio/mpeg", cacheControl: "private, max-age=31536000" });
+      await setObjectAclPolicy(objectFile as any, { owner: identity.userId, visibility: "private" });
+    }
+    return internalObjectPath(objectName);
+  }
+
+  /** Archives one provider scene separately so completed work survives retries/restarts. */
+  async uploadSceneVideoFromUrl(videoUrl: string, identity: VideoProductionAssetIdentity): Promise<string> {
+    const objectName = sceneVideoObjectName(identity);
+    const objectFile = new S3ObjectFile(storageConfig.bucket, objectName);
+    const [alreadyStored] = await objectFile.exists();
+    if (alreadyStored) return internalObjectPath(objectName);
+    const response = await fetch(videoUrl, { signal: AbortSignal.timeout(180_000) });
+    if (!response.ok) throw new Error(`Provider scene download failed with HTTP ${response.status}`);
+    const buffer = await readBoundedBody(response);
+    validateVideoPayload(buffer, response.headers.get("content-type"));
+    await objectFile.save(buffer, { contentType: "video/mp4", cacheControl: "private, max-age=31536000" });
+    await setObjectAclPolicy(objectFile as any, { owner: identity.userId, visibility: "private" });
     return internalObjectPath(objectName);
   }
 

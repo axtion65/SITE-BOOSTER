@@ -20,7 +20,7 @@ import { approvedCampaignToStudio, campaignVideoIdempotencyKey, preparedVideoBri
 import { compilePreviewRenderBrief } from "@/lib/render-brief";
 import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
-import { normalizeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
+import { getProductionCreditCost, normalizeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -428,12 +428,12 @@ function Wizard() {
   const handleClearDraft = () => {
     clearDraft();
     setStep(1);
-    setModelId("wan");
+    setModelId("ltx-fast");
     setProductName("");
     setDescription("");
     setTargetAudience("");
     setPlatform("tiktok");
-    setDuration(normalizeClipLength("wan"));
+    setDuration(normalizeClipLength("ltx-fast"));
     setProductImageUrl(null);
     setImagePreviewUrl(null);
     setProductImageFileName(null);
@@ -569,7 +569,8 @@ function Wizard() {
   }
 
   function clipLabel(mId: string): string {
-    return `~${RENDERING_MODEL_BY_ID[mId]?.nativeDurationSeconds ?? 10} sec`;
+    void mId;
+    return `${parseDurationSec(duration)}-second complete advert`;
   }
 
   const planTierOrder = { free: 0, starter: 1, pro: 2, agency: 3 };
@@ -752,7 +753,7 @@ function Wizard() {
                     </Label>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Info className="h-3 w-3" />
-                      <span>Used by Wan &amp; Kling models for image conditioning</span>
+                      <span>Used by LTX 2.3 or Kling 3 for script-matched scene conditioning</span>
                     </div>
                   </div>
 
@@ -782,7 +783,7 @@ function Wizard() {
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">{productImageFileName}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Image ready — will be used with Wan &amp; Kling models</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Image ready — available to the full scene production plan</p>
                       </div>
                       <button
                         type="button"
@@ -804,7 +805,7 @@ function Wizard() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">Upload new visual</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to 10 MB. Enables image-to-video conditioning on Wan &amp; Kling.</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to 10 MB. Enables product-accurate LTX or Kling scenes.</p>
                       </div>
                     </button>
                   )}
@@ -841,14 +842,16 @@ function Wizard() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Clip length</Label>
+                    <Label>Advert length</Label>
                     <Select value={duration} onValueChange={setDuration}>
-                      <SelectTrigger aria-label="Clip length" className="border-white/20 bg-[#111C30] text-white focus:ring-violet-400"><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label="Advert length" className="border-white/20 bg-[#111C30] text-white focus:ring-violet-400"><SelectValue /></SelectTrigger>
                       <SelectContent sideOffset={8} className="border-white/20 bg-[#111C30] text-white shadow-2xl">
-                        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value={normalizeClipLength(modelId)}>Approximately {nativeDurationSeconds} seconds</SelectItem>
+                        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value="15s">15 seconds</SelectItem>
+                        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value="30s">30 seconds — recommended</SelectItem>
+                        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value="45s">45 seconds</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs leading-5 text-white/65">Longer ads will use multiple clips. Multi-clip production is coming soon.</p>
+                    <p className="text-xs leading-5 text-white/65">Quae builds several script-matched scenes, then assembles the exact-length advert with voiceover, captions, branding, and CTA.</p>
                   </div>
                 </div>
 
@@ -1062,7 +1065,7 @@ function Wizard() {
               <div className="grid gap-3 md:grid-cols-2" aria-label="Render intent">
                 <button type="button" onClick={() => setRenderIntent("create_new")} className={`rounded-xl border p-4 text-left ${renderIntent === "create_new" ? "border-primary bg-primary/10" : "border-white/10"}`}>
                   <strong className="block text-white">Create a new AI video</strong>
-                  <span className="text-xs text-muted-foreground">Uses your approved scene brief. No visual is sent to the provider.</span>
+                  <span className="text-xs text-muted-foreground">Builds each approved scene and uses owned business assets when available.</span>
                 </button>
                 <button type="button" disabled={!productImageUrl || !selectedModelSupportsImage} onClick={() => productImageUrl && selectedModelSupportsImage && setRenderIntent("animate")} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${renderIntent === "animate" ? "border-primary bg-primary/10" : "border-white/10"}`}>
                   <strong className="block text-white">Animate my selected visual</strong>
@@ -1070,12 +1073,10 @@ function Wizard() {
                 </button>
               </div>
 
-              {/* Honest clip-length notice — shown once above the grid */}
-              <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-amber-400/80 flex items-start gap-2">
-                <span className="text-amber-400 mt-0.5 flex-shrink-0">⚠</span>
+              <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-300/90 flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 flex-shrink-0" />
                 <span>
-                  <strong className="text-amber-400">AI video models generate short clips</strong> — output length is capped by the model, not your script duration.
-                  LTX outputs up to 5 sec, Ovi &amp; Wan up to 10 sec, Kling up to 10 sec, Veo 3 up to 8 sec. For longer ads, combine multiple renders.
+                  <strong className="text-emerald-300">Complete advert production</strong> — voiceover is measured first, every approved beat gets its own scene, and Quae assembles one exact 15, 30, or 45-second video.
                 </span>
               </div>
 
@@ -1084,7 +1085,7 @@ function Wizard() {
                 <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-white/70 flex items-start gap-2">
                   <ImagePlus className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                   <span>
-                    <strong className="text-white">Product image attached.</strong> Select <span className="text-primary font-medium">Wan</span> or <span className="text-primary font-medium">Kling</span> to use image conditioning — your product image will be used as the reference frame. Ovi is text-only and will ignore the image.
+                    <strong className="text-white">Product image attached.</strong> LTX 2.3 and Kling 3 can use it as the approved visual reference across the scene plan.
                   </span>
                 </div>
               )}
@@ -1093,7 +1094,7 @@ function Wizard() {
                 <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-xs text-white/50 flex items-start gap-2">
                   <Info className="h-4 w-4 text-slate-400 mt-0.5 flex-shrink-0" />
                   <span>
-                    No product image attached. <button type="button" onClick={() => setStep(1)} className="text-primary hover:underline">Go back to add one</button> — Wan &amp; Kling can use your product image as a reference for more accurate video output.
+                    No product image attached. <button type="button" onClick={() => setStep(1)} className="text-primary hover:underline">Go back to add one</button>, or Quae will use approved assets already saved to the business when available.
                   </span>
                 </div>
               )}
@@ -1160,14 +1161,14 @@ function Wizard() {
                             <span key={ci} className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-white/50 border border-white/10">{cap}</span>
                           ))}
                         </div>
-                        {/* Clip length — prominent, honest */}
+                        {/* Complete customer output length */}
                         <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/8 text-[11px] text-white/50">
-                          Output clip: <span className="text-white font-bold">{clipLen}</span>
+                          Output: <span className="text-white font-bold">{clipLen}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
                             <Zap className="h-4 w-4 text-primary" />
-                            <span className="font-black text-white text-lg">{(model as any).creditCost ?? 30}</span>
+                            <span className="font-black text-white text-lg">{getProductionCreditCost(model.id, duration)}</span>
                             <span className="text-muted-foreground text-sm">credits</span>
                           </div>
                           {!canUse && (
@@ -1195,7 +1196,7 @@ function Wizard() {
                   </div>
                   <div className="flex items-center gap-1.5 text-sm">
                     <Zap className="h-4 w-4 text-primary" />
-                    <span className="text-white font-bold">{(selectedModel as any).creditCost ?? 30}</span>
+                    <span className="text-white font-bold">{getProductionCreditCost(selectedModel.id, duration)}</span>
                     <span className="text-muted-foreground">/ {userCredits} credits remaining</span>
                   </div>
                 </div>
@@ -1258,12 +1259,11 @@ function Wizard() {
                 <Button variant="outline" onClick={() => setStep(3)}>Back</Button>
               </div>
 
-              {/* Honest clip-length banner */}
-              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+              <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3">
                 <span className="text-xl flex-shrink-0 mt-0.5">🎬</span>
                 <div className="space-y-1">
-                  <p className="font-semibold text-white">You'll receive a <span className="text-amber-300">{clipLabel(modelId)}</span> AI-generated clip</p>
-                  <p className="text-sm text-amber-400/80">Longer ads will use multiple clips. Multi-clip production is coming soon.</p>
+                  <p className="font-semibold text-white">You'll receive a <span className="text-emerald-300">{clipLabel(modelId)}</span> matched to the approved script</p>
+                  <p className="text-sm text-emerald-300/80">Voiceover first, one generated shot per approved beat, then deterministic captions, brand end card, and exact-length assembly.</p>
                 </div>
               </div>
 
@@ -1345,35 +1345,15 @@ function Wizard() {
               {(() => {
                 const modelExamples: Record<string, { label: string; description: string; videoUrl?: string }> = {
                   "ltx-fast": {
-                    label: "Fast Draft — LTX Fast",
-                    description: "Renders in ~30 seconds using LTX 2.3 Fast. Stylized clips up to 5 sec — ideal for rapid concept drafts before committing to a premium render.",
-                  },
-                  ltx: {
-                    label: "LTX Video",
-                    description: "Fast, stylized clips up to 5 sec. Great for concept visualization with a dreamlike quality.",
-                  },
-                  ovi: {
-                    label: "Ovi",
-                    description: "Smooth, cinematic clips up to 10 sec with native audio. Best all-rounder for product ads.",
-                  },
-                  wan: {
-                    label: "Wan 2.5",
-                    description: "Fluid clips up to 10 sec with excellent motion. Supports image conditioning for product-accurate frames.",
+                    label: "Business Ad — LTX 2.3 Fast",
+                    description: "Several fast, script-specific visual scenes assembled into one complete advert with measured voiceover, captions, branding, and CTA.",
                   },
                   kling: {
-                    label: "Kling 2.5",
-                    description: "Cinematic clips up to 10 sec with high detail and realistic movement. May queue at peak hours — use Wan 2.5 for reliability.",
-                  },
-                  "kling-1.6": {
-                    label: "Kling 1.6",
-                    description: "Cinematic clips up to 10 sec with high detail and realistic movement. May queue at peak hours — use Wan 2.5 for reliability.",
-                  },
-                  veo3: {
-                    label: "Veo 3",
-                    description: "Google's flagship model — clips up to 8 sec with exceptional realism and production quality.",
+                    label: "Premium Ad — Kling 3",
+                    description: "Higher-fidelity, script-specific scenes assembled into one complete advert with measured voiceover, captions, branding, and CTA.",
                   },
                 };
-                const example = modelExamples[modelId] ?? modelExamples.ovi;
+                const example = modelExamples[modelId] ?? modelExamples["ltx-fast"]!;
                 return (
                   <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
                     <div className="px-4 py-3 border-b border-border flex items-center gap-2">
@@ -1421,7 +1401,7 @@ function Wizard() {
 
               {/* Cost summary + CTA */}
               {(() => {
-                const renderCost = (selectedModel as any)?.creditCost ?? 30;
+                const renderCost = getProductionCreditCost(selectedModel?.id ?? modelId, duration);
                 const afterBalance = userCredits - renderCost;
                 const needsConfirm = true;
                 return (
@@ -1429,7 +1409,7 @@ function Wizard() {
                     <div className="flex items-center justify-between flex-wrap gap-3">
                       <div className="space-y-0.5">
                         <p className="text-sm text-muted-foreground">
-                          Model: <span className="text-white font-semibold">{selectedModel?.name ?? "Ovi"}</span>
+                          Model: <span className="text-white font-semibold">{selectedModel?.name ?? "Business Ad — LTX 2.3 Fast"}</span>
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Cost: <span className={`font-bold ${isAdminUser ? "text-green-400" : "text-amber-400"}`}>{isAdminUser ? "FREE (admin)" : `${renderCost} credits`}</span>
@@ -1481,7 +1461,7 @@ function Wizard() {
 
       {/* Credit confirmation dialog — shown for high-cost models */}
       {step === 4 && selectedModel && (() => {
-        const renderCost = (selectedModel as any)?.creditCost ?? 30;
+        const renderCost = getProductionCreditCost(selectedModel.id, duration);
         const afterBalance = userCredits - renderCost;
         return (
           <Dialog open={showRenderConfirm} onOpenChange={setShowRenderConfirm}>

@@ -8,6 +8,7 @@ import { pool } from "@workspace/db";
 import { bootstrapAdminFromEnvironment } from "./lib/adminBootstrap";
 import { runSqlMigrations } from "./lib/migrations";
 import { verifyMockupPersistenceBeforeTraffic } from "./lib/mockupPersistenceInvariant";
+import { startVideoProductionWorker } from "./lib/videoProduction";
 
 // Idempotent schema migration — runs before the server accepts requests.
 // Safe to run on every startup: CREATE/ALTER IF NOT EXISTS never destroys data.
@@ -167,6 +168,7 @@ const server = app.listen(port, (err) => {
   startEmailQueueWorker();
   startCampaignWorker();
   startMockupWorker();
+  startVideoProductionWorker();
 });
 
 // Graceful shutdown — release the port cleanly before the process exits.

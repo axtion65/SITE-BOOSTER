@@ -262,7 +262,7 @@ export const ListProjectsResponseItem = zod.object({
   "userId": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']),
+  "status": zod.enum(['draft', 'preparing', 'processing', 'assembling', 'narrating', 'completed', 'failed']),
   "renderingModelId": zod.string(),
   "script": zod.string().nullish(),
   "expandedScript": zod.string().nullish(),
@@ -311,7 +311,7 @@ export const CreateProjectResponse = zod.object({
   "userId": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']),
+  "status": zod.enum(['draft', 'preparing', 'processing', 'assembling', 'narrating', 'completed', 'failed']),
   "renderingModelId": zod.string(),
   "script": zod.string().nullish(),
   "expandedScript": zod.string().nullish(),
@@ -340,7 +340,7 @@ export const GetProjectResponse = zod.object({
   "userId": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']),
+  "status": zod.enum(['draft', 'preparing', 'processing', 'assembling', 'narrating', 'completed', 'failed']),
   "renderingModelId": zod.string(),
   "script": zod.string().nullish(),
   "expandedScript": zod.string().nullish(),
@@ -372,7 +372,7 @@ export const UpdateProjectBody = zod.object({
   "expandedScript": zod.string().nullish(),
   "platform": zod.string().nullish(),
   "duration": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']).optional(),
+  "status": zod.enum(['draft', 'preparing', 'processing', 'assembling', 'narrating', 'completed', 'failed']).optional(),
   "voiceId": zod.string().nullish()
 })
 
@@ -381,7 +381,7 @@ export const UpdateProjectResponse = zod.object({
   "userId": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['draft', 'processing', 'narrating', 'completed', 'failed']),
+  "status": zod.enum(['draft', 'preparing', 'processing', 'assembling', 'narrating', 'completed', 'failed']),
   "renderingModelId": zod.string(),
   "script": zod.string().nullish(),
   "expandedScript": zod.string().nullish(),
@@ -509,5 +509,4 @@ export const DeleteAdminUserParams = zod.object({
 export const DeleteAdminUserResponse = zod.object({
   "success": zod.boolean()
 })
-
 
