@@ -222,6 +222,13 @@ export const ProjectInputRenderIntent = {
 } as const;
 
 export interface ProjectInput {
+  /** @nullable */
+  campaignId?: string | null;
+  /** @nullable */
+  campaignVideoBriefId?: string | null;
+  confirmed?: boolean;
+  /** @maxLength 200 */
+  idempotencyKey?: string;
   title: string;
   /** @nullable */
   description?: string | null;

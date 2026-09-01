@@ -283,7 +283,15 @@ export const ListProjectsResponse = zod.array(ListProjectsResponseItem)
 /**
  * @summary Create a new video project
  */
+export const createProjectBodyIdempotencyKeyMax = 200;
+
+
+
 export const CreateProjectBody = zod.object({
+  "campaignId": zod.string().nullish(),
+  "campaignVideoBriefId": zod.string().nullish(),
+  "confirmed": zod.boolean().optional(),
+  "idempotencyKey": zod.string().max(createProjectBodyIdempotencyKeyMax).optional(),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "renderingModelId": zod.string(),

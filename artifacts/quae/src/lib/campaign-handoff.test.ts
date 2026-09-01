@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   approvedCampaignToStudio,
+  campaignVideoIdempotencyKey,
   preparedVideoBriefToStudio,
   shouldRestoreStudioDraft,
 } from "./campaign-handoff";
@@ -76,6 +77,8 @@ test("approved campaign handoff populates Creative from the authoritative approv
 test("campaign handoff takes precedence over an unrelated saved draft", () => {
   assert.equal(shouldRestoreStudioDraft("?campaignId=campaign-1"), false);
 });
+
+test("campaign video retries reuse one run-scoped key for both supported render paths",()=>{const base={campaignId:"campaign-1",approvedRunId:"run-2",briefId:null,renderIntent:"create_new" as const,modelId:"kling",duration:"10s"};const key=campaignVideoIdempotencyKey(base);assert.equal(key,campaignVideoIdempotencyKey(base));assert.match(String(key),/run-2:create_new:approved-copy:kling:10s/);assert.notEqual(key,campaignVideoIdempotencyKey({...base,briefId:"brief-1",renderIntent:"animate"}));assert.equal(campaignVideoIdempotencyKey({...base,campaignId:null}),null);});
 
 test("unapproved and invalid campaign payloads are rejected", () => {
   for (const status of [
