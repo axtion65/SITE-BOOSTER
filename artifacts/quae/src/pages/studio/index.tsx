@@ -785,7 +785,7 @@ function Wizard() {
                     </Label>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Info className="h-3 w-3" />
-                      <span>Used by LTX 2.3 or Kling 3 for script-matched scene conditioning</span>
+                      <span>Helps Quae create product-accurate scenes</span>
                     </div>
                   </div>
 
@@ -841,7 +841,7 @@ function Wizard() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">Upload new visual</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to 10 MB. Enables product-accurate LTX or Kling scenes.</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to 10 MB. Helps Quae create accurate scenes.</p>
                       </div>
                     </button>
                   )}
