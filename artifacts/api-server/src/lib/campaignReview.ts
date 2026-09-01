@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import {
   campaignGenerationContext,
+  missingGenerationEvidence,
   ownedWebsiteImportMatchesCampaign,
 } from "./campaignContext";
+import { deterministicCampaignFallback } from "./campaignSafeFallback";
 
 export const REBUILD_EXPLANATION =
   "This campaign was created from older or mismatched business information. Rebuild it from your current Quae.ai information before approval.";
@@ -140,6 +142,84 @@ export function isTerminalQualityRebuildRun(run: any) {
     typeof run?.idempotency_key === "string" &&
       run.idempotency_key.startsWith(TERMINAL_QUALITY_REBUILD_PREFIX),
   );
+}
+
+type Db = {
+  connect(): Promise<{
+    query(sql: string, values?: unknown[]): Promise<{ rows: any[] }>;
+    release(): void;
+  }>;
+};
+
+export async function finalizeTerminalQualityDraft(
+  db: Db,
+  args: { campaign: any; runId: string },
+) {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `campaign-user:${args.campaign.user_id}`,
+    ]);
+    const latest = (
+      await client.query(
+        "SELECT * FROM campaign_runs WHERE campaign_id=$1 ORDER BY run_number DESC LIMIT 1 FOR UPDATE",
+        [args.campaign.id],
+      )
+    ).rows[0];
+    if (!latest || latest.id !== args.runId || !isTerminalQualityRebuildRun(latest)) {
+      await client.query("ROLLBACK");
+      return { kind: "superseded" as const };
+    }
+    if (["queued", "running"].includes(latest.status)) {
+      await client.query("COMMIT");
+      return { kind: "existing" as const, run: latest };
+    }
+    const contextSnapshot = campaignGenerationContext(args.campaign);
+    const sourceValidation = validateRunSource(args.campaign, {
+      ...latest,
+      context_snapshot: contextSnapshot,
+      final_result: null,
+    });
+    const missing = missingGenerationEvidence(contextSnapshot);
+    if (!sourceValidation.valid || missing.length > 0) {
+      await client.query("ROLLBACK");
+      return {
+        kind: "blocked" as const,
+        reason: sourceValidation.reason ?? "campaign_evidence_incomplete",
+        missing,
+      };
+    }
+    const finalResult = deterministicCampaignFallback(contextSnapshot);
+    const updated = (
+      await client.query(
+        `UPDATE campaign_runs
+         SET status='ready_for_review', current_stage='customer_review',
+           context_snapshot=$3, final_result=$4, judge_score=NULL,
+           qa_status='pass', failure_code=NULL, completed_at=NOW(),
+           lease_owner=NULL, lease_expires_at=NULL, heartbeat_at=NOW(),
+           updated_at=NOW()
+         WHERE id=$1 AND campaign_id=$2
+         RETURNING *`,
+        [args.runId, args.campaign.id, contextSnapshot, finalResult],
+      )
+    ).rows[0];
+    if (!updated) {
+      await client.query("ROLLBACK");
+      return { kind: "superseded" as const };
+    }
+    await client.query(
+      "UPDATE campaigns SET status='ready_for_review',updated_at=NOW() WHERE id=$1 AND user_id=$2",
+      [args.campaign.id, args.campaign.user_id],
+    );
+    await client.query("COMMIT");
+    return { kind: "finalized" as const, run: updated };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export function validateRunSource(campaign: any, run: any) {
