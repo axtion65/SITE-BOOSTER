@@ -17,6 +17,7 @@ import { ObjectPermission } from "../lib/objectAcl";
 import { deriveApprovedTextVideoBrief } from "../lib/campaignAssets";
 import { startVideoProduction } from "../lib/videoProduction";
 import { VIDEO_PRODUCTION_VERSION } from "../lib/videoProductionPlan";
+import { normalizeProjectSubmissionBody, projectValidationIssueFields } from "../lib/projectSubmission";
 
 /** Log every field PostgreSQL/Drizzle exposes on a DB error. */
 function logDbError(context: string, err: any): void {
@@ -283,11 +284,16 @@ router.post("/projects", async (req, res) => {
   const userId = await getUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
 
-  const parsed = CreateProjectBody.safeParse(req.body);
+  const parsed = CreateProjectBody.safeParse(normalizeProjectSubmissionBody(req.body));
   const campaignId = typeof req.body?.campaignId === "string" ? req.body.campaignId : null;
   const campaignVideoBriefId = typeof req.body?.campaignVideoBriefId === "string" ? req.body.campaignVideoBriefId : null;
   const idempotencyKey = String(req.headers["idempotency-key"] || req.body?.idempotencyKey || "").trim();
-  if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+  if (!parsed.success) {
+    const fields = projectValidationIssueFields(parsed.error.issues);
+    logger.warn({ context: "create_project_validation_failed", fields }, "Project submission failed validation");
+    res.status(400).json({ error: `Invalid project fields: ${fields.join(", ")}` });
+    return;
+  }
 
   if (!idempotencyKey || idempotencyKey.length > 200) {
     res.status(400).json({ error: "Idempotency-Key is required" }); return;
