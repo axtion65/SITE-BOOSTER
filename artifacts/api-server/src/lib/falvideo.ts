@@ -405,9 +405,43 @@ function isTrustedFalQueueUrl(value: unknown): value is string {
   }
 }
 
+function canonicalFalQueueUrl(
+  value: unknown,
+  requestId: string,
+  operation: "status" | "response",
+): string | undefined {
+  if (!isTrustedFalQueueUrl(value)) return undefined;
+
+  const url = new URL(value);
+  const segments = url.pathname.split("/").filter(Boolean);
+  const requestIndex = segments.lastIndexOf("requests");
+  if (
+    requestIndex < 1
+    || segments[requestIndex + 1] !== requestId
+    || segments.length > requestIndex + 3
+  ) {
+    return undefined;
+  }
+
+  const suppliedOperation = segments[requestIndex + 2];
+  if (suppliedOperation && suppliedOperation !== "status" && suppliedOperation !== "response") {
+    return undefined;
+  }
+
+  url.pathname = `/${[
+    ...segments.slice(0, requestIndex + 2),
+    operation,
+  ].join("/")}`;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
 export function buildFalQueueToken(input: FalQueueToken): string {
-  if (isTrustedFalQueueUrl(input.statusUrl) && isTrustedFalQueueUrl(input.responseUrl)) {
-    return `fal2:${input.requestId}|||${input.statusUrl}|||${input.responseUrl}`;
+  const statusUrl = canonicalFalQueueUrl(input.statusUrl, input.requestId, "status");
+  const responseUrl = canonicalFalQueueUrl(input.responseUrl, input.requestId, "response");
+  if (statusUrl && responseUrl) {
+    return `fal2:${input.requestId}|||${statusUrl}|||${responseUrl}`;
   }
   return `fal:${input.modelPath}:${input.requestId}`;
 }
@@ -483,9 +517,11 @@ export function parseFalQueueToken(
   token: string,
 ): FalQueueToken | null {
   if (token.startsWith("fal2:")) {
-    const [requestSegment, statusUrl, responseUrl] = token.split("|||");
+    const [requestSegment, rawStatusUrl, rawResponseUrl] = token.split("|||");
     const requestId = requestSegment.substring("fal2:".length);
-    if (!requestId || !isTrustedFalQueueUrl(statusUrl) || !isTrustedFalQueueUrl(responseUrl)) {
+    const statusUrl = canonicalFalQueueUrl(rawStatusUrl, requestId, "status");
+    const responseUrl = canonicalFalQueueUrl(rawResponseUrl, requestId, "response");
+    if (!requestId || !statusUrl || !responseUrl) {
       return null;
     }
     const marker = `/requests/${requestId}`;
@@ -550,7 +586,7 @@ export async function pollFalVideoRender(
       ? await fetchFalQueueJson(parsed.statusUrl, falKey, fetchImpl)
       : await status(modelPath, { requestId, logs: true });
     pollStatus = statusRes?.status ?? 'UNKNOWN';
-    if (isTrustedFalQueueUrl(statusRes?.response_url)) responseUrl = statusRes.response_url;
+    responseUrl = canonicalFalQueueUrl(statusRes?.response_url, requestId, "response") ?? responseUrl;
   } catch (err: any) {
     const httpStatus = err?.status ?? 0;
     const body = err?.body ?? err?.message ?? String(err);
