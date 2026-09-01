@@ -21,12 +21,20 @@ const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
 export const persistedMarketingObjectOwnersQuery = `
+  WITH requested_paths AS (
+    SELECT path
+    FROM UNNEST(ARRAY[
+      $2::TEXT,
+      '/api/storage' || $2::TEXT,
+      REGEXP_REPLACE($2::TEXT, '^/objects/', '')
+    ]) AS path
+  )
   SELECT COALESCE(BOOL_AND(owner_id = $1), FALSE) AS owned
   FROM (
     SELECT mp.user_id AS owner_id
     FROM mockup_versions mv
     JOIN mockup_projects mp ON mp.id = mv.mockup_project_id
-    WHERE mv.object_path = $2
+    WHERE mv.object_path IN (SELECT path FROM requested_paths)
 
     UNION ALL
 
@@ -34,27 +42,28 @@ export const persistedMarketingObjectOwnersQuery = `
     FROM product_images pi
     JOIN products p ON p.id = pi.product_id
     JOIN businesses b ON b.id = p.business_id
-    WHERE pi.object_path = $2
+    WHERE pi.object_path IN (SELECT path FROM requested_paths)
 
     UNION ALL
 
     SELECT b.user_id AS owner_id
     FROM brand_kits bk
     JOIN businesses b ON b.id = bk.business_id
-    WHERE bk.logo_object_path = $2 OR bk.secondary_logo_object_path = $2
+    WHERE bk.logo_object_path IN (SELECT path FROM requested_paths)
+       OR bk.secondary_logo_object_path IN (SELECT path FROM requested_paths)
 
     UNION ALL
 
     SELECT b.user_id AS owner_id
     FROM brand_models bm
     JOIN businesses b ON b.id = bm.business_id
-    WHERE bm.reference_object_paths @> JSONB_BUILD_ARRAY($2::TEXT)
+    WHERE bm.reference_object_paths ?| ARRAY(SELECT path FROM requested_paths)
 
     UNION ALL
 
     SELECT p.user_id AS owner_id
     FROM projects p
-    WHERE p.product_image_url = $2
+    WHERE p.product_image_url IN (SELECT path FROM requested_paths)
   ) persisted_owners
 `;
 
