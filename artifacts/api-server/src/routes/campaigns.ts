@@ -32,12 +32,15 @@ import {
   publicCampaignResult,
   publicCampaignRun,
   canRecoverCampaignRun,
+  isLegacyCompletedQualityReview,
   isCurrentRecoveryRun,
   isFailedRecoveryRun,
+  isTerminalQualityRebuildRun,
   recoveryIdempotencyKey,
   REBUILD_EXPLANATION,
   SOURCE_REPAIR_EXPLANATION,
   repairableRunBehindFailures,
+  terminalQualityRebuildIdempotencyKey,
   validateRunSource,
 } from "../lib/campaignReview";
 import { logger } from "../lib/logger";
@@ -527,6 +530,27 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
   ).rows;
   const latest = runs[0];
   const repairSource = repairableRunBehindFailures(campaign, runs);
+  const terminalQualityRebuild = Boolean(
+    latest &&
+      isLegacyCompletedQualityReview(latest) &&
+      !repairSource,
+  );
+  if (isTerminalQualityRebuildRun(latest)) {
+    if (["queued", "running"].includes(latest.status)) {
+      res.json(
+        publicCampaignRun(latest, validateRunSource(campaign, latest).valid),
+      );
+      return;
+    }
+    if (latest.status === "failed") {
+      res.status(409).json({
+        error:
+          "This campaign stopped after its one safe rebuild. No additional work was started.",
+        code: "campaign_recovery_failed",
+      });
+      return;
+    }
+  }
   if (isFailedRecoveryRun(latest)) {
     if (["queued", "running"].includes(latest.status)) {
       res.json(
@@ -534,7 +558,11 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
       );
       return;
     }
-    if (isCurrentRecoveryRun(latest) && !repairSource) {
+    if (
+      isCurrentRecoveryRun(latest) &&
+      !repairSource &&
+      !terminalQualityRebuild
+    ) {
       const resumed = await resumeFailedCampaignRun(pool, {
         campaign,
         runId: latest.id,
@@ -665,7 +693,9 @@ router.post("/campaigns/:id/rebuild", async (req, res) => {
     });
     return;
   }
-  const key = recoveryIdempotencyKey(campaign, latest);
+  const key = terminalQualityRebuild
+    ? terminalQualityRebuildIdempotencyKey(campaign, latest)
+    : recoveryIdempotencyKey(campaign, latest);
   const existing = (
     await pool.query(
       "SELECT * FROM campaign_runs WHERE campaign_id=$1 AND idempotency_key=$2",
