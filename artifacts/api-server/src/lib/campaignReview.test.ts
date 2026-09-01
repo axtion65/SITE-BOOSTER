@@ -13,8 +13,11 @@ import {
   isCurrentRecoveryRun,
   isCompletedQualityReviewDraft,
   isFailedRecoveryRun,
+  isLegacyCompletedQualityReview,
+  isTerminalQualityRebuildRun,
   recoveryIdempotencyKey,
   repairableRunBehindFailures,
+  terminalQualityRebuildIdempotencyKey,
   validateRunSource,
 } from "./campaignReview";
 
@@ -322,7 +325,6 @@ test("completed legacy quality review is a focused-repair draft, not a crash", (
     current_stage: "quality_review_failed",
     failure_code: null,
     retry_count: 0,
-    qa_status: "failed",
     idempotency_key:
       "failed-recovery:owned-context-v4:quality-draft:source-rebuild:key",
     context_snapshot: {
@@ -333,6 +335,7 @@ test("completed legacy quality review is a focused-repair draft, not a crash", (
   };
 
   assert.equal(isCompletedQualityReviewDraft(draft), true);
+  assert.equal(isLegacyCompletedQualityReview(draft), true);
   assert.deepEqual(validateRunSource(campaign, draft), {
     valid: false,
     reason: "source_mismatch",
@@ -345,6 +348,33 @@ test("completed legacy quality review is a focused-repair draft, not a crash", (
       failure_code: "PIPELINE_PERMANENT_FAILURE",
     }),
     false,
+  );
+});
+
+test("unsafe completed quality output receives one stable fresh rebuild identity", () => {
+  const legacy = {
+    id: "unsafe-quality-draft",
+    status: "failed",
+    current_stage: "quality_review_failed",
+    failure_code: null,
+    retry_count: 0,
+    idempotency_key:
+      "failed-recovery:owned-context-v4:unsafe-quality-draft:key",
+    final_result: {
+      finalScript: { script: '{"evidenceIds":["internal"]}' },
+    },
+  };
+  assert.equal(isLegacyCompletedQualityReview(legacy), true);
+  assert.equal(isCompletedQualityReviewDraft(legacy), false);
+  const key = terminalQualityRebuildIdempotencyKey(campaign, legacy);
+  assert.match(key, /^terminal-quality-rebuild:v1:unsafe-quality-draft:/);
+  assert.equal(isTerminalQualityRebuildRun({ idempotency_key: key }), true);
+  assert.equal(
+    terminalQualityRebuildIdempotencyKey(
+      structuredClone(campaign),
+      structuredClone(legacy),
+    ),
+    key,
   );
 });
 

@@ -11,6 +11,7 @@ export const SOURCE_REPAIR_EXPLANATION =
 
 export const CAMPAIGN_RECOVERY_REVISION = "owned-context-v4";
 const CURRENT_RECOVERY_PREFIX = `failed-recovery:${CAMPAIGN_RECOVERY_REVISION}:`;
+const TERMINAL_QUALITY_REBUILD_PREFIX = "terminal-quality-rebuild:v1:";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -109,16 +110,35 @@ export function publicCampaignResult(value: unknown) {
   return Object.values(projected.finalScript).some(Boolean) ? projected : null;
 }
 
-export function isCompletedQualityReviewDraft(run: any) {
+export function isLegacyCompletedQualityReview(run: any) {
   return Boolean(
     run?.status === "failed" &&
       run?.current_stage === "quality_review_failed" &&
       run?.failure_code == null &&
       Number(run?.retry_count ?? 0) === 0 &&
-      run?.qa_status === "failed" &&
       typeof run?.idempotency_key === "string" &&
-      run.idempotency_key.startsWith(CURRENT_RECOVERY_PREFIX) &&
+      run.idempotency_key.startsWith(CURRENT_RECOVERY_PREFIX),
+  );
+}
+
+export function isCompletedQualityReviewDraft(run: any) {
+  return Boolean(
+    isLegacyCompletedQualityReview(run) &&
       publicCampaignResult(run?.final_result) !== null,
+  );
+}
+
+export function terminalQualityRebuildIdempotencyKey(
+  campaign: any,
+  run: any,
+) {
+  return `${TERMINAL_QUALITY_REBUILD_PREFIX}${run.id}:${rebuildIdempotencyKey(campaign)}`;
+}
+
+export function isTerminalQualityRebuildRun(run: any) {
+  return Boolean(
+    typeof run?.idempotency_key === "string" &&
+      run.idempotency_key.startsWith(TERMINAL_QUALITY_REBUILD_PREFIX),
   );
 }
 
