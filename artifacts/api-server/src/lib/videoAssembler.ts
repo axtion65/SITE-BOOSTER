@@ -22,38 +22,125 @@ export interface BusinessAdvertRenderInput {
   };
 }
 
-function srtTime(milliseconds: number): string {
+function assTime(milliseconds: number): string {
   const safe = Math.max(0, Math.round(milliseconds));
   const hours = Math.floor(safe / 3_600_000);
   const minutes = Math.floor((safe % 3_600_000) / 60_000);
   const seconds = Math.floor((safe % 60_000) / 1000);
-  const millis = safe % 1000;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")},${String(millis).padStart(3, "0")}`;
+  const centiseconds = Math.floor((safe % 1000) / 10);
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}`;
 }
 
 function subtitleText(value: string): string {
-  return value.replace(/\r?\n/g, " ").replace(/-->/g, "→").trim();
+  return value
+    .replace(/\r?\n/g, " ")
+    .replace(/\\/g, "＼")
+    .replace(/{/g, "｛")
+    .replace(/}/g, "｝")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function wrapLines(value: string, maximumCharacters: number): string[] {
+  const words = subtitleText(value).split(" ").filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if (word.length > maximumCharacters) {
+      if (line) {
+        lines.push(line);
+        line = "";
+      }
+      for (let offset = 0; offset < word.length; offset += maximumCharacters) {
+        const segment = word.slice(offset, offset + maximumCharacters);
+        if (segment.length === maximumCharacters || offset + maximumCharacters < word.length) lines.push(segment);
+        else line = segment;
+      }
+      continue;
+    }
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length <= maximumCharacters) line = candidate;
+    else {
+      if (line) lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function captionPhrases(value: string, maximumCharacters: number): string[] {
+  const words = subtitleText(value).split(" ").filter(Boolean);
+  const phrases: string[] = [];
+  let phrase: string[] = [];
+  const pushPhrase = (candidate: string[]) => {
+    const lines = wrapLines(candidate.join(" "), maximumCharacters);
+    for (let index = 0; index < lines.length; index += 2) phrases.push(lines.slice(index, index + 2).join("\\N"));
+  };
+  for (const word of words) {
+    const candidate = [...phrase, word];
+    const tooManyWords = candidate.length > 6;
+    const tooManyLines = wrapLines(candidate.join(" "), maximumCharacters).length > 2;
+    if (phrase.length && (tooManyWords || tooManyLines)) {
+      pushPhrase(phrase);
+      phrase = [word];
+    } else {
+      phrase = candidate;
+    }
+  }
+  if (phrase.length) pushPhrase(phrase);
+  return phrases;
 }
 
 export function buildAdvertSubtitles(input: BusinessAdvertRenderInput): string {
-  const entries: string[] = [];
-  const captions = input.scenes.map((scene) => scene.caption.trim()).filter(Boolean);
-  const weights = captions.map((caption) => Math.max(1, caption.split(/\s+/).length));
+  const captionFontSize = clamp(Math.round(input.width * 0.048), 16, 52);
+  const endCardFontSize = clamp(Math.round(input.width * 0.055), 18, 60);
+  const horizontalMargin = Math.round(input.width * 0.09);
+  const captionBottomMargin = Math.round(input.height * 0.16);
+  const captionCharacters = Math.max(16, Math.floor((input.width - horizontalMargin * 2) / (captionFontSize * 0.56)));
+  const endCardCharacters = Math.max(14, Math.floor((input.width - horizontalMargin * 2) / (endCardFontSize * 0.56)));
+  const phrases = input.scenes.flatMap((scene) => captionPhrases(scene.caption, captionCharacters));
+  const weights = phrases.map((phrase) => Math.max(1, phrase.replace(/\\N/g, " ").split(/\s+/).length));
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const events: string[] = [];
   let captionStart = 0;
-  for (let index = 0; index < captions.length; index++) {
-    const isLast = index === captions.length - 1;
+  for (let index = 0; index < phrases.length; index++) {
+    const isLast = index === phrases.length - 1;
     const duration = isLast
       ? input.voiceoverDurationMs - captionStart
       : Math.round(input.voiceoverDurationMs * weights[index]! / totalWeight);
     const captionEnd = captionStart + duration;
-    entries.push(`${entries.length + 1}\n${srtTime(captionStart)} --> ${srtTime(captionEnd)}\n${subtitleText(captions[index]!)}\n`);
+    events.push(`Dialogue: 0,${assTime(captionStart)},${assTime(captionEnd)},Caption,,0,0,0,,${phrases[index]!}`);
     captionStart = captionEnd;
   }
   const start = input.scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
-  const endCard = [input.brand.name, input.brand.callToAction, input.brand.website].filter(Boolean).map((line) => subtitleText(String(line))).join("\n");
-  entries.push(`${entries.length + 1}\n${srtTime(start)} --> ${srtTime(input.targetDurationSeconds * 1000)}\n${endCard}\n`);
-  return entries.join("\n");
+  const endCard = [input.brand.name, input.brand.callToAction, input.brand.website]
+    .filter(Boolean)
+    .flatMap((line) => wrapLines(String(line), endCardCharacters))
+    .join("\\N");
+  events.push(`Dialogue: 0,${assTime(start)},${assTime(input.targetDurationSeconds * 1000)},EndCard,,0,0,0,,${endCard}`);
+  return [
+    "[Script Info]",
+    "ScriptType: v4.00+",
+    `PlayResX: ${input.width}`,
+    `PlayResY: ${input.height}`,
+    "WrapStyle: 2",
+    "ScaledBorderAndShadow: yes",
+    "",
+    "[V4+ Styles]",
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+    `Style: Caption,DejaVu Sans,${captionFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,3,2,0,2,${horizontalMargin},${horizontalMargin},${captionBottomMargin},1`,
+    `Style: EndCard,DejaVu Sans,${endCardFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,2,0,5,${horizontalMargin},${horizontalMargin},${Math.round(input.height * 0.1)},1`,
+    "",
+    "[Events]",
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ...events,
+    "",
+  ].join("\n");
 }
 
 function safeColor(value: string | null | undefined): string {
@@ -87,7 +174,7 @@ export async function renderBusinessAdvert(input: BusinessAdvertRenderInput): Pr
   if (input.scenes.reduce((sum, scene) => sum + scene.durationMs, 0) !== expectedVisualMs) throw new Error("Scene timeline does not reserve the exact three-second end card");
   const directory = await mkdtemp(path.join(tmpdir(), "quae-assemble-"));
   const audioPath = path.join(directory, "voiceover.mp3");
-  const subtitlePath = path.join(directory, "captions.srt");
+  const subtitlePath = path.join(directory, "captions.ass");
   const outputPath = path.join(directory, "advert.mp4");
   try {
     const scenePaths = input.scenes.map((_, index) => path.join(directory, `scene-${index}.mp4`));
@@ -110,7 +197,7 @@ export async function renderBusinessAdvert(input: BusinessAdvertRenderInput): Pr
     filters.push(`[${endCardInput}:v]trim=duration=3,setpts=PTS-STARTPTS,format=yuv420p[vend]`);
     const concatenatedInputs = input.scenes.map((_, index) => `[v${index}]`).join("") + "[vend]";
     filters.push(`${concatenatedInputs}concat=n=${input.scenes.length + 1}:v=1:a=0[base]`);
-    filters.push(`[base]subtitles=filename='${ffmpegFilterPath(subtitlePath)}':force_style='FontName=DejaVu Sans,FontSize=38,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1,Shadow=0,Alignment=2,MarginL=80,MarginR=80,MarginV=70'[vout]`);
+    filters.push(`[base]subtitles=filename='${ffmpegFilterPath(subtitlePath)}'[vout]`);
 
     args.push(
       "-filter_complex", filters.join(";"),
