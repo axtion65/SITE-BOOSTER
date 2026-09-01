@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { RequireAuth } from "@/components/auth-guard";
-import { useExpandPrompt, useListRenderingModels, useCreateProject, useRegenerateScene } from "@workspace/api-client-react";
+import { useExpandPrompt, useCreateProject, useRegenerateScene } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -62,7 +62,11 @@ function loadDraft(): StudioDraft | null {
         : null;
       delete parsed.productImageObjectPath;
     }
-    parsed.duration = normalizeClipLength(parsed.modelId ?? "ltx-fast", parsed.duration);
+    // Quae owns provider selection. Migrate every customer draft to the
+    // production default instead of restoring the retired model-picker step.
+    parsed.modelId = "ltx-fast";
+    if (parsed.step === 3) parsed.step = 4;
+    parsed.duration = normalizeClipLength("ltx-fast", parsed.duration);
     return parsed as StudioDraft;
   } catch {
     return null;
@@ -150,7 +154,7 @@ function Wizard() {
   const savedDraft = approvedMockup ? null : shouldRestoreStudioDraft(search) ? loadDraft() : null;
 
   const [step, setStep] = useState(savedDraft?.step ?? 1);
-  const [modelId, setModelId] = useState<string>(approvedMockup?.renderingModelId ?? savedDraft?.modelId ?? "ltx-fast");
+  const [modelId, setModelId] = useState<string>("ltx-fast");
   const [voiceId, setVoiceId] = useState<string>(savedDraft?.voiceId ?? "alloy");
 
   // Step 1 State
@@ -310,7 +314,11 @@ function Wizard() {
   // One-step undo history per scene — stores the pre-regeneration text
   const [sceneHistory, setSceneHistory] = useState<Record<number, { description: string; visualDirection: string }>>({});
 
-  const { data: models, isLoading: modelsLoading } = useListRenderingModels();
+  // Provider choice is an internal production detail. Keep the legacy picker
+  // implementation isolated for old code paths, but expose only the automatic
+  // LTX production profile to new customer work.
+  const models = [RENDERING_MODEL_BY_ID["ltx-fast"]];
+  const modelsLoading = false;
   const expandMutation = useExpandPrompt();
   const regenerateSceneMutation = useRegenerateScene();
   const createMutation = useCreateProject();
@@ -578,7 +586,7 @@ function Wizard() {
     }
   };
 
-  const selectedModel = models?.find(m => m.id === modelId);
+  const selectedModel = RENDERING_MODEL_BY_ID["ltx-fast"];
   const userCredits = (user as any)?.credits ?? 0;
   const userPlan = (user as any)?.plan ?? "free";
   const isAdminUser = (user as any)?.isAdmin === true;
@@ -619,10 +627,10 @@ function Wizard() {
       {/* Step progress header */}
       <div className="min-h-20 border-b border-white/[.07] flex items-center justify-between gap-4 overflow-x-auto px-5 sm:px-8 bg-[#18263D]/95 shadow-xl z-10">
         <div className="flex shrink-0 items-center gap-4 text-sm text-[#8494AC] font-semibold">
-          {["Describe", "AI Script", "AI Model", "Render"].map((label, i) => (
-            <div key={i} className="flex items-center gap-4">
+          {([{ step: 1, label: "Describe" }, { step: 2, label: "AI Script" }, { step: 4, label: "Review & Render" }]).map((item, i) => (
+            <div key={item.step} className="flex items-center gap-4">
               {i > 0 && <ChevronRight className="h-4 w-4" />}
-              <span className={step >= i + 1 ? "text-primary font-semibold" : ""}>{i + 1}. {label}</span>
+              <span className={step >= item.step ? "text-primary font-semibold" : ""}>{i + 1}. {item.label}</span>
             </div>
           ))}
         </div>
@@ -1077,8 +1085,8 @@ function Wizard() {
                 />
               </div>
 
-              <Button size="lg" className="w-full h-14 text-lg font-bold" onClick={() => setStep(3)}>
-                Script Ready — Choose Model <ChevronRight className="ml-2 h-5 w-5" />
+              <Button size="lg" className="w-full h-14 text-lg font-bold" onClick={() => setStep(4)}>
+                Script Ready — Review Video <ChevronRight className="ml-2 h-5 w-5" />
               </Button>
             </div>
           )}
@@ -1293,7 +1301,7 @@ function Wizard() {
                   <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Preview Before You Render</h2>
                   <p className="text-muted-foreground">Here's exactly what you're getting. Confirm when ready.</p>
                 </div>
-                <Button variant="outline" onClick={() => setStep(3)}>Back</Button>
+                <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
               </div>
 
               <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3">
@@ -1312,9 +1320,9 @@ function Wizard() {
                     <p className="mt-2 text-xs text-white/60">Your approved campaign and full script remain unchanged.</p>
                   </Card>
                   <Card className="border-violet-400/30 bg-violet-400/10 p-5">
-                    <p className="text-xs font-black uppercase tracking-wider text-violet-300">{modelId === "ltx-fast" ? "Fast Draft" : "Model Render Brief"}</p>
+                    <p className="text-xs font-black uppercase tracking-wider text-violet-300">Video Production Brief</p>
                     <p className="mt-2 font-semibold text-white">~{previewRenderBrief.renderDurationSeconds}-second concept preview</p>
-                    <p className="mt-2 text-xs text-white/70">Quae created a {previewRenderBrief.renderDurationSeconds}-second production brief from your approved campaign for this model. Your full approved campaign remains unchanged.</p>
+                    <p className="mt-2 text-xs text-white/70">Quae created a {previewRenderBrief.renderDurationSeconds}-second production brief from your approved campaign. Your full approved campaign remains unchanged.</p>
                   </Card>
                   <Card className="p-5 md:col-span-2">
                     <p className="text-xs font-black uppercase tracking-wider text-violet-300">Visual Production Brief</p>
@@ -1378,7 +1386,7 @@ function Wizard() {
                 )}
               </div>
 
-              {/* Model example output */}
+              {/* Production example output */}
               {(() => {
                 const modelExamples: Record<string, { label: string; description: string; videoUrl?: string }> = {
                   "ltx-fast": {
@@ -1395,7 +1403,7 @@ function Wizard() {
                   <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
                     <div className="px-4 py-3 border-b border-border flex items-center gap-2">
                       <Activity className="h-4 w-4 text-primary" />
-                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">What {example.label} output looks like</span>
+                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">What your finished video will include</span>
                     </div>
                     <div className="p-4 space-y-3">
                       {example.videoUrl ? (
@@ -1446,7 +1454,7 @@ function Wizard() {
                     <div className="flex items-center justify-between flex-wrap gap-3">
                       <div className="space-y-0.5">
                         <p className="text-sm text-muted-foreground">
-                          Model: <span className="text-white font-semibold">{selectedModel?.name ?? "Business Ad — LTX 2.3 Fast"}</span>
+                          Production: <span className="text-white font-semibold">Complete AI advertisement</span>
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Cost: <span className={`font-bold ${isAdminUser ? "text-green-400" : "text-amber-400"}`}>{isAdminUser ? "FREE (admin)" : `${renderCost} credits`}</span>
@@ -1465,7 +1473,7 @@ function Wizard() {
                       </div>
                     </div>
                     <div className="flex gap-3">
-                      <Button variant="outline" size="lg" onClick={() => setStep(3)} className="flex-shrink-0">
+                      <Button variant="outline" size="lg" onClick={() => setStep(2)} className="flex-shrink-0">
                         Back
                       </Button>
                       <Button
@@ -1522,10 +1530,10 @@ function Wizard() {
                   <div className="flex items-center justify-between"><span className="text-muted-foreground">Supported output duration</span><b>{clipLabel(modelId)}</b></div>
                   {signedProductImageUrl && <img src={signedProductImageUrl} alt="Exact selected visual" className="h-24 w-full rounded-lg object-contain bg-black" />}
                 </div>}
-                {/* Model row */}
+                {/* Production row */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10">
-                  <span className="text-sm text-muted-foreground">Model</span>
-                  <span className="text-sm font-semibold text-white">{selectedModel.name}</span>
+                  <span className="text-sm text-muted-foreground">Production</span>
+                  <span className="text-sm font-semibold text-white">Complete AI advertisement</span>
                 </div>
 
                 {/* Cost row */}
