@@ -37,7 +37,6 @@ function fakeDb() {
                     run.current_stage === "quality_review_failed" &&
                     run.failure_code == null &&
                     Number(run.retry_count ?? 0) === 0 &&
-                    run.qa_status === "failed" &&
                     run.idempotency_key?.startsWith(
                       "failed-recovery:owned-context-v4:",
                     ) &&
@@ -292,7 +291,6 @@ test("completed quality-review recovery uses its saved draft without restarting"
     current_stage: "quality_review_failed",
     failure_code: null,
     retry_count: 0,
-    qa_status: "failed",
     idempotency_key: "failed-recovery:owned-context-v4:quality-draft:key",
     final_result: {
       finalScript: {
