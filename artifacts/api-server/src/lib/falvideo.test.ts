@@ -63,7 +63,7 @@ test("no image falls back and unsupported models safely ignore images", () => {
 
 test("submission token preserves fal's exact versioned Wan queue URLs", () => {
   const statusUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/wan-request/status";
-  const responseUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/wan-request";
+  const responseUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/wan-request/response";
   const token = buildFalQueueToken({ modelPath: "fal-ai/wan/v2.2/text-to-video", requestId: "wan-request", statusUrl, responseUrl });
   assert.equal(token, `fal2:wan-request|||${statusUrl}|||${responseUrl}`);
   assert.deepEqual(parseFalQueueToken(token), {
@@ -76,8 +76,9 @@ test("submission token preserves fal's exact versioned Wan queue URLs", () => {
   assert.equal(extractFalRequestId(token), "wan-request");
 });
 
-test("completed legacy Wan jobs use fal's returned response_url instead of a reconstructed endpoint", async (t) => {
-  const responseUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/01a05b73-62c5-7a32-a77d-15d0dc02791a";
+test("completed legacy Wan jobs canonicalize fal's live response_url to the documented response endpoint", async (t) => {
+  const requestUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/01a05b73-62c5-7a32-a77d-15d0dc02791a";
+  const responseUrl = `${requestUrl}/response`;
   const fetchMock = t.mock.fn(async (input: string | URL | Request, init?: RequestInit) => {
     assert.equal(String(input), responseUrl);
     assert.equal((init?.headers as Record<string, string>).Authorization, "Key test-key");
@@ -91,7 +92,7 @@ test("completed legacy Wan jobs use fal's returned response_url instead of a rec
       "fal:fal-ai/wan/v2.2/text-to-video:01a05b73-62c5-7a32-a77d-15d0dc02791a",
       {
         credentials: "test-key",
-        status: async () => ({ status: "COMPLETED", response_url: responseUrl }),
+        status: async () => ({ status: "COMPLETED", response_url: requestUrl }),
         result: async () => { throw new Error("queue.result must not reconstruct a versioned Wan endpoint"); },
         fetch: fetchMock,
       },
@@ -102,7 +103,7 @@ test("completed legacy Wan jobs use fal's returned response_url instead of a rec
 });
 
 test("completed jobs stop polling after a permanent result-fetch failure", async (t) => {
-  const responseUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/gone";
+  const responseUrl = "https://queue.fal.run/fal-ai/wan/v2.2/text-to-video/requests/gone/response";
   assert.deepEqual(await pollFalVideoRender("fal:fal-ai/wan/v2.2/text-to-video:gone", {
     credentials: "test-key",
     status: async () => ({ status: "COMPLETED", response_url: responseUrl }),
