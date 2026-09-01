@@ -21,6 +21,7 @@ import { compilePreviewRenderBrief } from "@/lib/render-brief";
 import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
 import { getProductionCreditCost, normalizeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
+import { buildStudioProjectRequest } from "@/lib/studio-project-request";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -471,6 +472,7 @@ function Wizard() {
     try {
       const servingUrl = await uploadImageToStorage(file);
       setProductImageUrl(servingUrl);
+      if (RENDERING_MODEL_BY_ID[modelId]?.supports.imageToVideo) setRenderIntent("animate");
     } catch (err: any) {
       toast({ title: "Image upload failed", description: err.message || "Could not upload image. Please try again.", variant: "destructive" });
       setImagePreviewUrl(null);
@@ -520,25 +522,24 @@ function Wizard() {
       return;
     }
     try {
-      const campaignIdempotencyKey=campaignVideoIdempotencyKey({campaignId,approvedRunId,briefId,renderIntent,modelId,duration});
+      const canonicalDuration = normalizeClipLength(modelId, duration);
+      const campaignIdempotencyKey=campaignVideoIdempotencyKey({campaignId,approvedRunId,briefId,renderIntent,modelId,duration:canonicalDuration});
       const res = await createMutation.mutateAsync({
-        data: {
+        data: buildStudioProjectRequest({
           campaignId,
           campaignVideoBriefId: briefId,
-          confirmed: true,
           idempotencyKey: campaignIdempotencyKey ?? crypto.randomUUID(),
-          title: `${productName} Ad`,
+          productName,
           description,
-          renderingModelId: modelId,
-          expandedScript: JSON.stringify(expandedScript),
+          modelId,
+          expandedScript,
           platform,
-          duration,
-          templateId: templateId ?? null,
+          duration: canonicalDuration,
+          templateId,
           renderIntent,
-          sourceAssetId: renderIntent === "animate" && productImageUrl ? productImageUrl.replace(/^\/api\/storage/, "") : null,
-          productImageUrl: renderIntent === "animate" ? productImageUrl : null,
-          voiceId: voiceId ?? "alloy",
-        } as any
+          productImageUrl,
+          voiceId,
+        })
       });
       // Clear the saved draft — render has started, work is done
       clearDraft();
@@ -583,7 +584,7 @@ function Wizard() {
   }
 
   // Whether the selected model supports image conditioning
-  const selectedModelSupportsImage = Boolean((selectedModel as any)?.supports?.imageToVideo);
+  const selectedModelSupportsImage = RENDERING_MODEL_BY_ID[modelId]?.supports.imageToVideo === true;
 
   const nativeDurationSeconds = RENDERING_MODEL_BY_ID[modelId]?.nativeDurationSeconds ?? 10;
   const previewRenderBrief = expandedScript
@@ -1109,7 +1110,7 @@ function Wizard() {
                     const isSelected = modelId === model.id;
                     const canUse = canUseModel(model.tier);
                     const clipLen = clipLabel(model.id);
-                    const supportsImage = Boolean((model as any).supports?.imageToVideo);
+                    const supportsImage = RENDERING_MODEL_BY_ID[model.id]?.supports.imageToVideo === true;
                     return (
                       <button
                         key={model.id}
@@ -1117,7 +1118,7 @@ function Wizard() {
                           if (!canUse) return;
                           setModelId(model.id);
                           setDuration(normalizeClipLength(model.id, duration));
-                          if (renderIntent === "animate" && !(model as any).supports?.imageToVideo) setRenderIntent("create_new");
+                          if (renderIntent === "animate" && !RENDERING_MODEL_BY_ID[model.id]?.supports.imageToVideo) setRenderIntent("create_new");
                         }}
                         disabled={!canUse}
                         className={`p-5 rounded-2xl border text-left transition-all relative ${

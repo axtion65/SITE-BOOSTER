@@ -5,6 +5,7 @@ import { resolveUserIdFromToken } from "./auth";
 import { durationPlanInstruction, normalizeScriptTiming, parseRequestedDuration, validateScript, type AdScript } from "../lib/scriptEngine";
 import { sanitizeVisualPrompt } from "../lib/falvideo";
 import { RENDERING_MODELS } from "@workspace/plans";
+import { normalizeProductionModelDuration } from "../lib/projectSubmission";
 
 const router = Router();
 
@@ -179,9 +180,11 @@ router.post("/studio/expand-prompt", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
 
   const { description, productName, targetAudience, platform, duration } = parsed.data;
+  const normalizedDuration = normalizeProductionModelDuration(req.body?.renderingModelId, duration);
+  const requestedDuration = typeof normalizedDuration === "string" ? normalizedDuration : duration;
   const templateType = (req.body as any).templateType as string | undefined;
   const templateName = (req.body as any).templateName as string | undefined;
-  const effectiveSec = parseRequestedDuration(duration);
+  const effectiveSec = parseRequestedDuration(requestedDuration);
   const effectiveDuration = `${effectiveSec}s`;
   const planningContract = durationPlanInstruction(effectiveSec, templateType);
 
@@ -228,7 +231,7 @@ IMPORTANT: This is a ${effectiveDuration} video — the script, scenes, and voic
 The hook must stop the scroll in the first 2-3 seconds. Every scene must be purposeful. The script must feel like it was made FOR this specific template format — not a generic ad.`;
 
   try {
-    console.log(`[openai] Generating script — template: ${templateType ?? "generic"}, platform: ${platform}, duration: ${duration}`);
+    console.log(`[openai] Generating script — template: ${templateType ?? "generic"}, platform: ${platform}, duration: ${effectiveDuration}`);
 
     const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
