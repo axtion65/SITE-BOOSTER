@@ -55,3 +55,23 @@ test("Create New strips image fields while keeping the explicit shared render in
   assert.equal(request.sourceAssetId, null);
   assert.equal(request.productImageUrl, null);
 });
+
+test("a campaign without a prepared visual brief cannot silently submit Animate", () => {
+  const request = buildStudioProjectRequest({
+    campaignId: "campaign-1",
+    campaignVideoBriefId: null,
+    idempotencyKey: "campaign-without-brief",
+    productName: "Customer product",
+    description: "Approved description",
+    modelId: "ltx-fast",
+    expandedScript,
+    platform: "amazon",
+    duration: "15s",
+    renderIntent: "animate",
+    productImageUrl: "/api/storage/objects/uploads/unconfirmed.png",
+    voiceId: "alloy",
+  });
+  assert.equal(request.renderIntent, "create_new");
+  assert.equal(request.sourceAssetId, null);
+  assert.equal(request.productImageUrl, null);
+});
