@@ -269,7 +269,7 @@ test("failed-successor recovery still rejects a newer active source", async () =
   assert.equal(db.runs.length, 3);
 });
 
-test("only an exhausted transient failure can resume", () => {
+test("only an exhausted transient or first schema failure can resume", () => {
   assert.equal(
     isResumableCampaignFailure({
       status: "failed",
@@ -282,7 +282,23 @@ test("only an exhausted transient failure can resume", () => {
     isResumableCampaignFailure({
       status: "failed",
       failure_code: "SCHEMA_REPAIR_EXHAUSTED",
-      retry_count: 3,
+      retry_count: 1,
+    }),
+    true,
+  );
+  assert.equal(
+    isResumableCampaignFailure({
+      status: "failed",
+      failure_code: "PIPELINE_PERMANENT_FAILURE",
+      retry_count: 1,
+    }),
+    true,
+  );
+  assert.equal(
+    isResumableCampaignFailure({
+      status: "failed",
+      failure_code: "INVALID_EVIDENCE_LEDGER",
+      retry_count: 1,
     }),
     false,
   );
@@ -293,6 +309,42 @@ test("only an exhausted transient failure can resume", () => {
       retry_count: 4,
     }),
     false,
+  );
+});
+
+test("schema recovery resumes only the incomplete stage on the same run", async () => {
+  const db = fakeDb();
+  db.runs.push({
+    id: "schema-run",
+    campaign_id: "c1",
+    status: "failed",
+    failure_code: "SCHEMA_REPAIR_EXHAUSTED",
+    retry_count: 1,
+    run_number: 5,
+  });
+
+  const resumed = await resumeFailedCampaignRun(db, {
+    campaign: { id: "c1", user_id: "u1" },
+    runId: "schema-run",
+    concurrencyLimit: 1,
+  });
+
+  assert.equal(resumed.kind, "resumed");
+  assert.equal(resumed.run.id, "schema-run");
+  assert.equal(db.runs.length, 1);
+
+  resumed.run.status = "failed";
+  resumed.run.failure_code = "SCHEMA_REPAIR_EXHAUSTED";
+  resumed.run.retry_count = 2;
+  assert.equal(
+    (
+      await resumeFailedCampaignRun(db, {
+        campaign: { id: "c1", user_id: "u1" },
+        runId: "schema-run",
+        concurrencyLimit: 1,
+      })
+    ).kind,
+    "blocked",
   );
 });
 

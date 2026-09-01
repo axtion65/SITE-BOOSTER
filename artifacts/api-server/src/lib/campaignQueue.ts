@@ -4,6 +4,10 @@ const RESUMABLE_FAILURE_CODES = new Set([
   "PROVIDER_UNAVAILABLE",
   "TEMPORARY_INFRASTRUCTURE_FAILURE",
 ]);
+const MANUAL_RESUMABLE_FAILURE_CODES = new Set([
+  "SCHEMA_REPAIR_EXHAUSTED",
+  "PIPELINE_PERMANENT_FAILURE",
+]);
 type Db = {
   connect(): Promise<{
     query(sql: string, values?: unknown[]): Promise<{ rows: any[] }>;
@@ -12,10 +16,12 @@ type Db = {
 };
 
 export function isResumableCampaignFailure(run: any) {
+  const retryCount = Number(run?.retry_count);
   return Boolean(
     run?.status === "failed" &&
-    RESUMABLE_FAILURE_CODES.has(run.failure_code) &&
-    Number(run.retry_count) === 3,
+      ((RESUMABLE_FAILURE_CODES.has(run.failure_code) && retryCount === 3) ||
+        (MANUAL_RESUMABLE_FAILURE_CODES.has(run.failure_code) &&
+          retryCount === 1)),
   );
 }
 
