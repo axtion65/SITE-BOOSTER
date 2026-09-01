@@ -65,14 +65,7 @@ export function constrainVoiceoverText(input: {
   const ctaWords = words(cta);
   const brandMissing = brand && !source.toLocaleLowerCase().includes(brand.toLocaleLowerCase());
   const brandWords = brandMissing ? words(brand) : [];
-  const escapedCta = cta.replace(/[.*+?^$()|[\]\\]/g, "\\export function parseProductionDuration(value: unknown): ProductionDuration {
-  const seconds = Number.parseInt(String(value ?? "30"), 10);
-  if (!PRODUCTION_DURATIONS.includes(seconds as ProductionDuration)) {
-    throw new Error("Full advert duration must be 15s, 30s, or 45s");
-  }
-  return seconds as ProductionDuration;
-}
-");
+  const escapedCta = cta.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
   const sourceWithoutCta = cta ? source.replace(new RegExp(escapedCta, "gi"), "").trim() : source;
   const available = Math.max(0, budget - brandWords.length - ctaWords.length);
   const bodyWords = words(sourceWithoutCta).slice(0, available);
