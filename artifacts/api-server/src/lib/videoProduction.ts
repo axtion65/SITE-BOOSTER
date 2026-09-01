@@ -12,6 +12,8 @@ import { generateSpeechBuffer } from "./tts";
 import { probeMediaBuffer } from "./mediaProbe";
 import {
   compileVideoProductionPlan,
+  constrainVoiceoverText,
+  parseProductionDuration,
   productionQualityGate,
   type ProductionBrand,
   type VideoProductionPlan,
@@ -103,15 +105,38 @@ async function preparePlan(project: typeof projectsTable.$inferSelect): Promise<
   if (project.productionPlan) return project.productionPlan as VideoProductionPlan;
   if (!project.expandedScript) throw new Error("Approved script is missing");
   const script = JSON.parse(project.expandedScript) as ExpandedScript;
-  const voiceover = await generateSpeechBuffer(script.voiceoverText || script.script, project.voiceId);
-  if (!voiceover) throw new Error("Voiceover generation failed before visual submission");
-  const measured = await probeMediaBuffer(voiceover, "mp3");
-  if (!measured.hasAudio) throw new Error("Generated voiceover has no audio stream");
   const context = await productionContext(project);
   context.brand.callToAction = script.callToAction?.trim() || context.brand.callToAction;
+  const duration = project.duration ?? "30s";
+  const targetDurationMs = parseProductionDuration(duration) * 1000;
+  let preparedScript: ExpandedScript = {
+    ...script,
+    voiceoverText: constrainVoiceoverText({ script, duration, brandName: context.brand.name }),
+  };
+  let voiceover = await generateSpeechBuffer(preparedScript.voiceoverText, project.voiceId);
+  if (!voiceover) throw new Error("Voiceover generation failed before visual submission");
+  let measured = await probeMediaBuffer(voiceover, "mp3");
+  if (!measured.hasAudio) throw new Error("Generated voiceover has no audio stream");
+
+  if (measured.durationMs > targetDurationMs - 350) {
+    const currentWords = preparedScript.voiceoverText.trim().split(/\s+/).filter(Boolean).length;
+    const retryBudget = Math.max(8, Math.floor(currentWords * (targetDurationMs - 1000) / measured.durationMs));
+    const shortened = constrainVoiceoverText({ script, duration, brandName: context.brand.name, maxWords: retryBudget });
+    if (shortened === preparedScript.voiceoverText) {
+      throw new Error(`Voiceover is ${Math.ceil(measured.durationMs / 1000)}s and cannot be shortened safely for the approved ${targetDurationMs / 1000}s advert`);
+    }
+    preparedScript = { ...script, voiceoverText: shortened };
+    const retryVoiceover = await generateSpeechBuffer(shortened, project.voiceId);
+    if (!retryVoiceover) throw new Error("Shortened voiceover generation failed before visual submission");
+    const retryMeasured = await probeMediaBuffer(retryVoiceover, "mp3");
+    if (!retryMeasured.hasAudio) throw new Error("Shortened voiceover has no audio stream");
+    voiceover = retryVoiceover;
+    measured = retryMeasured;
+  }
+
   const plan = compileVideoProductionPlan({
-    script,
-    duration: project.duration ?? "30s",
+    script: preparedScript,
+    duration,
     platform: project.platform ?? "youtube",
     voiceoverDurationMs: measured.durationMs,
     brand: context.brand,
