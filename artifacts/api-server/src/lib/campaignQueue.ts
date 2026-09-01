@@ -1,3 +1,5 @@
+import { isCompletedQualityReviewDraft } from "./campaignReview";
+
 export type QueueCampaign = { id: string; user_id: string };
 const RESUMABLE_FAILURE_CODES = new Set([
   "PROVIDER_RATE_LIMIT",
@@ -128,7 +130,8 @@ export async function queueCampaignRun(
       let sourceIsSafe = Boolean(
         latest &&
           latest.id === args.sourceRunId &&
-          ["ready_for_review", "needs_revision"].includes(latest.status),
+          (["ready_for_review", "needs_revision"].includes(latest.status) ||
+            isCompletedQualityReviewDraft(latest)),
       );
       if (!sourceIsSafe && args.allowFailedSuccessors) {
         sourceIsSafe = Boolean(
@@ -136,7 +139,18 @@ export async function queueCampaignRun(
             await client.query(
               `SELECT source.id FROM campaign_runs source
                WHERE source.campaign_id=$1 AND source.id=$2
-                 AND source.status IN ('ready_for_review','needs_revision')
+                 AND (
+                   source.status IN ('ready_for_review','needs_revision') OR
+                   (
+                     source.status='failed' AND
+                     source.current_stage='quality_review_failed' AND
+                     source.failure_code IS NULL AND
+                     COALESCE(source.retry_count,0)=0 AND
+                     source.qa_status='failed' AND
+                     source.idempotency_key LIKE 'failed-recovery:owned-context-v4:%' AND
+                     source.final_result IS NOT NULL
+                   )
+                 )
                  AND NOT EXISTS (
                    SELECT 1 FROM campaign_runs newer
                    WHERE newer.campaign_id=source.campaign_id

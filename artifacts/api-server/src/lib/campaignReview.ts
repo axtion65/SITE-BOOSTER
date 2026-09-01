@@ -109,6 +109,19 @@ export function publicCampaignResult(value: unknown) {
   return Object.values(projected.finalScript).some(Boolean) ? projected : null;
 }
 
+export function isCompletedQualityReviewDraft(run: any) {
+  return Boolean(
+    run?.status === "failed" &&
+      run?.current_stage === "quality_review_failed" &&
+      run?.failure_code == null &&
+      Number(run?.retry_count ?? 0) === 0 &&
+      run?.qa_status === "failed" &&
+      typeof run?.idempotency_key === "string" &&
+      run.idempotency_key.startsWith(CURRENT_RECOVERY_PREFIX) &&
+      publicCampaignResult(run?.final_result) !== null,
+  );
+}
+
 export function validateRunSource(campaign: any, run: any) {
   const expected = campaignGenerationContext(campaign);
   const actual = run?.context_snapshot;
@@ -158,7 +171,8 @@ export function validateRunSource(campaign: any, run: any) {
     repairable: Boolean(
       reason === "source_mismatch" &&
         outputValid &&
-        ["ready_for_review", "needs_revision"].includes(run?.status),
+        (["ready_for_review", "needs_revision"].includes(run?.status) ||
+          isCompletedQualityReviewDraft(run)),
     ),
   };
 }
@@ -169,7 +183,8 @@ export function repairableRunBehindFailures(campaign: any, runs: any[]) {
     const hasSafeDraft = publicCampaignResult(run?.final_result) !== null;
     if (
       hasSafeDraft &&
-      ["ready_for_review", "needs_revision"].includes(run?.status) &&
+      (["ready_for_review", "needs_revision"].includes(run?.status) ||
+        isCompletedQualityReviewDraft(run)) &&
       (validation.valid || validation.repairable)
     )
       return run;
