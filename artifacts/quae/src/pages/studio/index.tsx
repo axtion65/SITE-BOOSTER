@@ -148,6 +148,9 @@ function Wizard() {
   const searchParams = new URLSearchParams(search);
   const campaignId = searchParams.get("campaignId")?.trim() || null;
   const briefId = searchParams.get("briefId")?.trim() || null;
+  // Stable for retries made from this review session, unique when the customer
+  // intentionally opens Creative again to create another video version.
+  const productionAttemptIdRef = useRef(crypto.randomUUID());
   const approvedMockup = searchParams.get("source") === "approved-mockup" ? loadMockupVideoHandoff() : null;
 
   // Load saved draft once (before state initialisation)
@@ -553,7 +556,7 @@ function Wizard() {
         submissionHandoff = preparedVideoBriefToStudio(preparedBrief, { briefId: submissionBriefId, campaignId, approvedRunId, selectedVisualProjectId: campaignVisualIdentity.projectId, selectedVisualVersionId: campaignVisualIdentity.versionId });
         if (!submissionBriefId || !submissionHandoff) throw new Error("The prepared campaign video did not match the confirmed visual.");
       }
-      const campaignIdempotencyKey=campaignVideoIdempotencyKey({campaignId,approvedRunId,briefId:submissionBriefId,renderIntent:submissionRenderIntent,modelId,duration:canonicalDuration});
+      const campaignIdempotencyKey=campaignVideoIdempotencyKey({campaignId,approvedRunId,briefId:submissionBriefId,renderIntent:submissionRenderIntent,modelId,duration:canonicalDuration,attemptId:productionAttemptIdRef.current});
       const res = await createMutation.mutateAsync({
         data: buildStudioProjectRequest({
           campaignId,

@@ -78,7 +78,7 @@ test("campaign handoff takes precedence over an unrelated saved draft", () => {
   assert.equal(shouldRestoreStudioDraft("?campaignId=campaign-1"), false);
 });
 
-test("campaign video retries reuse one run-scoped key for both supported render paths",()=>{const base={campaignId:"campaign-1",approvedRunId:"run-2",briefId:null,renderIntent:"create_new" as const,modelId:"kling",duration:"10s"};const key=campaignVideoIdempotencyKey(base);assert.equal(key,campaignVideoIdempotencyKey(base));assert.match(String(key),/run-2:create_new:approved-copy:kling:10s/);assert.notEqual(key,campaignVideoIdempotencyKey({...base,briefId:"brief-1",renderIntent:"animate"}));assert.equal(campaignVideoIdempotencyKey({...base,campaignId:null}),null);});
+test("campaign video retries reuse one attempt key while a new version receives a different key",()=>{const base={campaignId:"campaign-1",approvedRunId:"run-2",briefId:null,renderIntent:"create_new" as const,modelId:"ltx-fast",duration:"15s",attemptId:"attempt-1"};const key=campaignVideoIdempotencyKey(base);assert.equal(key,campaignVideoIdempotencyKey(base));assert.match(String(key),/run-2:create_new:approved-copy:ltx-fast:15s:attempt-1/);assert.notEqual(key,campaignVideoIdempotencyKey({...base,attemptId:"attempt-2"}));assert.notEqual(key,campaignVideoIdempotencyKey({...base,briefId:"brief-1",renderIntent:"animate"}));assert.equal(campaignVideoIdempotencyKey({...base,campaignId:null}),null);});
 
 test("unapproved and invalid campaign payloads are rejected", () => {
   for (const status of [
