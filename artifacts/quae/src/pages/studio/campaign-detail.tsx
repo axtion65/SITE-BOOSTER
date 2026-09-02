@@ -75,6 +75,11 @@ export default function CampaignDetail() {
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
     section?.focus({ preventScroll: true });
   }
+  function openAssetsReview() {
+    const section = document.getElementById("campaign-assets");
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+    section?.focus({ preventScroll: true });
+  }
   async function saveRescue() {
     setBusy("rescue");
     try {
@@ -229,7 +234,7 @@ export default function CampaignDetail() {
       ? `/studio/mockups?campaignId=${encodeURIComponent(data.id)}${data.product_id ? `&productId=${encodeURIComponent(data.product_id)}` : ""}`
       : data.nextAction === "create_video"
         ? `/studio?campaignId=${encodeURIComponent(data.id)}`
-        : "#campaign-work";
+        : "#campaign-assets";
   const continueLabel =
     rescueRequired
       ? "Complete Campaign Details"
@@ -314,12 +319,15 @@ export default function CampaignDetail() {
             </div>
             {rescueRequired ||
             data.nextAction === "review_campaign" ||
+            data.nextAction === "review_assets" ||
             data.reviewState === "needs_rebuild" ? (
               <button
                 onClick={
                   rescueRequired
                     ? () => window.scrollTo({ top: 0, behavior: "smooth" })
-                    : openReview
+                    : data.nextAction === "review_assets"
+                      ? openAssetsReview
+                      : openReview
                 }
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
               >
@@ -374,7 +382,17 @@ export default function CampaignDetail() {
             ))}
           </div>
         </PremiumCard>
-        <div id="campaign-work" className="grid gap-6 lg:grid-cols-3">
+        <div
+          id="campaign-assets"
+          tabIndex={-1}
+          className="scroll-mt-6 rounded-2xl outline-none focus:ring-2 focus:ring-violet-400"
+        >
+          <h2 className="mb-2 text-2xl font-black">Completed Campaign Assets</h2>
+          <p className="mb-6 text-sm text-slate-400">
+            Review, open, or download the visuals, videos, and marketing copy
+            prepared for this campaign.
+          </p>
+          <div className="grid gap-6 lg:grid-cols-3">
           <PremiumCard>
             <Image className="h-5 w-5 text-violet-300" />
             <h2 className="mt-3 text-lg font-bold">Product Visuals</h2>
@@ -555,6 +573,7 @@ export default function CampaignDetail() {
               </p>
             )}
           </PremiumCard>
+          </div>
         </div>
         {data.status === "approved" && (
           <PremiumCard>
