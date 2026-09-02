@@ -13,7 +13,7 @@ export const CUSTOMER_MOCKUP_LIBRARY_QUERY = `
 
 export const CUSTOMER_MOCKUP_PROJECT_QUERY = `
   SELECT mp.*, p.name AS product_name, c.name AS campaign_name,
-    bm.display_name AS brand_model_name
+    c.approved_run_id, bm.display_name AS brand_model_name
   FROM mockup_projects mp
   JOIN products p ON p.id = mp.product_id
   LEFT JOIN campaigns c ON c.id = mp.campaign_id

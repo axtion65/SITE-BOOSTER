@@ -66,3 +66,10 @@ test("download failure never creates a customer file",async()=>{
 test("missing or unauthorized projects show a safe message",()=>{
   assert.match(studio,/It may not exist or belong to this account/);
 });
+
+test("legacy missing-dimension visual can be approved and returned to its campaign",()=>{
+  assert.match(studio,/recoverableDimensionMetadata/);
+  assert.match(studio,/Approve visual/);
+  assert.match(studio,/project\?\.approved_run_id/);
+  assert.match(studio,/Use in Campaign/);
+});

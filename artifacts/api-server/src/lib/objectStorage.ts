@@ -292,6 +292,32 @@ export function validateImagePayload(buffer:Buffer,contentType?:string|null){
   const png=buffer.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));const jpg=buffer[0]===0xff&&buffer[1]===0xd8;const webp=buffer.subarray(0,4).toString("ascii")==="RIFF"&&buffer.subarray(8,12).toString("ascii")==="WEBP";if(!png&&!jpg&&!webp)throw new Error("Provider response is not a valid image file");
 }
 
+/** Read authoritative dimensions from the delivered image bytes, not optional provider metadata. */
+export function imageDimensions(buffer:Buffer):{width:number;height:number}|null{
+  if(buffer.length>=24&&buffer.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return {width:buffer.readUInt32BE(16),height:buffer.readUInt32BE(20)};
+  if(buffer.length>=4&&buffer[0]===0xff&&buffer[1]===0xd8){
+    let offset=2;
+    while(offset+9<buffer.length){
+      while(offset<buffer.length&&buffer[offset]===0xff)offset++;
+      const marker=buffer[offset++];
+      if(marker===undefined||marker===0xd9||marker===0xda)break;
+      if(marker===0x01||(marker>=0xd0&&marker<=0xd7))continue;
+      if(offset+2>buffer.length)break;
+      const length=buffer.readUInt16BE(offset);
+      if(length<2||offset+length>buffer.length)break;
+      if([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker)&&length>=7)return {width:buffer.readUInt16BE(offset+5),height:buffer.readUInt16BE(offset+3)};
+      offset+=length;
+    }
+  }
+  if(buffer.length>=30&&buffer.subarray(0,4).toString("ascii")==="RIFF"&&buffer.subarray(8,12).toString("ascii")==="WEBP"){
+    const format=buffer.subarray(12,16).toString("ascii");
+    if(format==="VP8X")return {width:1+buffer.readUIntLE(24,3),height:1+buffer.readUIntLE(27,3)};
+    if(format==="VP8 "&&buffer.subarray(23,26).equals(Buffer.from([0x9d,0x01,0x2a])))return {width:buffer.readUInt16LE(26)&0x3fff,height:buffer.readUInt16LE(28)&0x3fff};
+    if(format==="VP8L"&&buffer[20]===0x2f){const b1=buffer[21]!,b2=buffer[22]!,b3=buffer[23]!,b4=buffer[24]!;return {width:1+(b1|((b2&0x3f)<<8)),height:1+((b2>>6)|(b3<<2)|((b4&0x0f)<<10))};}
+  }
+  return null;
+}
+
 function safePathSegment(value: string): string {
   const segment = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 128);
   if (!segment) throw new Error("Invalid video storage identity");
@@ -665,14 +691,14 @@ export class ObjectStorageService {
   }
 
   /** Idempotently ingests a temporary provider image into private Quae storage. */
-  async uploadMockupImageFromUrl(imageUrl:string,identity:ImageStorageIdentity,declaredContentType?:string):Promise<{objectPath:string;contentType:string;bytes:number}>{
+  async uploadMockupImageFromUrl(imageUrl:string,identity:ImageStorageIdentity,declaredContentType?:string):Promise<{objectPath:string;contentType:string;bytes:number;width:number;height:number}>{
     const response=await fetch(imageUrl,{signal:AbortSignal.timeout(180_000)});if(!response.ok)throw new Error(`Provider image download failed with HTTP ${response.status}`);
     const advertised=Number(response.headers.get("content-length"));if(Number.isFinite(advertised)&&advertised>MAX_IMAGE_BYTES)throw new Error("Provider image exceeds the storage limit");
     const reader=response.body?.getReader();const chunks:Buffer[]=[];let size=0;while(reader){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>MAX_IMAGE_BYTES){await reader.cancel();throw new Error("Provider image exceeds the storage limit");}chunks.push(Buffer.from(value));}
-    const buffer=Buffer.concat(chunks);const contentType=(response.headers.get("content-type")||declaredContentType||"").split(";",1)[0];validateImagePayload(buffer,contentType);
+    const buffer=Buffer.concat(chunks);const contentType=(response.headers.get("content-type")||declaredContentType||"").split(";",1)[0];validateImagePayload(buffer,contentType);const dimensions=imageDimensions(buffer);if(!dimensions)throw new Error("Provider image dimensions could not be verified");
     const extension=contentType==="image/jpeg"?"jpg":contentType==="image/webp"?"webp":"png";const objectName=mockupImageObjectName(identity,extension);const objectFile=new S3ObjectFile(storageConfig.bucket,objectName);const [exists]=await objectFile.exists();
     if(!exists){await objectFile.save(buffer,{contentType,cacheControl:"private, max-age=31536000"});await setObjectAclPolicy(objectFile as any,{owner:identity.userId,visibility:"private"});}
-    return {objectPath:internalObjectPath(objectName),contentType,bytes:buffer.length};
+    return {objectPath:internalObjectPath(objectName),contentType,bytes:buffer.length,...dimensions};
   }
 
   /** Idempotently stores a reviewed website-import image in private customer-owned storage. */
