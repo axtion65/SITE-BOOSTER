@@ -13,7 +13,12 @@ export interface BusinessAdvertRenderInput {
   height: number;
   voiceoverUrl: string;
   voiceoverDurationMs: number;
-  scenes: Array<{ videoUrl: string; durationMs: number; caption: string }>;
+  scenes: Array<{
+    videoUrl: string;
+    durationMs: number;
+    caption: string;
+    mediaType?: "generated_video" | "source_image";
+  }>;
   brand: {
     name: string;
     website?: string | null;
@@ -177,7 +182,7 @@ export async function renderBusinessAdvert(input: BusinessAdvertRenderInput): Pr
   const subtitlePath = path.join(directory, "captions.ass");
   const outputPath = path.join(directory, "advert.mp4");
   try {
-    const scenePaths = input.scenes.map((_, index) => path.join(directory, `scene-${index}.mp4`));
+    const scenePaths = input.scenes.map((scene, index) => path.join(directory, `scene-${index}.${scene.mediaType === "source_image" ? "img" : "mp4"}`));
     await Promise.all([
       materialize(input.voiceoverUrl, audioPath),
       ...input.scenes.map((scene, index) => materialize(scene.videoUrl, scenePaths[index]!)),
@@ -185,7 +190,13 @@ export async function renderBusinessAdvert(input: BusinessAdvertRenderInput): Pr
     await writeFile(subtitlePath, buildAdvertSubtitles(input), "utf8");
 
     const args: string[] = ["-y"];
-    for (const scenePath of scenePaths) args.push("-i", scenePath);
+    input.scenes.forEach((scene, index) => {
+      if (scene.mediaType === "source_image") {
+        args.push("-loop", "1", "-t", (scene.durationMs / 1000).toFixed(3), "-i", scenePaths[index]!);
+      } else {
+        args.push("-i", scenePaths[index]!);
+      }
+    });
     const audioInput = scenePaths.length;
     args.push("-i", audioPath);
     const endCardInput = audioInput + 1;

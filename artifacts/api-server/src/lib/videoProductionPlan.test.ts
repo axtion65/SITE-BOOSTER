@@ -33,10 +33,16 @@ test("30-second production keeps every approved beat and reserves a deterministi
   assert.equal(plan.endCardDurationMs, 3000);
   assert.equal(plan.scenes.length, 4);
   assert.equal(plan.scenes.reduce((sum, scene) => sum + scene.durationMs, 0), 27_000);
-  assert.ok(plan.scenes.every((scene) => scene.sourceAssetPath === "/objects/products/approved.png"));
+  assert.deepEqual(plan.scenes.map((scene) => scene.mediaType), ["source_image", "generated_video", "generated_video", "source_image"]);
+  assert.equal(plan.scenes[0]!.sourceAssetPath, "/objects/products/approved.png");
+  assert.equal(plan.scenes[3]!.sourceAssetPath, "/objects/products/approved.png");
+  assert.ok(plan.scenes.slice(1, 3).every((scene) => scene.sourceAssetPath === null));
   assert.ok(plan.scenes.every((scene) => !/Source visual context \(adapt into the one shot/i.test(scene.visualPrompt)));
   assert.match(plan.scenes[0]!.visualPrompt, /business owner overwhelmed/i);
   assert.match(plan.scenes[3]!.visualPrompt, /confidently launches/i);
+  assert.ok(plan.scenes.every((scene) => scene.visualPrompt.includes(scene.narrationText)));
+  assert.match(plan.scenes[1]!.visualPrompt, /do not introduce food/i);
+  assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), script.voiceoverText);
 });
 
 test("voiceover is measured before any provider plan can be accepted", () => {
