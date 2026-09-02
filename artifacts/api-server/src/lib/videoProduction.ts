@@ -65,14 +65,25 @@ async function productionContext(project: typeof projectsTable.$inferSelect): Pr
   brand: ProductionBrand;
   sourceAssetPaths: string[];
 }> {
-  const brandResult = await pool.query(`
-    SELECT b.name,b.website,b.primary_cta,bk.default_cta,bk.logo_object_path,
-      bk.primary_color,bk.secondary_color,bk.accent_color
-    FROM businesses b
-    LEFT JOIN brand_kits bk ON bk.business_id=b.id
-    WHERE b.user_id=$1
-    LIMIT 1
-  `, [project.userId]);
+  const brandResult = project.campaignId
+    ? await pool.query(`
+      SELECT b.name,b.website,b.primary_cta,bk.default_cta,bk.logo_object_path,
+        bk.primary_color,bk.secondary_color,bk.accent_color
+      FROM campaigns c
+      JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id
+      LEFT JOIN brand_kits bk ON bk.business_id=b.id
+      WHERE c.id=$2 AND c.user_id=$1
+      LIMIT 1
+    `, [project.userId, project.campaignId])
+    : await pool.query(`
+      SELECT b.name,b.website,b.primary_cta,bk.default_cta,bk.logo_object_path,
+        bk.primary_color,bk.secondary_color,bk.accent_color
+      FROM businesses b
+      LEFT JOIN brand_kits bk ON bk.business_id=b.id
+      WHERE b.user_id=$1
+      ORDER BY b.updated_at DESC
+      LIMIT 1
+    `, [project.userId]);
   const row = brandResult.rows[0] ?? {};
   const brand: ProductionBrand = {
     name: String(row.name ?? project.title).trim(),
@@ -83,12 +94,8 @@ async function productionContext(project: typeof projectsTable.$inferSelect): Pr
     accentColor: row.accent_color ?? null,
     callToAction: String(row.default_cta ?? row.primary_cta ?? "Learn more").trim(),
   };
-  // Preserve the customer's render intent at the provider boundary. Create New
-  // must remain text-to-video; only Animate may condition scenes on the one
-  // explicitly selected and ownership-checked source asset.
-  const sourceAssetPaths = project.renderIntent === "animate"
-    ? [project.sourceAssetId].filter((value): value is string => Boolean(value))
-    : [];
+  const sourceAssetPaths = [project.sourceAssetId]
+    .filter((value): value is string => Boolean(value));
   return { brand, sourceAssetPaths };
 }
 
@@ -161,12 +168,14 @@ async function preparePlan(project: typeof projectsTable.$inferSelect): Promise<
       userId: project.userId,
       renderAttempt: project.renderAttempt,
       sceneIndex: scene.index,
-      status: "pending",
+      status: scene.mediaType === "source_image" ? "completed" : "pending",
       providerModelId: project.renderingModelId,
       prompt: scene.visualPrompt,
       narrationText: scene.narrationText,
       sourceAssetPath: scene.sourceAssetPath,
+      outputPath: scene.mediaType === "source_image" ? scene.sourceAssetPath : null,
       expectedDurationMs: scene.durationMs,
+      actualDurationMs: scene.mediaType === "source_image" ? scene.durationMs : null,
     }))).onConflictDoNothing();
   });
   return plan;
@@ -361,6 +370,7 @@ export async function assembleVideoProduction(projectId: string, renderAttempt: 
         videoUrl: sceneUrls[index]!,
         durationMs: plan.scenes[index]!.durationMs,
         caption: plan.scenes[index]!.narrationText,
+        mediaType: plan.scenes[index]!.mediaType,
       })),
       brand: plan.brand,
     });

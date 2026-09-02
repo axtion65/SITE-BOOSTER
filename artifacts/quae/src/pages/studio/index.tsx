@@ -348,7 +348,7 @@ function Wizard() {
         const campaign=await response.json();
         const optionsResponse=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/visual-options`,{headers:{Authorization:`Bearer ${token}`}});
         if(optionsResponse.ok)setVisualOptions(await optionsResponse.json());
-        const attached=campaign.attachedVisuals||[];const primary=attached.find((v:any)=>v.is_primary);setSelectedVisualIds(primary?[primary.version_id,...attached.filter((v:any)=>v.version_id!==primary.version_id).map((v:any)=>v.version_id)]:attached.map((v:any)=>v.version_id));setApprovedRunId(campaign.approved_run_id||"");if(primary){const primaryUrl=`/api/storage${primary.object_path}`;setProductImageUrl(primaryUrl);setCampaignProductImageUrl(primaryUrl);setCampaignVisualIdentity({projectId:String(primary.project_id),versionId:String(primary.version_id)});setProductImageFileName(`${primary.name} · Version ${primary.version_number}`);setRenderIntent("animate");setCampaignMessage(briefId?"Animate Existing · Confirmed campaign visual loaded. No generation starts until you explicitly continue.":"Animate Existing · Quae will prepare this confirmed campaign visual when you start the render.");}
+        const attached=campaign.attachedVisuals||[];const primary=attached.find((v:any)=>v.is_primary);setSelectedVisualIds(primary?[primary.version_id,...attached.filter((v:any)=>v.version_id!==primary.version_id).map((v:any)=>v.version_id)]:attached.map((v:any)=>v.version_id));setApprovedRunId(campaign.approved_run_id||"");if(primary){const primaryUrl=`/api/storage${primary.object_path}`;setProductImageUrl(primaryUrl);setCampaignProductImageUrl(primaryUrl);setCampaignVisualIdentity({projectId:String(primary.project_id),versionId:String(primary.version_id)});setProductImageFileName(`${primary.name} · Version ${primary.version_number}`);setRenderIntent("animate");setCampaignMessage(briefId?"Hybrid Product Ad · Confirmed campaign visual loaded. No generation starts until you explicitly continue.":"Hybrid Product Ad · Quae will preserve this visual and create matching supporting motion when you start the render.");}
         let handoff: ApprovedCampaignHandoff | null = null;
         if (briefId) {
           const briefResponse = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/video-brief?briefId=${encodeURIComponent(briefId)}`,{headers:{Authorization:`Bearer ${token}`}});
@@ -1107,12 +1107,12 @@ function Wizard() {
 
               <div className="grid gap-3 md:grid-cols-2" aria-label="Render intent">
                 <button type="button" onClick={() => setRenderIntent("create_new")} className={`rounded-xl border p-4 text-left ${renderIntent === "create_new" ? "border-primary bg-primary/10" : "border-white/10"}`}>
-                  <strong className="block text-white">Create a new AI video</strong>
-                  <span className="text-xs text-muted-foreground">Builds each approved scene and uses owned business assets when available.</span>
+                  <strong className="block text-white">AI motion only</strong>
+                  <span className="text-xs text-muted-foreground">Creates supporting footage without anchoring the customer’s product image.</span>
                 </button>
                 <button type="button" disabled={!canAnimateSelectedVisual} onClick={() => canAnimateSelectedVisual && setRenderIntent("animate")} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${renderIntent === "animate" ? "border-primary bg-primary/10" : "border-white/10"}`}>
-                  <strong className="block text-white">Animate my selected visual</strong>
-                  <span className="text-xs text-muted-foreground">Animates only the visual shown below with a supported model.</span>
+                  <strong className="block text-white">Hybrid product ad</strong>
+                  <span className="text-xs text-muted-foreground">Keeps the exact selected visual for product proof and uses LTX only for matching supporting motion.</span>
                 </button>
               </div>
               {campaignId && !briefId && productImageUrl && (
@@ -1133,7 +1133,7 @@ function Wizard() {
                 <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-white/70 flex items-start gap-2">
                   <ImagePlus className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                   <span>
-                    <strong className="text-white">Product image attached.</strong> LTX 2.3 and Kling 3 can use it as the approved visual reference across the scene plan.
+                    <strong className="text-white">Product image attached.</strong> Quae keeps the exact image for product-proof scenes and uses LTX for supporting motion.
                   </span>
                 </div>
               )}
@@ -1437,7 +1437,7 @@ function Wizard() {
               {productImageUrl && selectedModelSupportsImage && (
                 <div className="flex items-center gap-2.5 p-3 rounded-xl bg-primary/5 border border-primary/20 text-sm text-primary">
                   <ImagePlus className="h-4 w-4 flex-shrink-0" />
-                  <span>Your product image will be used as a reference frame for more accurate output</span>
+                  <span>Your exact product image will appear in product-proof scenes; LTX creates only the matching supporting motion</span>
                 </div>
               )}
               {productImageUrl && !selectedModelSupportsImage && (
@@ -1463,7 +1463,7 @@ function Wizard() {
                           Cost: <span className={`font-bold ${isAdminUser ? "text-green-400" : "text-amber-400"}`}>{isAdminUser ? "FREE (admin)" : `${renderCost} credits`}</span>
                           {!isAdminUser && <span className="text-muted-foreground"> ({userCredits} remaining → {Math.max(0, afterBalance)} after)</span>}
                         </p>
-                        <p className="text-sm text-muted-foreground">Mode: <span className="font-semibold text-white">{renderIntent === "animate" ? "Animate selected visual" : "Create a new AI video"}</span></p>
+                        <p className="text-sm text-muted-foreground">Mode: <span className="font-semibold text-white">{renderIntent === "animate" ? "Hybrid product ad" : "AI motion only"}</span></p>
                         <p className="text-sm text-muted-foreground">Output length: <span className="font-semibold text-white">{clipLabel(modelId)}</span></p>
                         <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                           Source:

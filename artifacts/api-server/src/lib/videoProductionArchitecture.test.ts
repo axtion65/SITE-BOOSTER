@@ -86,13 +86,23 @@ test("production retries only the failed scene once", async () => {
   assert.match(source, /provider_scene_failed_twice/);
 });
 
-test("create-new scene production never injects unrelated stored images", async () => {
+test("hybrid production uses only the exact project source and locks campaign branding", async () => {
   const source = await readFile(new URL("artifacts/api-server/src/lib/videoProduction.ts", root), "utf8");
   const context = source.slice(
     source.indexOf("async function productionContext"),
     source.indexOf("async function preparePlan"),
   );
-  assert.match(context, /project\.renderIntent === "animate"\s*\?\s*\[project\.sourceAssetId\]\.filter/s);
-  assert.match(context, /:\s*\[\];/);
+  assert.match(context, /FROM campaigns c[\s\S]*JOIN businesses b ON b\.id=c\.business_id/);
+  assert.match(context, /WHERE c\.id=\$2 AND c\.user_id=\$1/);
+  assert.match(context, /\[project\.sourceAssetId\][\s\S]*\.filter/);
   assert.doesNotMatch(context, /product_images|mockup_versions|Array\.from\(new Set\(owned\)\)/);
+});
+
+test("source-image proof scenes bypass paid scene submission and assemble directly", async () => {
+  const production = await readFile(new URL("artifacts/api-server/src/lib/videoProduction.ts", root), "utf8");
+  const assembler = await readFile(new URL("artifacts/api-server/src/lib/videoAssembler.ts", root), "utf8");
+  assert.match(production, /status:\s*scene\.mediaType === "source_image" \? "completed" : "pending"/);
+  assert.match(production, /outputPath:\s*scene\.mediaType === "source_image" \? scene\.sourceAssetPath : null/);
+  assert.match(assembler, /scene\.mediaType === "source_image"/);
+  assert.match(assembler, /"-loop", "1"/);
 });

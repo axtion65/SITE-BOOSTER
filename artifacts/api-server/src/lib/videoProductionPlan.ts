@@ -1,6 +1,6 @@
 import type { ExpandedScript } from "./falvideo";
 
-export const VIDEO_PRODUCTION_VERSION = "bdb-scenes-v1" as const;
+export const VIDEO_PRODUCTION_VERSION = "bdb-hybrid-v2" as const;
 export const PRODUCTION_DURATIONS = [15, 30, 45] as const;
 export type ProductionDuration = (typeof PRODUCTION_DURATIONS)[number];
 
@@ -20,6 +20,7 @@ export interface ProductionScenePlan {
   narrationText: string;
   visualPrompt: string;
   sourceAssetPath: string | null;
+  mediaType: "generated_video" | "source_image";
 }
 
 export interface VideoProductionPlan {
@@ -76,6 +77,18 @@ function splitSentences(value: string): string[] {
   return value.match(/[^.!?\n]+(?:[.!?]+|$)/g)?.map((part) => part.trim()).filter(Boolean) ?? [];
 }
 
+/** Allocate every spoken word to exactly one ordered visual beat. */
+function narrationBeats(value: string, count: number): string[] {
+  const sentences = splitSentences(value);
+  const units = sentences.length >= count ? sentences : words(value);
+  const beats = Array.from({ length: count }, () => [] as string[]);
+  units.forEach((unit, index) => {
+    const beatIndex = Math.min(count - 1, Math.floor(index * count / units.length));
+    beats[beatIndex]!.push(unit);
+  });
+  return beats.map((beat) => beat.join(" ").trim());
+}
+
 function allocateEvenly(totalMs: number, count: number): number[] {
   const base = Math.floor(totalMs / count / 100) * 100;
   const result = Array.from({ length: count }, () => base);
@@ -94,6 +107,7 @@ function scenePrompt(input: {
   sourceIndex: number;
   platform: string;
   brandName: string;
+  narrationText: string;
 }): string {
   const source = input.script.scenes[input.sourceIndex] ?? input.script.scenes[0];
   const description = source?.description || input.script.hook || input.script.script;
@@ -103,9 +117,11 @@ function scenePrompt(input: {
     : "widescreen 16:9 advertisement";
   return [
     `Shot ${input.sceneIndex + 1} for one coherent ${framing} for ${input.brandName}.`,
+    `Matching spoken beat: ${input.narrationText}`,
     description,
     direction,
-    "Show one specific business benefit with believable people, consistent product identity, premium natural lighting, and a purposeful camera move.",
+    "Visually demonstrate only that spoken beat. Show one specific business benefit with believable people, consistent product identity, premium natural lighting, and a purposeful camera move.",
+    "Do not introduce food, products, packaging, services, industries, or props that are not supported by this spoken beat or its approved scene.",
     "This shot must connect visually to the same advert, but must not repeat another shot.",
     "Imagery only: no generated words, captions, logos, labels, UI, watermarks, letters, or numbers.",
   ].join(" ");
@@ -134,7 +150,7 @@ export function compileVideoProductionPlan(input: {
   const visualDurationMs = targetMs - 3000;
   const sceneCount = Math.max(3, Math.min(8, Math.max(input.script.scenes.length, Math.ceil(visualDurationMs / 8000))));
   const durations = allocateEvenly(visualDurationMs, sceneCount);
-  const narration = splitSentences(input.script.voiceoverText || input.script.script);
+  const narration = narrationBeats(input.script.voiceoverText || input.script.script, sceneCount);
   const sourceAssets = (input.sourceAssetPaths ?? []).filter(Boolean);
   const vertical = input.platform === "tiktok" || input.platform === "instagram";
 
@@ -150,12 +166,19 @@ export function compileVideoProductionPlan(input: {
     brand: { ...input.brand, name: input.brand.name.trim(), callToAction: input.brand.callToAction.trim() },
     scenes: durations.map((durationMs, index) => {
       const sourceIndex = Math.min(input.script.scenes.length - 1, Math.floor(index * input.script.scenes.length / sceneCount));
+      // Hybrid production preserves the exact customer asset in deterministic
+      // opening/closing proof shots. LTX is reserved for the supporting motion.
+      const sourceImage = sourceAssets.length > 0 && (index === 0 || index === sceneCount - 1);
+      const sourceAssetPath = sourceImage
+        ? sourceAssets[index === 0 ? 0 : (sourceAssets.length - 1)]!
+        : null;
       return {
         index,
         durationMs,
         narrationText: narration[index] ?? "",
-        visualPrompt: scenePrompt({ script: input.script, sceneIndex: index, sourceIndex, platform: input.platform, brandName: input.brand.name.trim() }),
-        sourceAssetPath: sourceAssets.length ? sourceAssets[index % sourceAssets.length]! : null,
+        visualPrompt: scenePrompt({ script: input.script, sceneIndex: index, sourceIndex, platform: input.platform, brandName: input.brand.name.trim(), narrationText: narration[index] ?? "" }),
+        sourceAssetPath,
+        mediaType: sourceImage ? "source_image" : "generated_video",
       };
     }),
   };
@@ -169,6 +192,10 @@ export function validateVideoProductionPlan(plan: VideoProductionPlan): void {
   if (sceneMs + plan.endCardDurationMs !== targetMs) throw new Error("Production timeline does not equal its target duration");
   if (plan.scenes.some((scene, index) => scene.index !== index || scene.durationMs < 2500 || scene.durationMs > 10_000)) {
     throw new Error("Production scenes must be ordered and between 2.5s and 10s");
+  }
+  if (plan.scenes.some((scene) => !scene.narrationText.trim())) throw new Error("Every production scene must map to a spoken beat");
+  if (plan.scenes.some((scene) => scene.mediaType === "source_image" ? !scene.sourceAssetPath : Boolean(scene.sourceAssetPath))) {
+    throw new Error("Hybrid scene media does not match its source asset");
   }
   if (!plan.brand.callToAction || !plan.brand.name) throw new Error("Production plan is missing brand or CTA");
 }
