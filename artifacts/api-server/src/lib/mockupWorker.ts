@@ -111,12 +111,12 @@ async function saveAsset(job:Job){
   const row=await contextFor(job);
   const storage=new ObjectStorageService();
   const saved=await storage.uploadMockupImageFromUrl(job.provider_output_url,{userId:row.user_id,businessId:row.business_id,mockupId:row.mockup_project_id,versionId:job.id},job.provider_output_content_type||"image/png");
-  const qa=visualQa({objectPath:saved.objectPath,contentType:saved.contentType,width:Number(job.provider_output_width||0),height:Number(job.provider_output_height||0),owned:true,productReferenceCount:(row.product_reference_paths||[]).length,completed:true});
+  const qa=visualQa({objectPath:saved.objectPath,contentType:saved.contentType,width:saved.width,height:saved.height,owned:true,productReferenceCount:(row.product_reference_paths||[]).length,completed:true});
   const client=await pool.connect();
   try{
     await client.query("BEGIN");
     await client.query(`UPDATE mockup_versions SET object_path=$2,status=$3,job_stage=$3,qa_decision=$3,qa_checks=$4,width=$5,height=$6,content_type=$7,lease_owner=NULL,lease_expires_at=NULL WHERE id=$1`,
-      [job.id,saved.objectPath,qa.decision,JSON.stringify(qa.checks),job.provider_output_width,job.provider_output_height,saved.contentType]);
+      [job.id,saved.objectPath,qa.decision,JSON.stringify(qa.checks),saved.width,saved.height,saved.contentType]);
     await client.query("UPDATE mockup_projects SET status=$2,updated_at=NOW() WHERE id=$1",[job.mockup_project_id,qa.decision]);
     await client.query("COMMIT");
   }catch(error){await client.query("ROLLBACK").catch(()=>{});throw error}finally{client.release()}
