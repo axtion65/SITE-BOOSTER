@@ -15,6 +15,23 @@ type WorkspaceFacts = {
   videoCount: number;
 };
 
+type CampaignVideo = {
+  is_current: boolean;
+  status: string;
+  quality_status?: string | null;
+  video_url?: string | null;
+};
+
+export function currentCampaignVideoCount(videos: CampaignVideo[]) {
+  return videos.filter(
+    (video) =>
+      video.is_current &&
+      video.status === "completed" &&
+      video.quality_status === "passed" &&
+      Boolean(video.video_url),
+  ).length;
+}
+
 export function campaignWorkspaceProgress(facts: WorkspaceFacts) {
   const complete = {
     Brief: facts.hasBrief,
