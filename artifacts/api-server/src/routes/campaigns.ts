@@ -27,6 +27,7 @@ import {
 import {
   campaignWorkspaceNextAction,
   campaignWorkspaceProgress,
+  currentCampaignVideoCount,
 } from "../lib/campaignWorkspace";
 import {
   publicCampaignResult,
@@ -187,12 +188,27 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
   ).rows;
   const videos = (
     await pool.query(
-      `SELECT id,title,status,video_url,thumbnail_url,platform,duration,created_at,updated_at
-     FROM projects WHERE campaign_id=$1 AND user_id=$2 ORDER BY created_at DESC`,
+      `SELECT p.id,p.title,p.status,p.quality_status,p.video_url,p.thumbnail_url,p.platform,p.duration,
+      p.campaign_run_id,p.campaign_video_brief_id,p.mockup_project_id,p.mockup_version_id,
+      p.created_at,p.updated_at,
+      EXISTS (
+        SELECT 1 FROM campaign_video_briefs vb
+        JOIN campaign_asset_selections s ON s.id=vb.selection_id AND s.active
+          AND s.campaign_id=vb.campaign_id AND s.campaign_run_id=vb.campaign_run_id
+          AND s.customer_id=vb.customer_id AND s.business_id=vb.business_id
+          AND s.mockup_project_id=vb.mockup_project_id AND s.mockup_version_id=vb.mockup_version_id
+        WHERE vb.id=p.campaign_video_brief_id AND vb.campaign_id=p.campaign_id
+          AND vb.campaign_run_id=c.approved_run_id AND vb.customer_id=p.user_id
+          AND p.campaign_run_id=vb.campaign_run_id
+          AND p.mockup_project_id=vb.mockup_project_id
+          AND p.mockup_version_id=vb.mockup_version_id
+      ) AS is_current
+     FROM projects p JOIN campaigns c ON c.id=p.campaign_id AND c.user_id=p.user_id
+     WHERE p.campaign_id=$1 AND p.user_id=$2 ORDER BY p.created_at DESC`,
       [campaign.id, userId],
     )
   ).rows;
-  const attachedVisuals=(await pool.query(`SELECT TRUE is_primary,mv.id AS version_id,mv.version_number,mv.object_path,mv.status,s.created_at,mp.id AS project_id,p.name FROM campaign_asset_selections s JOIN mockup_versions mv ON mv.id=s.mockup_version_id JOIN mockup_projects mp ON mp.id=s.mockup_project_id AND mp.user_id=s.customer_id AND mp.business_id=s.business_id JOIN products p ON p.id=mp.product_id WHERE s.campaign_id=$1 AND s.customer_id=$2 AND s.active ORDER BY s.created_at DESC`,[campaign.id,userId])).rows;
+  const attachedVisuals=(await pool.query(`SELECT TRUE is_primary,mv.id AS version_id,mv.version_number,mv.object_path,mv.status,s.created_at,mp.id AS project_id,p.name FROM campaign_asset_selections s JOIN mockup_versions mv ON mv.id=s.mockup_version_id JOIN mockup_projects mp ON mp.id=s.mockup_project_id AND mp.user_id=s.customer_id AND mp.business_id=s.business_id JOIN products p ON p.id=mp.product_id WHERE s.campaign_id=$1 AND s.customer_id=$2 AND s.campaign_run_id=$3 AND s.active ORDER BY s.created_at DESC`,[campaign.id,userId,campaign.approved_run_id])).rows;
   const latest = runs[0];
   const rescueMissing = workspaceMissingCampaignEvidence(campaign, latest);
   const latestValidation=latest?validateRunSource(campaign,latest):{valid:true,reason:null,repairable:false};
@@ -201,7 +217,7 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
     hasStrategy: Boolean(latest?.final_result)&&latestValidation.valid,
     approved: Boolean(campaign.approved_run_id)&&latestValidation.valid,
     visualCount: attachedVisuals.length,
-    videoCount: videos.filter((video:any)=>Boolean(video.video_url)).length,
+    videoCount: currentCampaignVideoCount(videos),
   };
   const publicCampaign={id:campaign.id,business_id:campaign.business_id,product_id:campaign.product_id,name:campaign.name,brief:{objective:campaign.brief?.objective??"",campaignType:campaign.brief?.campaignType??"",channel:campaign.brief?.channel??"",promotion:campaign.brief?.promotion??"",duration:campaign.brief?.duration??""},status:latestValidation.valid?campaign.status:"needs_rebuild",approved_run_id:latestValidation.valid?campaign.approved_run_id:null,product_name:campaign.product_name,product_description:campaign.product_description,product_offer:campaign.product_offer,product_audience:campaign.product_audience,business_name:campaign.business_name,business_offer:campaign.business_offer,business_audience:campaign.business_audience,brand_personality:campaign.brand_personality};
   res.json({

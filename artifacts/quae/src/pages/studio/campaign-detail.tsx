@@ -244,8 +244,10 @@ export default function CampaignDetail() {
         ? "Fix Campaign"
       : data.nextAction === "review_campaign"
       ? "Review Campaign"
-      : data.nextAction === "create_strategy"
+        : data.nextAction === "create_strategy"
         ? "Start Strategy"
+        : data.nextAction === "create_video"
+          ? "Prepare Current Video"
         : data.nextAction === "review_assets"
           ? "Review Completed Assets"
           : "Continue Campaign";
@@ -504,7 +506,9 @@ export default function CampaignDetail() {
             <h2 className="mt-3 text-lg font-bold">Videos</h2>
             {data.approved_run_id &&
               data.attachedVisuals?.length > 0 &&
-              !data.videos?.some((v: any) => v.video_url) && (
+              !data.videos?.some(
+                (v: any) => v.is_current && v.video_url,
+              ) && (
                 <button
                   onClick={prepareVideo}
                   disabled={busy === "video"}
@@ -518,7 +522,11 @@ export default function CampaignDetail() {
                 {data.videos.map((v: any) => (
                   <div key={v.id} className="rounded-xl bg-white/5 p-3">
                     <b>{v.title}</b>
-                    <p className="text-xs text-slate-400">{v.status}</p>
+                    <p className="text-xs text-slate-400">
+                      {v.is_current
+                        ? v.status
+                        : "Previous version · not current"}
+                    </p>
                     <Link
                       href={`/studio/projects/${v.id}`}
                       className="mt-2 inline-flex text-sm font-bold text-violet-200"
