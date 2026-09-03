@@ -9,6 +9,7 @@ import { AGENT_PRICING_VERSION, estimatedCost } from "./pricing";
 import { CampaignError } from "./errors";
 import { qualityCycleReady, runBoundedQualityCycle } from "./qualityCycle";
 import { publicCampaignResult } from "../lib/campaignReview";
+import { revisionSourceInput } from "../lib/campaignRevision";
 import { deterministicCampaignFallback } from "../lib/campaignSafeFallback";
 import { pool } from "@workspace/db";
 import type { z } from "@workspace/api-zod";
@@ -253,9 +254,8 @@ export class CampaignPipeline {
         [runId, previousRunId],
       )
     ).rows[0]?.final_result;
-    const strategy = strategyOutputSchema.safeParse(source?.strategy);
-    const finalScript = scriptOutputSchema.safeParse(source?.finalScript);
-    if (!strategy.success || !finalScript.success) return false;
+    const revisionSource = revisionSourceInput(source, context);
+    if (!revisionSource) return false;
     const factcheck = factCheckOutputSchema.safeParse(source?.factcheck);
     const qa = qaOutputSchema.safeParse(source?.qa);
     const factcheckFailures = factcheck.success
@@ -276,12 +276,12 @@ export class CampaignPipeline {
       scriptOutputSchema,
       "Revise the saved draft once. Follow the customer's requested change and resolve every prior Fact Check and QA issue. Use only the authoritative evidence ledger; delete any claim that cannot be supported. Do not restart ideation or invent new facts.",
       rewriteInputSchema.parse({
-        winner: finalScript.data,
+        winner: revisionSource.finalScript,
         judge: {
           customerRevision: snapshot.customerRevision,
           priorJudge: source?.judge ?? null,
         },
-        strategy: strategy.data,
+        strategy: revisionSource.strategy,
         ledger,
         qaIssues,
         factcheckFailures,
@@ -293,9 +293,9 @@ export class CampaignPipeline {
       ledger,
       {
         research: source?.research ?? null,
-        strategy: strategy.data,
+        strategy: revisionSource.strategy,
         hooks: source?.hooks ?? { hooks: [] },
-        winningScript: source?.winningScript ?? finalScript.data,
+        winningScript: source?.winningScript ?? revisionSource.finalScript,
         finalScript: repaired,
         judge: source?.judge ?? {},
       },
