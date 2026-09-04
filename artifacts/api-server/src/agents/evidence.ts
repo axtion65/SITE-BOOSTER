@@ -30,6 +30,7 @@ const PATHS = [
   "product.salePrice",
   "product.offer",
   "product.cta",
+  "customerRevision.notes",
 ] as const;
 const WEBSITE_PATHS = [
   "identity.name",
