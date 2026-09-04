@@ -1,5 +1,6 @@
 import type { ExpandedScript } from "./falvideo";
 import { RENDERING_MODEL_BY_ID } from "@workspace/plans";
+import { splitApprovedSentences } from "./sentenceSegmentation";
 
 export const VIDEO_RENDER_BRIEF_VERSION = "model-aware-v2";
 
@@ -80,7 +81,7 @@ function approvedCampaignDuration(value: unknown): string {
 }
 
 function approvedCampaignScenes(script: string, duration: string): ExpandedScript["scenes"] {
-  const sentences = script.match(/[^.!?\n]+(?:[.!?]+|$)/g)?.map(part => part.trim()).filter(Boolean) ?? [script];
+  const sentences = splitApprovedSentences(script);
   const sceneCount = Math.max(1, Math.min(4, sentences.length));
   const groups = Array.from({ length: sceneCount }, () => [] as string[]);
   sentences.forEach((sentence, index) => {
@@ -123,19 +124,15 @@ export function parseVideoDuration(value: string): number {
   return normalized.endsWith("m") ? amount * 60 : amount;
 }
 
-function sentences(value: string): string[] {
-  return value.split(/(?<=[.!?])\s+|\n+/).map(part => part.trim()).filter(Boolean);
-}
-
 function selectApprovedMessage(script: ExpandedScript, maxWords: number): string {
-  const candidates = [script.callToAction, script.hook, ...sentences(script.voiceoverText), ...sentences(script.script)]
+  const candidates = [script.callToAction, script.hook, ...splitApprovedSentences(script.voiceoverText), ...splitApprovedSentences(script.script)]
     .map(value => value?.trim()).filter((value): value is string => Boolean(value));
   const priced = candidates.find(value => /(?:[$€£]\s?\d|\b\d+(?:\.\d{1,2})?\s?(?:dollars?|euros?|pounds?)\b)/i.test(value) && value.split(/\s+/).length <= maxWords);
   return priced ?? candidates.find(value => value.split(/\s+/).length <= maxWords) ?? candidates[0] ?? "";
 }
 
 function durationSafeApprovedExcerpt(value: string, maxWords: number): string {
-  const candidate = sentences(value).find(line => line.split(/\s+/).length <= maxWords);
+  const candidate = splitApprovedSentences(value).find(line => line.split(/\s+/).length <= maxWords);
   if (candidate) return candidate;
   // A word-boundary excerpt is selection, not generated copy. It cannot add claims or price modifiers.
   return value.trim().split(/\s+/).slice(0, maxWords).join(" ").replace(/[,;:]$/, "");
