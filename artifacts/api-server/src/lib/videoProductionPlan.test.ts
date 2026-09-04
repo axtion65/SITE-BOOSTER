@@ -55,6 +55,34 @@ test("voiceover is measured before any provider plan can be accepted", () => {
   }), /does not fit/);
 });
 
+test("production narration never splits a dotted brand token", () => {
+  const approvedCopy = "Small business, big marketing goals? Quae.ai creates your campaigns, product visuals, social content, and video ads in one place. Start building your campaign today.";
+  const dottedBrandScript: ExpandedScript = {
+    ...script,
+    script: approvedCopy,
+    voiceoverText: approvedCopy,
+    callToAction: "Start building your campaign today.",
+    estimatedDuration: "15s",
+    scenes: [
+      { sceneNumber: 1, description: "Small business, big marketing goals?", duration: "4s", visualDirection: "Open on the audience." },
+      { sceneNumber: 2, description: "Quae.ai creates your campaigns, product visuals, social content, and video ads in one place.", duration: "4s", visualDirection: "Show the product workflow." },
+      { sceneNumber: 3, description: "Start building your campaign today.", duration: "4s", visualDirection: "Close on the CTA." },
+    ],
+  };
+  const plan = compileVideoProductionPlan({
+    script: dottedBrandScript,
+    duration: "15s",
+    platform: "instagram",
+    voiceoverDurationMs: 10_000,
+    brand: { name: "Quae.ai", website: "quae.ai", callToAction: dottedBrandScript.callToAction },
+  });
+
+  assert.equal(plan.scenes.length, 3);
+  assert.equal(plan.scenes[1]?.narrationText, dottedBrandScript.scenes[1]?.description);
+  assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), approvedCopy);
+  assert.ok(plan.scenes.every((scene) => scene.narrationText !== "Quae."));
+});
+
 test("45-second production splits into bounded independent scenes", () => {
   const plan = compileVideoProductionPlan({
     script,

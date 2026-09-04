@@ -47,6 +47,22 @@ test("approved campaign brief is the authoritative provider script", () => {
   assert.ok(approved.scenes.length >= 1);
 });
 
+test("approved campaign scenes preserve dotted brand and domain tokens", () => {
+  const approvedCopy = "Small business, big marketing goals? Quae.ai creates your campaigns, product visuals, social content, and video ads in one place. Start building your campaign today.";
+  const approved = approvedCampaignBriefToExpandedScript({
+    approvedCopy,
+    hook: "Small business, big marketing goals?",
+    cta: "Start building your campaign today.",
+    duration: "15 seconds",
+    platform: "Instagram",
+  });
+
+  assert.equal(approved.scenes.length, 3);
+  assert.equal(approved.scenes[1]?.description, "Quae.ai creates your campaigns, product visuals, social content, and video ads in one place.");
+  assert.equal(approved.scenes.map((scene) => scene.description).join(" "), approvedCopy);
+  assert.ok(approved.scenes.every((scene) => scene.description !== "Quae."));
+});
+
 test("images and error documents cannot pass as generated videos", async () => {
   process.env.AWS_ENDPOINT_URL ||= "https://storage.invalid";
   process.env.AWS_ACCESS_KEY_ID ||= "test";

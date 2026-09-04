@@ -1,4 +1,5 @@
 import type { ExpandedScript } from "./falvideo";
+import { splitApprovedSentences } from "./sentenceSegmentation";
 
 export const VIDEO_PRODUCTION_VERSION = "bdb-hybrid-v2" as const;
 export const PRODUCTION_DURATIONS = [15, 30, 45] as const;
@@ -73,13 +74,9 @@ export function constrainVoiceoverText(input: {
   return [...brandWords, ...bodyWords, ...ctaWords].join(" ").replace(/\s+([,.!?])/g, "$1").trim();
 }
 
-function splitSentences(value: string): string[] {
-  return value.match(/[^.!?\n]+(?:[.!?]+|$)/g)?.map((part) => part.trim()).filter(Boolean) ?? [];
-}
-
 /** Allocate every spoken word to exactly one ordered visual beat. */
 function narrationBeats(value: string, count: number): string[] {
-  const sentences = splitSentences(value);
+  const sentences = splitApprovedSentences(value);
   const units = sentences.length >= count ? sentences : words(value);
   const beats = Array.from({ length: count }, () => [] as string[]);
   units.forEach((unit, index) => {
