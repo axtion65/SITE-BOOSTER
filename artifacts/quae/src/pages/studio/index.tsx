@@ -22,6 +22,7 @@ import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
 import { getProductionCreditCost, normalizeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 import { buildStudioProjectRequest } from "@/lib/studio-project-request";
+import { privateImageUrl } from "@/lib/marketing-api";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -171,7 +172,7 @@ function Wizard() {
   // productImageUrl: GCS serving URL stored in DB and draft (short path, no bloat)
   // Visuals are deliberately session-scoped: a saved/stale draft may never opt a
   // later render into image-to-video.
-  const [productImageUrl, setProductImageUrl] = useState<string | null>(approvedMockup ? `/api/storage${approvedMockup.authoritativeImagePath}` : null);
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(approvedMockup ? privateImageUrl(approvedMockup.authoritativeImagePath) : null);
   const [campaignProductImageUrl, setCampaignProductImageUrl] = useState<string | null>(null);
   const [campaignVisualIdentity, setCampaignVisualIdentity] = useState<{ projectId: string; versionId: string } | null>(null);
   const [renderIntent, setRenderIntent] = useState<RenderIntent>("create_new");
@@ -348,7 +349,7 @@ function Wizard() {
         const campaign=await response.json();
         const optionsResponse=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/visual-options`,{headers:{Authorization:`Bearer ${token}`}});
         if(optionsResponse.ok)setVisualOptions(await optionsResponse.json());
-        const attached=campaign.attachedVisuals||[];const primary=attached.find((v:any)=>v.is_primary);setSelectedVisualIds(primary?[primary.version_id,...attached.filter((v:any)=>v.version_id!==primary.version_id).map((v:any)=>v.version_id)]:attached.map((v:any)=>v.version_id));setApprovedRunId(campaign.approved_run_id||"");if(primary){const primaryUrl=`/api/storage${primary.object_path}`;setProductImageUrl(primaryUrl);setCampaignProductImageUrl(primaryUrl);setCampaignVisualIdentity({projectId:String(primary.project_id),versionId:String(primary.version_id)});setProductImageFileName(`${primary.name} · Version ${primary.version_number}`);setRenderIntent("animate");setCampaignMessage(briefId?"Hybrid Product Ad · Confirmed campaign visual loaded. No generation starts until you explicitly continue.":"Hybrid Product Ad · Quae will preserve this visual and create matching supporting motion when you start the render.");}
+        const attached=campaign.attachedVisuals||[];const primary=attached.find((v:any)=>v.is_primary);setSelectedVisualIds(primary?[primary.version_id,...attached.filter((v:any)=>v.version_id!==primary.version_id).map((v:any)=>v.version_id)]:attached.map((v:any)=>v.version_id));setApprovedRunId(campaign.approved_run_id||"");if(primary){const primaryUrl=privateImageUrl(primary.object_path);setProductImageUrl(primaryUrl);setCampaignProductImageUrl(primaryUrl);setCampaignVisualIdentity({projectId:String(primary.project_id),versionId:String(primary.version_id)});setProductImageFileName(`${primary.name} · Version ${primary.version_number}`);setRenderIntent("animate");setCampaignMessage(briefId?"Hybrid Product Ad · Confirmed campaign visual loaded. No generation starts until you explicitly continue.":"Hybrid Product Ad · Quae will preserve this visual and create matching supporting motion when you start the render.");}
         let handoff: ApprovedCampaignHandoff | null = null;
         if (briefId) {
           const briefResponse = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/video-brief?briefId=${encodeURIComponent(briefId)}`,{headers:{Authorization:`Bearer ${token}`}});
@@ -384,7 +385,7 @@ function Wizard() {
     return () => { cancelled = true; };
   }, [campaignId, briefId]);
 
-  async function saveVisualSelection(ids:string[]){if(!campaignId||!approvedRunId||!ids.length)return;const token=localStorage.getItem("quae_token")||"";const response=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/asset-selection`,{method:"PUT",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`,"Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({approvedRunId,versionId:ids[0]})});if(!response.ok){toast({title:"That visual could not be attached",variant:"destructive"});return;}setSelectedVisualIds([ids[0]]);const selected=visualOptions.find(v=>v.version_id===ids[0]);if(selected){const selectedUrl=`/api/storage${selected.object_path}`;setProductImageUrl(selectedUrl);setCampaignProductImageUrl(selectedUrl);setCampaignVisualIdentity({projectId:String(selected.project_id),versionId:String(selected.version_id)});setProductImageFileName(`${selected.name} · Version ${selected.version_number}`);setRenderIntent("animate");}}
+  async function saveVisualSelection(ids:string[]){if(!campaignId||!approvedRunId||!ids.length)return;const token=localStorage.getItem("quae_token")||"";const response=await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/asset-selection`,{method:"PUT",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`,"Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({approvedRunId,versionId:ids[0]})});if(!response.ok){toast({title:"That visual could not be attached",variant:"destructive"});return;}setSelectedVisualIds([ids[0]]);const selected=visualOptions.find(v=>v.version_id===ids[0]);if(selected){const selectedUrl=privateImageUrl(selected.object_path);setProductImageUrl(selectedUrl);setCampaignProductImageUrl(selectedUrl);setCampaignVisualIdentity({projectId:String(selected.project_id),versionId:String(selected.version_id)});setProductImageFileName(`${selected.name} · Version ${selected.version_number}`);setRenderIntent("animate");}}
 
   // Pre-fill from template URL params (only when navigating from template picker)
   const templateApplied = useRef(false);
