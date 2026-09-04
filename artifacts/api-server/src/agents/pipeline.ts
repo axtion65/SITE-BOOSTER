@@ -267,6 +267,10 @@ export class CampaignPipeline {
     const qaIssues = qa.success
       ? [qa.data.customerSummary, ...qa.data.issues].filter(Boolean)
       : [];
+    const revisionJudge = {
+      customerRevision: snapshot.customerRevision,
+      priorJudge: source?.judge ?? null,
+    };
     await stage("repairing_revision");
     const repaired = await this.agent(
       runId,
@@ -274,13 +278,10 @@ export class CampaignPipeline {
       "rewriter",
       "rewrite-customer-revision.v1",
       scriptOutputSchema,
-      "Revise the saved draft once. Follow the customer's requested change and resolve every prior Fact Check and QA issue. Use only the authoritative evidence ledger; delete any claim that cannot be supported. Do not restart ideation or invent new facts.",
+      "Revise the saved draft once. Follow the customer's requested change and resolve every prior Fact Check and QA issue. Customer revision notes in the authoritative evidence ledger are customer-confirmed wording and production direction: preserve any requested exact script verbatim. Delete only claims that cannot be supported by any ledger record. Do not restart ideation, invent new facts, or claim compliance in the creative rationale unless the output actually complies.",
       rewriteInputSchema.parse({
         winner: revisionSource.finalScript,
-        judge: {
-          customerRevision: snapshot.customerRevision,
-          priorJudge: source?.judge ?? null,
-        },
+        judge: revisionJudge,
         strategy: revisionSource.strategy,
         ledger,
         qaIssues,
@@ -297,7 +298,7 @@ export class CampaignPipeline {
         hooks: source?.hooks ?? { hooks: [] },
         winningScript: source?.winningScript ?? revisionSource.finalScript,
         finalScript: repaired,
-        judge: source?.judge ?? {},
+        judge: revisionJudge,
       },
       stage,
     );
