@@ -38,6 +38,9 @@ test("approved campaign brief is the authoritative provider script", () => {
     cta: "Build your campaign.",
     duration: "30 seconds",
     platform: "Instagram",
+    productName: "Quae",
+    productDescription: "Approved campaigns and product visuals for small businesses.",
+    targetAudience: "small business owners",
   });
   assert.equal(approved.script, "Meet Quae. Build a campaign in minutes.");
   assert.equal(approved.voiceoverText, approved.script);
@@ -45,6 +48,8 @@ test("approved campaign brief is the authoritative provider script", () => {
   assert.equal(approved.estimatedDuration, "30s");
   assert.equal(approvedCampaignPlatform("Instagram Reels"), "instagram");
   assert.ok(approved.scenes.length >= 1);
+  assert.match(approved.scenes[0]!.visualDirection, /Director beat — Hook/);
+  assert.match(approved.scenes[0]!.visualDirection, /small business owners/);
 });
 
 test("approved campaign scenes preserve dotted brand and domain tokens", () => {
@@ -55,12 +60,27 @@ test("approved campaign scenes preserve dotted brand and domain tokens", () => {
     cta: "Start building your campaign today.",
     duration: "15 seconds",
     platform: "Instagram",
+    productName: "Quae.ai",
+    productDescription: "AI marketing campaigns, product visuals, social content, and video ads.",
+    targetAudience: "small businesses",
   });
 
   assert.equal(approved.scenes.length, 3);
   assert.equal(approved.scenes[1]?.description, "Quae.ai creates your campaigns, product visuals, social content, and video ads in one place.");
   assert.equal(approved.scenes.map((scene) => scene.description).join(" "), approvedCopy);
   assert.ok(approved.scenes.every((scene) => scene.description !== "Quae."));
+  assert.equal(new Set(approved.scenes.map((scene) => scene.visualDirection)).size, 3);
+  assert.match(approved.scenes[1]!.visualDirection, /Director beat — Demonstration/);
+  assert.match(approved.scenes[1]!.visualDirection, /AI marketing campaigns/);
+  assert.match(approved.scenes[2]!.visualDirection, /Director beat — Payoff/);
+  assert.ok(approved.scenes.every((scene) => !scene.visualDirection.includes("Create product-focused visuals")));
+});
+
+test("the server keeps approved copy authoritative while directing scenes itself", async () => {
+  const source = await readFile(new URL("../routes/projects.ts", import.meta.url), "utf8");
+  const matcher = source.slice(source.indexOf("function matchesApprovedCampaignScript"), source.indexOf("const router = Router"));
+  assert.match(matcher, /candidate\.voiceoverText === approved\.voiceoverText/);
+  assert.doesNotMatch(matcher, /candidate\.scenes/);
 });
 
 test("images and error documents cannot pass as generated videos", async () => {
