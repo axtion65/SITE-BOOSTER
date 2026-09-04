@@ -323,7 +323,8 @@ router.post("/projects", async (req, res) => {
         AND s.customer_id=vb.customer_id AND s.business_id=vb.business_id
         AND s.mockup_project_id=vb.mockup_project_id AND s.mockup_version_id=vb.mockup_version_id
       JOIN mockup_projects mp ON mp.id=vb.mockup_project_id AND mp.user_id=vb.customer_id AND mp.business_id=vb.business_id
-      JOIN mockup_versions mv ON mv.id=vb.mockup_version_id AND mv.mockup_project_id=mp.id AND mv.status='completed'
+      JOIN mockup_versions mv ON mv.id=vb.mockup_version_id AND mv.mockup_project_id=mp.id
+        AND mv.object_path IS NOT NULL AND mv.status IN ('approved','ready_for_review')
       WHERE vb.id=$1 AND vb.campaign_id=$2 AND vb.customer_id=$3`, [campaignVideoBriefId, campaignId, userId])).rows[0];
       if (!production) { res.status(409).json({ error: "That prepared campaign video is stale, mismatched, or unavailable." }); return; }
       if (parsed.data.sourceAssetId !== production.object_path || parsed.data.productImageUrl !== `/api/storage${production.object_path}`) {
