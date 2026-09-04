@@ -122,7 +122,10 @@ test("valid revision runs repair the saved draft before the full pipeline", asyn
   );
   assert.match(source, /rewrite-customer-revision\.v1/);
   assert.match(source, /previous\.status IN \('ready_for_review','needs_revision'\)/);
-  assert.match(source, /Do not restart ideation or invent new facts/);
+  assert.match(source, /Do not restart ideation, invent new facts/);
+  assert.match(source, /preserve any requested exact script verbatim/);
+  assert.match(source, /const revisionJudge = \{/);
+  assert.match(source, /judge: revisionJudge/);
   assert.ok(
     source.indexOf("await this.executeRevision") <
       source.indexOf('await stage("research")'),
