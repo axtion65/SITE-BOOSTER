@@ -54,9 +54,10 @@ function productionScenes(
   duration: string,
 ): ExpandedScript["scenes"] {
   const sentences = script
-    .match(/[^.!?\n]+(?:[.!?]+|$)/g)
-    ?.map((part) => part.trim())
-    .filter(Boolean) ?? [script];
+    .trim()
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
   const sceneCount = Math.max(1, Math.min(4, sentences.length));
   const groups = Array.from({ length: sceneCount }, () => [] as string[]);
   sentences.forEach((sentence, index) =>
