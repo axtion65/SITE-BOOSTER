@@ -19,6 +19,7 @@ import { ownedBusiness, ownedCampaignRun } from "../lib/campaignIdentity";
 import {
   attachCampaignVisual,
   deriveProductionBrief,
+  ensureApprovedRunVisual,
 } from "../lib/campaignAssets";
 import {
   approveLatestCampaignRun,
@@ -454,6 +455,11 @@ router.post("/campaigns/:id/video-brief", async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await ensureApprovedRunVisual(client, {
+      customerId: userId,
+      campaignId: req.params.id,
+      runId: authority.campaign.approved_run_id,
+    });
     const row = (
       await client.query(
         `SELECT c.id campaign_id,c.user_id,c.business_id,c.name campaign_name,c.brief campaign_brief,c.source_url,r.id campaign_run_id,r.final_result,r.context_snapshot run_context,s.id selection_id,s.mockup_project_id,s.mockup_version_id FROM campaigns c JOIN campaign_runs r ON r.id=c.approved_run_id AND r.campaign_id=c.id JOIN campaign_asset_selections s ON s.campaign_id=c.id AND s.campaign_run_id=r.id AND s.active JOIN mockup_projects mp ON mp.id=s.mockup_project_id AND mp.user_id=c.user_id AND mp.business_id=c.business_id JOIN mockup_versions mv ON mv.id=s.mockup_version_id AND mv.mockup_project_id=mp.id WHERE c.id=$1 AND c.user_id=$2 AND c.status='approved' FOR UPDATE`,

@@ -15,6 +15,14 @@ export async function attachCampaignVisual(db:CampaignAssetDb,input:{customerId:
   return {kind:"selected" as const,selection,visual};
 }
 
+export async function ensureApprovedRunVisual(db:CampaignAssetDb,input:{customerId:string;campaignId:string;runId:string}){
+  const current=(await db.query("SELECT * FROM campaign_asset_selections WHERE campaign_id=$1 AND customer_id=$2 AND campaign_run_id=$3 AND active ORDER BY created_at DESC LIMIT 1",[input.campaignId,input.customerId,input.runId])).rows[0];
+  if(current)return {kind:"selected" as const,selection:current};
+  const previous=(await db.query(`SELECT s.id,s.mockup_version_id FROM campaign_asset_selections s JOIN mockup_projects mp ON mp.id=s.mockup_project_id AND mp.user_id=s.customer_id AND mp.business_id=s.business_id JOIN mockup_versions mv ON mv.id=s.mockup_version_id AND mv.mockup_project_id=mp.id WHERE s.campaign_id=$1 AND s.customer_id=$2 AND s.campaign_run_id<>$3 AND s.active AND mv.object_path IS NOT NULL AND mv.status IN ('approved','ready_for_review') ORDER BY s.created_at DESC LIMIT 1`,[input.campaignId,input.customerId,input.runId])).rows[0];
+  if(!previous)return {kind:"missing" as const};
+  return attachCampaignVisual(db,{customerId:input.customerId,campaignId:input.campaignId,runId:input.runId,versionId:previous.mockup_version_id,idempotencyKey:`approved-run-carry-forward:${previous.id}`});
+}
+
 export function deriveProductionBrief(row:any){
   const result=row.final_result||{},context=row.run_context||{};
   const generation=context.generationContext||context;
