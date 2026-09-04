@@ -74,6 +74,31 @@ test("approved campaign handoff populates Creative from the authoritative approv
   );
 });
 
+test("Creative storyboard preserves dotted brand and domain tokens", () => {
+  const approvedCopy = "Small business, big marketing goals? Quae.ai creates your campaigns, product visuals, social content, and video ads in one place. Start building your campaign today.";
+  const campaign = {
+    ...approvedCampaign,
+    runs: approvedCampaign.runs.map((run) => run.id !== "run-2" ? run : {
+      ...run,
+      final_result: {
+        ...run.final_result,
+        finalScript: {
+          hook: "Small business, big marketing goals?",
+          script: approvedCopy,
+          callToAction: "Start building your campaign today.",
+        },
+      },
+    }),
+  };
+
+  const handoff = approvedCampaignToStudio(campaign);
+  assert.ok(handoff);
+  assert.equal(handoff.expandedScript.scenes.length, 3);
+  assert.equal(handoff.expandedScript.scenes[1]?.description, "Quae.ai creates your campaigns, product visuals, social content, and video ads in one place.");
+  assert.equal(handoff.expandedScript.scenes.map((scene) => scene.description).join(" "), approvedCopy);
+  assert.ok(handoff.expandedScript.scenes.every((scene) => scene.description !== "Quae."));
+});
+
 test("campaign handoff takes precedence over an unrelated saved draft", () => {
   assert.equal(shouldRestoreStudioDraft("?campaignId=campaign-1"), false);
 });
