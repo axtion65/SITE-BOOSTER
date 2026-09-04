@@ -8,8 +8,8 @@ test("campaign production is bound to the approved brief, run, owner, business a
   assert.match(source, /c\.approved_run_id=vb\.campaign_run_id/);
   assert.match(source, /b\.user_id=vb\.customer_id/);
   assert.match(source, /s\.mockup_version_id=vb\.mockup_version_id/);
-  assert.match(source, /mv\.object_path IS NOT NULL AND mv\.status IN \('approved','ready_for_review'\)/);
-  assert.doesNotMatch(source, /mv\.status='completed'/);
+  assert.match(source, /JOIN mockup_versions mv ON mv\.id=vb\.mockup_version_id AND mv\.mockup_project_id=mp\.id\s+AND mv\.object_path IS NOT NULL/);
+  assert.doesNotMatch(source, /mv\.status/);
   assert.match(source, /parsed\.data\.sourceAssetId !== production\.object_path/);
   assert.match(source, /req\.body\?\.confirmed !== true/);
   assert.match(source, /approvedCampaignBriefToExpandedScript\(production\.brief\)/);
