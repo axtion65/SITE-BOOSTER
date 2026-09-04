@@ -80,7 +80,12 @@ function approvedCampaignDuration(value: unknown): string {
   return seconds ? `${seconds}s` : "15s";
 }
 
-function approvedCampaignScenes(script: string, duration: string): ExpandedScript["scenes"] {
+function conciseDirectorContext(value: unknown, fallback: string): string {
+  const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
+  return (normalized || fallback).slice(0, 280);
+}
+
+function approvedCampaignScenes(brief: Record<string, unknown>, script: string, duration: string): ExpandedScript["scenes"] {
   const sentences = splitApprovedSentences(script);
   const sceneCount = Math.max(1, Math.min(4, sentences.length));
   const groups = Array.from({ length: sceneCount }, () => [] as string[]);
@@ -89,11 +94,20 @@ function approvedCampaignScenes(script: string, duration: string): ExpandedScrip
     groups[groupIndex]!.push(sentence);
   });
   const totalSeconds = Number.parseInt(duration, 10) || 15;
+  const subject = conciseDirectorContext(brief.productName ?? brief.campaignName, "the approved product or service");
+  const audience = conciseDirectorContext(brief.targetAudience, "the intended customer");
+  const productContext = conciseDirectorContext(brief.productDescription, "Use only the product or service details supported by the spoken beat.");
   return groups.map((copy, index) => ({
     sceneNumber: index + 1,
     description: copy.join(" "),
     duration: `${Math.max(1, Math.round(totalSeconds / sceneCount))}s`,
-    visualDirection: "Create product-focused visuals that support this approved voiceover without adding on-screen claims.",
+    visualDirection: index === 0
+      ? `Director beat — Hook: show ${audience} in a believable situation that visually expresses this spoken beat. Establish ${subject} as the consistent subject with one immediate action and purposeful close or medium framing. No invented claims or generated text.`
+      : index === sceneCount - 1
+        ? `Director beat — Payoff: show ${audience} experiencing the clear outcome of ${subject}, limited to this spoken beat. Finish on a premium product or service hero composition with clean space for Quae's deterministic CTA. Do not generate the CTA or any text.`
+        : index === 1
+          ? `Director beat — Demonstration: show ${subject} through one concrete action that directly matches this spoken beat. Approved product context: ${productContext} Keep the same product, environment, and visual identity; no unrelated objects, industries, or claims.`
+          : `Director beat — Proof: show a believable result of ${subject} for ${audience}, limited to this spoken beat and approved product context. Use one purposeful detail or reaction shot while preserving continuity and product identity.`,
   }));
 }
 
@@ -112,7 +126,7 @@ export function approvedCampaignBriefToExpandedScript(value: unknown): ExpandedS
     hook: String(brief.hook ?? "").trim(),
     callToAction: cta,
     voiceoverText: script,
-    scenes: approvedCampaignScenes(script, duration),
+    scenes: approvedCampaignScenes(brief, script, duration),
     estimatedDuration: duration,
     suggestedMusic: "",
   };

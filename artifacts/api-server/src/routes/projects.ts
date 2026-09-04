@@ -50,8 +50,7 @@ function matchesApprovedCampaignScript(value: unknown, approved: ExpandedScript)
     candidate.hook === approved.hook &&
     candidate.callToAction === approved.callToAction &&
     candidate.voiceoverText === approved.voiceoverText &&
-    candidate.estimatedDuration === approved.estimatedDuration &&
-    JSON.stringify(candidate.scenes) === JSON.stringify(approved.scenes);
+    candidate.estimatedDuration === approved.estimatedDuration;
 }
 
 const router = Router();
