@@ -72,6 +72,11 @@ test("approved campaign handoff populates Creative from the authoritative approv
       (scene) => !scene.visualDirection.includes("Shop"),
     ),
   );
+  assert.match(handoff.expandedScript.scenes[0]!.visualDirection, /Director beat — Hook/);
+  assert.match(handoff.expandedScript.scenes[0]!.visualDirection, /Streetwear fans/);
+  assert.match(handoff.expandedScript.scenes[1]!.visualDirection, /Director beat — Demonstration/);
+  assert.match(handoff.expandedScript.scenes[1]!.visualDirection, /heavyweight cotton tee/i);
+  assert.match(handoff.expandedScript.scenes.at(-1)!.visualDirection, /Director beat — Payoff/);
 });
 
 test("Creative storyboard preserves dotted brand and domain tokens", () => {
@@ -97,6 +102,8 @@ test("Creative storyboard preserves dotted brand and domain tokens", () => {
   assert.equal(handoff.expandedScript.scenes[1]?.description, "Quae.ai creates your campaigns, product visuals, social content, and video ads in one place.");
   assert.equal(handoff.expandedScript.scenes.map((scene) => scene.description).join(" "), approvedCopy);
   assert.ok(handoff.expandedScript.scenes.every((scene) => scene.description !== "Quae."));
+  assert.equal(new Set(handoff.expandedScript.scenes.map((scene) => scene.visualDirection)).size, 3);
+  assert.ok(handoff.expandedScript.scenes.every((scene) => !scene.visualDirection.includes("Create product-focused visuals")));
 });
 
 test("campaign handoff takes precedence over an unrelated saved draft", () => {
