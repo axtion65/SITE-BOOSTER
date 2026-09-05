@@ -1,3 +1,5 @@
+import { TEMPLATES } from "@workspace/templates";
+
 export const CAMPAIGN_TEMPLATE_PRESETS = [
   {
     slug: "product-launch",
@@ -113,10 +115,47 @@ export function campaignBuilderUrl(signedIn: boolean) {
   return signedIn ? "/studio/campaigns" : "/signin?campaignBuilder=1";
 }
 
+type VideoTemplateIntent = {
+  id: string;
+  name: string;
+  templateType?: string;
+  platform: string;
+  duration: string;
+  description: string;
+  exampleHook?: string;
+  structure?: readonly string[];
+};
+
+function videoTemplateStudioUrl(template: VideoTemplateIntent) {
+  const params = new URLSearchParams({
+    templateId: template.id,
+    templateName: template.name,
+    templateType: template.templateType ?? template.id,
+    platform: template.platform.toLowerCase(),
+    duration: template.duration,
+    templateDesc: template.description,
+  });
+  if (template.exampleHook) params.set("exampleHook", template.exampleHook);
+  if (template.structure?.length) {
+    params.set("structure", JSON.stringify(template.structure));
+  }
+  return `/studio?${params.toString()}`;
+}
+
+export function videoTemplateUrl(template: VideoTemplateIntent, signedIn: boolean) {
+  return signedIn
+    ? videoTemplateStudioUrl(template)
+    : `/signin?videoTemplate=${encodeURIComponent(template.id)}`;
+}
+
 export function authenticationDestination(search: string) {
   const params = new URLSearchParams(search);
   const preset = getCampaignTemplate(params.get("campaignTemplate"));
   if (preset) return `/studio/campaigns?template=${preset.slug}`;
+  const videoTemplate = TEMPLATES.find(
+    ({ id }) => id === params.get("videoTemplate"),
+  );
+  if (videoTemplate) return videoTemplateStudioUrl(videoTemplate);
   if (params.get("campaignBuilder") === "1") return "/studio/campaigns";
   return "/studio";
 }
