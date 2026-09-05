@@ -8,7 +8,9 @@ import {
   campaignFormForTemplate,
   campaignTemplateUrl,
   getCampaignTemplate,
+  videoTemplateUrl,
 } from "./campaign-templates";
+import { TEMPLATES } from "@workspace/templates";
 
 const home = readFileSync(
   new URL("../pages/home.tsx", import.meta.url),
@@ -115,6 +117,24 @@ test("authentication preserves only valid template intent for every completion p
   assert.equal((signin.match(/setLocation\(destination\)/g) ?? []).length, 3);
 });
 
+test("every video template survives authentication through its trusted catalog id", () => {
+  for (const template of TEMPLATES) {
+    assert.equal(
+      videoTemplateUrl(template, false),
+      `/signin?videoTemplate=${encodeURIComponent(template.id)}`,
+    );
+    assert.equal(
+      authenticationDestination(`?videoTemplate=${encodeURIComponent(template.id)}`),
+      videoTemplateUrl(template, true),
+    );
+  }
+  assert.equal(
+    authenticationDestination("?videoTemplate=https%3A%2F%2Fevil.test&redirect=%2Fadmin"),
+    "/studio",
+  );
+  assert.match(videoTemplates, /setLocation\(videoTemplateUrl\(t, !!user\)\)/);
+});
+
 test("campaign picker uses all business presets without entering video templates", () => {
   assert.match(builder, /CAMPAIGN_TEMPLATE_PRESETS\.map\(\(preset\) =>/);
   assert.doesNotMatch(builder, /href="\/templates"/);
@@ -198,7 +218,7 @@ test("creative video templates remain isolated in Creative Studio", () => {
     assert.match(videoTemplates, new RegExp(category.replace(/[+]/g, "\\+")));
   }
   assert.match(videoTemplates, /Video Templates · Proven Formats/);
-  assert.match(videoTemplates, /setLocation\(`\/studio\?\$\{params\.toString\(\)\}`\)/);
+  assert.match(videoTemplates, /setLocation\(videoTemplateUrl\(t, !!user\)\)/);
   assert.doesNotMatch(videoTemplates, /\/studio\/campaigns\?template=/);
 });
 

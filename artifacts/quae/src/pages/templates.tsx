@@ -6,6 +6,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Sparkles, ArrowRight, Lock, Play } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { videoTemplateUrl } from "@/lib/campaign-templates";
 
 const CATEGORIES = ["All", "TikTok Ad", "UGC Review", "Before & After", "Shopify Promo", "Amazon Listing", "Trending"];
 
@@ -173,17 +174,7 @@ export default function Templates({ embedded = false }: { embedded?: boolean }) 
   const { data: templates, isLoading } = useListTemplates({ category: apiCategory });
 
   const handleUseTemplate = (t: Template) => {
-    const params = new URLSearchParams({
-      templateId: t.id,
-      templateName: t.name,
-      templateType: t.templateType ?? t.id,
-      platform: t.platform.toLowerCase(),
-      duration: t.duration,
-      templateDesc: t.description,
-    });
-    if (t.exampleHook) params.set("exampleHook", t.exampleHook);
-    if (t.structure?.length) params.set("structure", JSON.stringify(t.structure));
-    setLocation(`/studio?${params.toString()}`);
+    setLocation(videoTemplateUrl(t, !!user));
   };
 
   return (
