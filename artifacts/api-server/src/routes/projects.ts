@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Response } from "express";
 import { db, pool, usersTable, projectsTable, creditLedgerTable } from "@workspace/db";
 import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 import { CreateProjectBody, UpdateProjectBody } from "@workspace/api-zod";
@@ -18,6 +19,7 @@ import { deriveApprovedTextVideoBrief } from "../lib/campaignAssets";
 import { startVideoProduction } from "../lib/videoProduction";
 import { VIDEO_PRODUCTION_VERSION } from "../lib/videoProductionPlan";
 import { normalizeProjectSubmissionBody, projectValidationIssueFields } from "../lib/projectSubmission";
+import { checkFalProviderReadiness } from "../lib/falProviderReadiness";
 
 /** Log every field PostgreSQL/Drizzle exposes on a DB error. */
 function logDbError(context: string, err: any): void {
@@ -57,6 +59,26 @@ function matchesApprovedCampaignScript(value: unknown, approved: ExpandedScript)
 const router = Router();
 import { resolveUserIdFromToken } from "./auth";
 const getUserIdFromToken = resolveUserIdFromToken;
+
+async function requireVideoProviderReadiness(
+  res: Response,
+  renderingModelId: string,
+  hasImage: boolean,
+): Promise<boolean> {
+  const readiness = await checkFalProviderReadiness({ renderingModelId, hasImage });
+  if (readiness.ready) return true;
+  logger.warn({
+    event: "video_provider_preflight_failed",
+    code: readiness.code,
+    endpointId: readiness.endpointId,
+    httpStatus: readiness.httpStatus,
+  }, "Video provider rejected the free readiness check");
+  res.status(503).json({
+    error: "Video production is not available yet. No credits were charged.",
+    code: `video_provider_${readiness.code}`,
+  });
+  return false;
+}
 
 /**
  * If a video URL points to our own object storage (/api/storage/objects/…),
@@ -421,6 +443,7 @@ router.post("/projects", async (req, res) => {
     res.status(400).json({ error: "A complete approved script and scene plan are required before production." });
     return;
   }
+  if (!await requireVideoProviderReadiness(res, parsed.data.renderingModelId, renderIntent === "animate")) return;
   const renderArtifact: string | null = renderScript
     ? JSON.stringify({ version: VIDEO_PRODUCTION_VERSION, targetDuration: parsed.data.duration ?? "30s", approvedScript: true })
     : parsed.data.script ?? null;
@@ -647,6 +670,11 @@ router.post("/projects/:id/rerender", async (req, res) => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1", project.duration);
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
+  if (!await requireVideoProviderReadiness(
+    res,
+    project.renderingModelId ?? "ltx-fast",
+    project.renderIntent === "animate",
+  )) return;
 
   let reset: typeof projectsTable.$inferSelect;
   try {
