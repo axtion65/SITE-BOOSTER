@@ -166,7 +166,7 @@ paths:
     post:
       operationId: forgotPassword
       tags: [auth]
-      summary: Generate a temporary password
+      summary: Send a single-use password reset link
       requestBody:
         required: true
         content:
@@ -175,11 +175,36 @@ paths:
               $ref: "#/components/schemas/ForgotPasswordInput"
       responses:
         "200":
-          description: Temporary password generated
+          description: Request accepted whether or not the account exists
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TempPasswordResult"
+                $ref: "#/components/schemas/PasswordResetRequestResult"
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password with a single-use reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "200":
+          description: Password reset and signed in successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Reset token is invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /auth/me:
     get:
@@ -591,12 +616,23 @@ components:
         email:
           type: string
 
-    TempPasswordResult:
+    PasswordResetRequestResult:
       type: object
-      required: [tempPassword]
+      required: [accepted]
       properties:
-        tempPassword:
+        accepted:
+          type: boolean
+
+    ResetPasswordInput:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
           type: string
+          minLength: 32
+        newPassword:
+          type: string
+          minLength: 6
 
     AuthResponse:
       type: object

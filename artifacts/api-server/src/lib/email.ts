@@ -75,7 +75,13 @@ async function sendViaResend(
   return { ok: false, error: `${res.status} ${text}` };
 }
 
-async function sendEmail(to: string, toName: string, subject: string, html: string) {
+async function sendEmail(
+  to: string,
+  toName: string,
+  subject: string,
+  html: string,
+  options: { queueOnFailure?: boolean } = {},
+): Promise<boolean> {
   let sendResult: { ok: boolean; error?: string } | null = null;
   try {
     sendResult = await sendViaResend(to, toName, subject, html);
@@ -83,10 +89,11 @@ async function sendEmail(to: string, toName: string, subject: string, html: stri
     console.error("[email] Transport error:", err);
   }
 
-  if (!sendResult?.ok) {
+  if (!sendResult?.ok && options.queueOnFailure !== false) {
     // Attempt to queue; queueEmail throws + logs ERROR if the DB insert fails
     await queueEmail(to, toName, subject, html);
   }
+  return sendResult?.ok === true;
 }
 
 const MAX_RETRY_ATTEMPTS = 10; // give up only after many manual retries
@@ -226,6 +233,26 @@ export async function sendWelcomeEmail(email: string, name: string) {
     ${btn("Create Your First Ad →", "https://quae.ai/studio")}
   `);
   await sendEmail(email, name, "Welcome to Quae.ai 🎬", html);
+}
+
+export async function sendPasswordResetEmail(
+  email: string,
+  name: string,
+  resetUrl: string,
+) {
+  const firstName = (name || "").split(" ")[0] || "there";
+  const html = wrap(`
+    ${h1(`Reset your Quae.ai password, ${firstName}`)}
+    ${p("We received a request to reset your password. This secure link expires in 30 minutes and can only be used once.")}
+    ${btn("Reset Password →", resetUrl)}
+    ${divider()}
+    ${p("If you did not request this, you can safely ignore this email. Your current password has not changed.")}
+  `);
+  // Reset links are credentials. Never persist their raw token in the generic
+  // retry queue; the route invalidates the token if immediate delivery fails.
+  return sendEmail(email, name, "Reset your Quae.ai password", html, {
+    queueOnFailure: false,
+  });
 }
 
 export async function sendRenderDoneEmail(

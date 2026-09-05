@@ -34,8 +34,15 @@ export interface ForgotPasswordInput {
   email: string;
 }
 
-export interface TempPasswordResult {
-  tempPassword: string;
+export interface PasswordResetRequestResult {
+  accepted: boolean;
+}
+
+export interface ResetPasswordInput {
+  /** @minLength 32 */
+  token: string;
+  /** @minLength 6 */
+  newPassword: string;
 }
 
 export type UserPlan = typeof UserPlan[keyof typeof UserPlan];

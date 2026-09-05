@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface TempPasswordResult {
-  tempPassword: string;
+export interface ResetPasswordInput {
+  /** @minLength 32 */
+  token: string;
+  /** @minLength 6 */
+  newPassword: string;
 }
