@@ -137,7 +137,7 @@ export function buildFalSceneRequest(input: {
     throw new Error("Full adverts support LTX 2.3 Fast or Kling 3 Standard");
   }
   const hasImage = Boolean(input.providerImageUrl);
-  const modelPath = getModelId(input.renderingModelId, hasImage);
+  const modelPath = getFalModelId(input.renderingModelId, hasImage);
   const aspectRatio = input.platform === "tiktok" || input.platform === "instagram" ? "9:16" : "16:9";
   const providerInput: Record<string, unknown> = {
     prompt: sanitizeVisualPrompt(input.prompt),
@@ -372,10 +372,11 @@ export function buildFalRenderRequest(script: ExpandedScript, platform: string, 
   const prompt = buildVideoPrompt(script, platform, `${brief.renderDurationSeconds}s`, templateType, brief);
   const input: Record<string, unknown> = { prompt, ...buildModelParams(getModelKey(renderingModelId), parseDurationSeconds(duration)) };
   if (usableImage) input.image_url = usableImage;
-  return { modelPath: getModelId(renderingModelId, Boolean(usableImage)), input, brief };
+  return { modelPath: getFalModelId(renderingModelId, Boolean(usableImage)), input, brief };
 }
 
-function getModelId(renderingModelId: string, hasImage = false): string {
+/** Resolve the exact provider endpoint used for a production render. */
+export function getFalModelId(renderingModelId: string, hasImage = false): string {
   if (renderingModelId === 'ltx-fast') return hasImage ? FAL_MODEL_IDS['ltx-fast-img'] : FAL_MODEL_IDS['ltx-fast'];
   if (renderingModelId === 'ltx') return FAL_MODEL_IDS.ltx;
   if (renderingModelId === 'wan') return hasImage ? FAL_MODEL_IDS['wan-img'] : FAL_MODEL_IDS.wan;
