@@ -116,14 +116,42 @@ export const SignUpResponse = zod.object({
 
 
 /**
- * @summary Generate a temporary password
+ * @summary Send a single-use password reset link
  */
 export const ForgotPasswordBody = zod.object({
   "email": zod.string()
 })
 
 export const ForgotPasswordResponse = zod.object({
-  "tempPassword": zod.string()
+  "accepted": zod.boolean()
+})
+
+
+/**
+ * @summary Set a new password with a single-use reset token
+ */
+export const resetPasswordBodyTokenMin = 32;
+
+export const resetPasswordBodyNewPasswordMin = 6;
+
+
+
+export const ResetPasswordBody = zod.object({
+  "token": zod.string().min(resetPasswordBodyTokenMin),
+  "newPassword": zod.string().min(resetPasswordBodyNewPasswordMin)
+})
+
+export const ResetPasswordResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string().nullish(),
+  "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
+  "credits": zod.number(),
+  "isAdmin": zod.boolean(),
+  "createdAt": zod.coerce.date()
+}),
+  "token": zod.string()
 })
 
 
@@ -509,4 +537,3 @@ export const DeleteAdminUserParams = zod.object({
 export const DeleteAdminUserResponse = zod.object({
   "success": zod.boolean()
 })
-

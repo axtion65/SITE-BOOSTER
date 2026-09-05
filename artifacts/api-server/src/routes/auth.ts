@@ -1,15 +1,18 @@
 import { Router } from "express";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { SignInBody, SignUpBody, ForgotPasswordBody } from "@workspace/api-zod";
+import { db, passwordResetTokensTable, usersTable } from "@workspace/db";
+import { and, eq, gt, isNull } from "drizzle-orm";
+import { SignInBody, SignUpBody, ForgotPasswordBody, ResetPasswordBody } from "@workspace/api-zod";
 import * as crypto from "crypto";
 import { PLAN_BY_SLUG } from "@workspace/plans";
+import { hashPassword, verifyPassword } from "../lib/passwordSecurity";
+import {
+  createPasswordResetToken,
+  hashPasswordResetToken,
+  passwordResetUrl,
+} from "../lib/passwordRecovery";
+import { sendPasswordResetEmail } from "../lib/email";
 
 const router = Router();
-
-function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password + "quae_salt_2024").digest("hex");
-}
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -32,10 +35,6 @@ export function generateImpersonationToken(userId: string): string {
   const payload = `${userId}:${ts}:${expiresAt}`;
   const sig = hmacSign(payload);
   return Buffer.from(`${payload}:${sig}`).toString("base64url");
-}
-
-function generateTempPassword(): string {
-  return crypto.randomBytes(6).toString("hex");
 }
 
 /** Shared token → user resolution used by every authenticated endpoint. */
@@ -98,13 +97,19 @@ router.post("/auth/signin", async (req, res) => {
   }
   const { email, password } = parsed.data;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user || user.passwordHash !== hashPassword(password)) {
+  const verification = user ? await verifyPassword(password, user.passwordHash) : null;
+  if (!user || !verification?.valid) {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
   if (user.accountStatus === "disabled") {
     res.status(403).json({ error: "This account has been disabled" });
     return;
+  }
+  if (verification.needsRehash) {
+    await db.update(usersTable)
+      .set({ passwordHash: await hashPassword(password), updatedAt: new Date() })
+      .where(eq(usersTable.id, user.id));
   }
   res.json({ user: userToPublic(user), token: generateToken(user.id) });
 });
@@ -124,7 +129,7 @@ router.post("/auth/signup", async (req, res) => {
   const [user] = await db.insert(usersTable).values({
     email: email.toLowerCase(),
     name: name ?? null,
-    passwordHash: hashPassword(password),
+    passwordHash: await hashPassword(password),
     plan: "free",
     credits: PLAN_BY_SLUG.free.credits,
     isAdmin: false,
@@ -149,11 +154,13 @@ router.post("/auth/change-password", async (req, res) => {
     return;
   }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user || user.passwordHash !== hashPassword(currentPassword)) {
+  if (!user || !(await verifyPassword(currentPassword, user.passwordHash)).valid) {
     res.status(401).json({ error: "Current password is incorrect" });
     return;
   }
-  await db.update(usersTable).set({ passwordHash: hashPassword(newPassword) }).where(eq(usersTable.id, user.id));
+  await db.update(usersTable)
+    .set({ passwordHash: await hashPassword(newPassword), updatedAt: new Date() })
+    .where(eq(usersTable.id, user.id));
   res.json({ user: userToPublic(user), token: generateToken(user.id) });
 });
 
@@ -164,13 +171,74 @@ router.post("/auth/forgot-password", async (req, res) => {
     return;
   }
   const { email } = parsed.data;
-  const tempPassword = generateTempPassword();
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (user) {
-    await db.update(usersTable).set({ passwordHash: hashPassword(tempPassword) }).where(eq(usersTable.id, user.id));
+  if (user?.accountStatus === "active") {
+    const reset = createPasswordResetToken();
+    await db.transaction(async (tx) => {
+      await tx.update(passwordResetTokensTable)
+        .set({ usedAt: new Date() })
+        .where(and(
+          eq(passwordResetTokensTable.userId, user.id),
+          isNull(passwordResetTokensTable.usedAt),
+        ));
+      await tx.insert(passwordResetTokensTable).values({
+        userId: user.id,
+        tokenHash: reset.tokenHash,
+        expiresAt: reset.expiresAt,
+      });
+    });
+
+    const sent = await sendPasswordResetEmail(
+      user.email,
+      user.name ?? "",
+      passwordResetUrl(reset.token),
+    );
+    if (!sent) {
+      await db.update(passwordResetTokensTable)
+        .set({ usedAt: new Date() })
+        .where(eq(passwordResetTokensTable.tokenHash, reset.tokenHash));
+    }
   }
-  // Always return success to avoid email enumeration
-  res.json({ tempPassword });
+  // Always return the same response so the endpoint does not reveal accounts.
+  res.json({ accepted: true });
+});
+
+router.post("/auth/reset-password", async (req, res) => {
+  const parsed = ResetPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid reset request" });
+    return;
+  }
+
+  const now = new Date();
+  const tokenHash = hashPasswordResetToken(parsed.data.token);
+  const passwordHash = await hashPassword(parsed.data.newPassword);
+  const user = await db.transaction(async (tx) => {
+    const [claimed] = await tx.update(passwordResetTokensTable)
+      .set({ usedAt: now })
+      .where(and(
+        eq(passwordResetTokensTable.tokenHash, tokenHash),
+        isNull(passwordResetTokensTable.usedAt),
+        gt(passwordResetTokensTable.expiresAt, now),
+      ))
+      .returning({ userId: passwordResetTokensTable.userId });
+    if (!claimed) return null;
+
+    const [updated] = await tx.update(usersTable)
+      .set({ passwordHash, updatedAt: now })
+      .where(and(
+        eq(usersTable.id, claimed.userId),
+        eq(usersTable.accountStatus, "active"),
+      ))
+      .returning();
+    return updated ?? null;
+  });
+
+  if (!user) {
+    res.status(400).json({ error: "This reset link is invalid or has expired" });
+    return;
+  }
+  res.json({ user: userToPublic(user), token: generateToken(user.id) });
 });
 
 router.get("/auth/me", async (req, res) => {

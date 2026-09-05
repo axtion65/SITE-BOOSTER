@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { useSignIn, useSignUp, useForgotPassword } from "@workspace/api-client-react";
+import { useSignIn, useSignUp, useForgotPassword, useResetPassword } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,16 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Copy, Check, KeyRound } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
-import emailjs from "@emailjs/browser";
 import { authenticationDestination } from "@/lib/campaign-templates";
-
-const EMAILJS_SERVICE_ID = "service_307mtzs";
-const EMAILJS_TEMPLATE_ID = "template_18dhhtk";
-const EMAILJS_WELCOME_TEMPLATE_ID = "template_welcome";
-const EMAILJS_PUBLIC_KEY = "1Bes-WPxtm1iB9jmn";
 
 export default function SignIn() {
   const [, setLocation] = useLocation();
@@ -28,24 +22,17 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [tempPassword, setTempPassword] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [resetToken, setResetToken] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("resetToken"),
+  );
   const [forgotLoading, setForgotLoading] = useState(false);
-  // New-password step inside the reset dialog
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
-  const [changingPassword, setChangingPassword] = useState(false);
 
   const signInMutation = useSignIn();
   const signUpMutation = useSignUp();
   const forgotPasswordMutation = useForgotPassword();
-
-  const handleCopyTempPassword = () => {
-    if (!tempPassword) return;
-    navigator.clipboard.writeText(tempPassword);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const resetPasswordMutation = useResetPassword();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,15 +54,6 @@ export default function SignIn() {
     try {
       const res = await signUpMutation.mutateAsync({ data: { email, password, name } });
       login(res.token, res.user);
-      // Send welcome email in background — don't block signup if it fails
-      emailjs
-        .send(
-          EMAILJS_SERVICE_ID,
-          EMAILJS_WELCOME_TEMPLATE_ID,
-          { to_email: email, to_name: name || "there" },
-          EMAILJS_PUBLIC_KEY
-        )
-        .catch(() => {/* silently ignore */});
       setLocation(destination);
     } catch (err: any) {
       toast({
@@ -93,15 +71,11 @@ export default function SignIn() {
     }
     setForgotLoading(true);
     try {
-      const res = await forgotPasswordMutation.mutateAsync({ data: { email } });
-      setTempPassword(res.tempPassword);
-      setNewPassword("");
-      setNewPasswordConfirm("");
-      emailjs
-        .send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID,
-          { to_email: email, temp_password: res.tempPassword, new_password: res.tempPassword },
-          EMAILJS_PUBLIC_KEY)
-        .catch(() => {});
+      await forgotPasswordMutation.mutateAsync({ data: { email } });
+      toast({
+        title: "Check your email",
+        description: "If an account exists for that address, we sent a secure password reset link.",
+      });
     } catch (err: any) {
       toast({ title: "Reset failed", description: err.message || "Could not reset password", variant: "destructive" });
     } finally {
@@ -118,59 +92,32 @@ export default function SignIn() {
       toast({ title: "Passwords don't match", variant: "destructive" });
       return;
     }
-    setChangingPassword(true);
     try {
-      const res = await fetch("/api/auth/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, currentPassword: tempPassword, newPassword }),
+      if (!resetToken) throw new Error("This reset link is invalid or has expired");
+      const res = await resetPasswordMutation.mutateAsync({
+        data: { token: resetToken, newPassword },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to set new password");
-      login(data.token, data.user);
-      setTempPassword(null);
+      login(res.token, res.user);
+      setResetToken(null);
       setLocation(destination);
     } catch (err: any) {
       toast({ title: "Failed", description: err.message, variant: "destructive" });
-    } finally {
-      setChangingPassword(false);
     }
   };
 
   return (
     <>
       {/* Password Reset Dialog */}
-      <Dialog open={!!tempPassword} onOpenChange={(open) => { if (!open) { setTempPassword(null); setNewPassword(""); setNewPasswordConfirm(""); } }}>
+      <Dialog open={!!resetToken} onOpenChange={(open) => { if (!open) { setResetToken(null); setNewPassword(""); setNewPasswordConfirm(""); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-primary" /> Reset Your Password
             </DialogTitle>
             <DialogDescription>
-              A temporary password was generated. Set a new password below to get back in.
+              Choose a new password. This secure reset link can only be used once.
             </DialogDescription>
           </DialogHeader>
-
-          {/* Temp password row */}
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Temporary password</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded-md bg-secondary px-3 py-2 text-base font-mono font-bold tracking-widest text-white text-center select-all">
-                {tempPassword}
-              </code>
-              <Button variant="outline" size="icon" onClick={handleCopyTempPassword} className="shrink-0">
-                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">Also emailed to <strong>{email}</strong></p>
-          </div>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-1">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground">Set a new password</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
 
           {/* New password fields */}
           <div className="space-y-3">
@@ -195,19 +142,11 @@ export default function SignIn() {
                 onKeyDown={(e) => { if (e.key === "Enter") handleSetNewPassword(); }}
               />
             </div>
-            <Button className="w-full font-semibold" onClick={handleSetNewPassword} disabled={changingPassword || !newPassword}>
-              {changingPassword ? <Spinner className="mr-2 h-4 w-4" /> : null}
+            <Button className="w-full font-semibold" onClick={handleSetNewPassword} disabled={resetPasswordMutation.isPending || !newPassword}>
+              {resetPasswordMutation.isPending ? <Spinner className="mr-2 h-4 w-4" /> : null}
               Set New Password & Sign In
             </Button>
           </div>
-
-          {/* Fallback */}
-          <button
-            className="text-xs text-muted-foreground hover:text-white transition-colors text-center w-full mt-1"
-            onClick={() => { setPassword(tempPassword ?? ""); setTempPassword(null); }}
-          >
-            Skip — I'll sign in with the temp password
-          </button>
         </DialogContent>
       </Dialog>
 
