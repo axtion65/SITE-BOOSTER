@@ -143,6 +143,9 @@ if (!process.env.SESSION_SECRET) {
 if (!process.env.STRIPE_API_KEY) {
   logger.warn("STRIPE_API_KEY not set — billing endpoints will fail");
 }
+if (!process.env.STRIPE_WEBHOOK_SECRET) {
+  logger.warn("STRIPE_WEBHOOK_SECRET not set — new checkout is disabled");
+}
 
 const falKey = process.env.FAL_KEY?.trim();
 if (!falKey) {

@@ -20,15 +20,8 @@ export class WebhookHandlers {
 
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     const stripe = getStripeClient();
-
-    let event: Stripe.Event;
-    if (webhookSecret) {
-      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-    } else {
-      // In dev without a webhook secret — parse raw and trust it
-      console.warn('[webhook] No STRIPE_WEBHOOK_SECRET set — skipping signature verification');
-      event = JSON.parse(payload.toString()) as Stripe.Event;
-    }
+    if (!webhookSecret) throw new Error('STRIPE_WEBHOOK_SECRET is required');
+    const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
 
     console.log(`[webhook] ${event.type}`);
 
