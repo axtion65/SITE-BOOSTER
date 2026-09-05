@@ -1,19 +1,14 @@
 import { storage } from './storage';
 import { getStripeClient } from './stripeClient';
-import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type BillingInterval, type PaidPlanSlug } from '@workspace/plans';
+import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type PaidPlanSlug } from '@workspace/plans';
 import type Stripe from 'stripe';
+import { resolveStripePriceId } from './lib/billingConfig';
 
 function getPlanFromMetadata(metadata: Stripe.Metadata): PaidPlanSlug | null {
   const plan = metadata?.plan;
   if (!plan || !isPlanSlug(plan) || plan === 'free') return null;
   return plan;
 }
-
-const PRICE_ENV: Record<PaidPlanSlug, Record<BillingInterval, string>> = {
-  starter: { month: 'STRIPE_PRICE_STARTER_MONTHLY', year: 'STRIPE_PRICE_STARTER_ANNUAL' },
-  pro: { month: 'STRIPE_PRICE_PRO_MONTHLY', year: 'STRIPE_PRICE_PRO_ANNUAL' },
-  agency: { month: 'STRIPE_PRICE_AGENCY_MONTHLY', year: 'STRIPE_PRICE_AGENCY_ANNUAL' },
-};
 
 function isPaidPlanSlug(slug: string): slug is PaidPlanSlug {
   return slug !== 'free' && isPlanSlug(slug);
@@ -58,7 +53,7 @@ export class StripeService {
       mostPopular: plan.mostPopular,
       prices: (['month', 'year'] as const).flatMap(interval => {
         if (!isPaidPlanSlug(plan.slug)) return [];
-        const id = process.env[PRICE_ENV[plan.slug][interval]];
+        const id = resolveStripePriceId(plan.slug, interval);
         if (!id) return [];
         return [{
           id,
@@ -71,8 +66,10 @@ export class StripeService {
   }
 
   isConfiguredPriceId(priceId: string): boolean {
-    return Object.values(PRICE_ENV).some(intervals =>
-      Object.values(intervals).some(envName => process.env[envName] === priceId),
+    return (['starter', 'pro', 'agency'] as const).some(plan =>
+      (['month', 'year'] as const).some(interval =>
+        resolveStripePriceId(plan, interval) === priceId,
+      ),
     );
   }
 
