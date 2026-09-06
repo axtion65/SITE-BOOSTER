@@ -28,6 +28,14 @@ function firstConfirmedText(
   return fallback;
 }
 
+function customerPhrase(value: string) {
+  return value.replace(/[.!?]+$/g, "").trim();
+}
+
+function customerDisplayName(value: string) {
+  return value.replace(/^[a-z]/, (letter) => letter.toUpperCase());
+}
+
 function firstConfirmedProduct(context: any) {
   const products = Array.isArray(context?.products) ? context.products : [];
   for (const product of products) {
@@ -48,30 +56,36 @@ function firstConfirmedProduct(context: any) {
  */
 export function deterministicCampaignFallback(context: unknown) {
   const source = context as any;
-  const businessName = firstConfirmedText(
-    [source?.identity?.name, source?.business?.name],
-    "This business",
-    120,
+  const businessName = customerDisplayName(
+    firstConfirmedText(
+      [source?.identity?.name, source?.business?.name],
+      "This business",
+      120,
+    ),
   );
-  const product = firstConfirmedProduct(source);
-  const audience = firstConfirmedText(
-    [
-      source?.audienceEvidence,
-      source?.product?.targetAudience,
-      source?.business?.targetAudience,
-    ],
-    "people reviewing the available options",
-    180,
+  const product = customerPhrase(firstConfirmedProduct(source));
+  const audience = customerPhrase(
+    firstConfirmedText(
+      [
+        source?.audienceEvidence,
+        source?.product?.targetAudience,
+        source?.business?.targetAudience,
+      ],
+      "people reviewing the available options",
+      180,
+    ),
   );
-  const callToAction = firstConfirmedText(
-    [
-      source?.ctaEvidence,
-      source?.product?.cta,
-      source?.brand?.cta,
-      source?.business?.cta,
-    ],
-    "Learn more",
-    160,
+  const callToAction = customerPhrase(
+    firstConfirmedText(
+      [
+        source?.ctaEvidence,
+        source?.product?.cta,
+        source?.brand?.cta,
+        source?.business?.cta,
+      ],
+      "Learn more",
+      160,
+    ),
   );
   const title = `${businessName}: ${product}`.slice(0, 200).trim();
   const hook = `Explore ${product} from ${businessName}.`.slice(0, 300).trim();
