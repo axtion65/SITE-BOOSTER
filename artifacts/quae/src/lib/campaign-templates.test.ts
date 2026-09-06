@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CAMPAIGN_TEMPLATE_PRESETS,
   authenticationDestination,
+  billingPlanUrl,
   campaignBuilderUrl,
   campaignFormForTemplate,
   campaignTemplateUrl,
@@ -24,6 +25,10 @@ const builder = readFileSync(
   new URL("../pages/studio/campaigns.tsx", import.meta.url),
   "utf8",
 );
+const billing = readFileSync(
+  new URL("../pages/studio/billing.tsx", import.meta.url),
+  "utf8",
+);
 const videoTemplates = readFileSync(
   new URL("../pages/templates.tsx", import.meta.url),
   "utf8",
@@ -36,6 +41,47 @@ test("every generic homepage campaign CTA shares the safe builder destination", 
   assert.equal((home.match(/href=\{campaignRoute\}/g) ?? []).length, 3);
   assert.match(home, /Build a campaign/);
   assert.equal((home.match(/Build My First Campaign/g) ?? []).length, 2);
+});
+
+test("homepage paid pricing CTAs preserve plan and interval through authentication", () => {
+  for (const plan of ["starter", "pro", "agency"] as const) {
+    for (const interval of ["month", "year"] as const) {
+      assert.equal(
+        billingPlanUrl(plan, interval, false),
+        `/signin?billingPlan=${plan}&billingInterval=${interval}`,
+      );
+      assert.equal(
+        billingPlanUrl(plan, interval, true),
+        `/studio/billing?plan=${plan}&interval=${interval}`,
+      );
+      assert.equal(
+        authenticationDestination(
+          `?billingPlan=${plan}&billingInterval=${interval}`,
+        ),
+        `/studio/billing?plan=${plan}&interval=${interval}`,
+      );
+    }
+  }
+  assert.match(home, /<PricingSection signedIn=\{!!token\} \/>/);
+  assert.match(home, /billingPlanUrl\(plan\.slug, interval, signedIn\)/);
+  assert.match(
+    billing,
+    /useState\(\(\) => new URLSearchParams\(search\)\.get\("interval"\) === "year"\)/,
+  );
+  assert.match(billing, /Selected on pricing page/);
+  assert.match(billing, /Continue with \$\{plan\.name\}/);
+});
+
+test("billing authentication intent is allowlisted and cannot become an open redirect", () => {
+  for (const invalid of [
+    "?billingPlan=free&billingInterval=month",
+    "?billingPlan=unknown&billingInterval=month",
+    "?billingPlan=pro&billingInterval=week",
+    "?billingPlan=https%3A%2F%2Fevil.test&billingInterval=year",
+    "?redirect=%2Fstudio%2Fbilling",
+  ]) {
+    assert.equal(authenticationDestination(invalid), "/studio");
+  }
 });
 
 test("preset slugs are unique and form the complete allowlist", () => {
