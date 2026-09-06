@@ -41,9 +41,12 @@ export default function CampaignsPage() {
   );
   const [loadError, setLoadError] = useState(false);
   const [items, setItems] = useState<any[]>([]),
-    [context, setContext] = useState<any>(),
+    [context, setContext] = useState<any>(null),
     [products, setProducts] = useState<any[]>([]),
-    [creating, setCreating] = useState(false);
+    [creating, setCreating] = useState(false),
+    [businessState, setBusinessState] = useState<
+      "loading" | "ready" | "missing" | "error"
+    >("loading");
   const [selectedTemplate, setSelectedTemplate] = useState(initialTemplate);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [form, setForm] = useState(() =>
@@ -51,19 +54,35 @@ export default function CampaignsPage() {
   );
   useEffect(() => {
     Promise.all([
-      fetch("/api/campaigns", { headers: headers() }).then((r) => r.json()),
-      fetch("/api/marketing-context", { headers: headers() }).then((r) =>
-        r.json(),
-      ),
-      fetch("/api/products", { headers: headers() }).then((r) => r.json()),
+      fetch("/api/campaigns", { headers: headers() }),
+      fetch("/api/marketing-context", { headers: headers() }),
+      fetch("/api/products", { headers: headers() }),
     ])
-      .then(([i, c, p]) => {
+      .then(async ([campaignsResponse, contextResponse, productsResponse]) => {
+        if (
+          !campaignsResponse.ok ||
+          !productsResponse.ok ||
+          (!contextResponse.ok && contextResponse.status !== 404)
+        ) {
+          throw new Error("Campaign workspace could not be loaded");
+        }
+        const [i, c, p] = await Promise.all([
+          campaignsResponse.json(),
+          contextResponse.status === 404
+            ? Promise.resolve(null)
+            : contextResponse.json(),
+          productsResponse.json(),
+        ]);
         setLoadError(false);
         setItems(i);
         setContext(c);
         setProducts(p);
+        setBusinessState(c?.business?.id ? "ready" : "missing");
       })
-      .catch(() => setLoadError(true));
+      .catch(() => {
+        setLoadError(true);
+        setBusinessState("error");
+      });
   }, []);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const applyTemplate = (preset: CampaignTemplatePreset) => {
@@ -74,13 +93,28 @@ export default function CampaignsPage() {
   };
   async function create(e: React.FormEvent) {
     e.preventDefault();
+    const businessId = context?.business?.id;
+    if (!businessId) {
+      toast({
+        title: "Create your Business Profile first",
+        description:
+          "Add your business once, then Quae can reuse it for every campaign.",
+        variant: "destructive",
+      });
+      return;
+    }
     setCreating(true);
     try {
       const { name, productId, ...brief } = form;
       const r = await fetch("/api/campaigns", {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ name, productId: productId || null, brief }),
+        body: JSON.stringify({
+          name,
+          businessId,
+          productId: productId || null,
+          brief,
+        }),
       });
       const c = await r.json();
       if (!r.ok) {
@@ -92,7 +126,7 @@ export default function CampaignsPage() {
           description:
             r.status === 401
               ? "Please sign in again."
-              : "Please check the brief and try again.",
+              : c?.error || "Please check the brief and try again.",
           variant: "destructive",
         });
         return;
@@ -114,28 +148,55 @@ export default function CampaignsPage() {
         </div>
       )}
       <div className="mb-6 grid gap-4 md:grid-cols-[1fr_auto]">
-        <div className="rounded-2xl bg-emerald-400/10 p-5 ring-1 ring-emerald-300/15">
-          <div className="flex gap-3">
-            <Brain className="h-5 w-5 text-emerald-300" />
-            <div>
-              <p className="font-bold">Quae already knows your business.</p>
-              <p className="mt-1 text-sm text-[#B9C5D8]">
-                Using{" "}
-                <b>
-                  {context?.business?.name || "your saved Business Profile"}
-                </b>
-                {form.productId && (
-                  <>
-                    {" "}
-                    and{" "}
-                    <b>{products.find((p) => p.id === form.productId)?.name}</b>
-                  </>
-                )}
-                —no need to repeat what you already taught us.
-              </p>
+        {businessState === "ready" ? (
+          <div className="rounded-2xl bg-emerald-400/10 p-5 ring-1 ring-emerald-300/15">
+            <div className="flex gap-3">
+              <Brain className="h-5 w-5 text-emerald-300" />
+              <div>
+                <p className="font-bold">Quae already knows your business.</p>
+                <p className="mt-1 text-sm text-[#B9C5D8]">
+                  Using <b>{context.business.name}</b>
+                  {form.productId && (
+                    <>
+                      {" "}
+                      and{" "}
+                      <b>
+                        {products.find((p) => p.id === form.productId)?.name}
+                      </b>
+                    </>
+                  )}
+                  —no need to repeat what you already taught us.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : businessState === "missing" ? (
+          <div className="rounded-2xl bg-amber-400/10 p-5 ring-1 ring-amber-300/20">
+            <div className="flex gap-3">
+              <Brain className="h-5 w-5 text-amber-300" />
+              <div>
+                <p className="font-bold">Create your Business Profile first.</p>
+                <p className="mt-1 text-sm text-[#B9C5D8]">
+                  Add your business once. Quae will reuse it for every campaign
+                  so you do not have to start over.
+                </p>
+                <Link
+                  href="/studio/business"
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-300 px-4 py-2 text-sm font-bold text-slate-950"
+                >
+                  Create Business Profile
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-white/[.04] p-5 text-sm text-[#B9C5D8] ring-1 ring-white/10">
+            {businessState === "loading"
+              ? "Loading your Business Profile…"
+              : "Your Business Profile could not be loaded. Refresh to try again."}
+          </div>
+        )}
         <button
           type="button"
           onClick={() => setTemplatePickerOpen(true)}
@@ -282,9 +343,16 @@ export default function CampaignsPage() {
                 onChange={(e) => set("instructions", e.target.value)}
               />
             </label>
-            <ActionButton disabled={creating} className="sm:col-span-2">
+            <ActionButton
+              disabled={creating || businessState !== "ready"}
+              className="sm:col-span-2"
+            >
               <Plus className="h-4 w-4" />
-              {creating ? "Creating…" : "Create campaign brief"}
+              {creating
+                ? "Creating…"
+                : businessState === "missing"
+                  ? "Create Business Profile First"
+                  : "Create campaign brief"}
             </ActionButton>
           </form>
         </PremiumCard>
