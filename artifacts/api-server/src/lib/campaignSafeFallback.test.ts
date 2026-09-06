@@ -64,6 +64,32 @@ test("ordinary business campaigns keep their saved marketing context in the fall
   );
 });
 
+test("ordinary campaign fallback normalizes customer-facing casing and punctuation", () => {
+  const result = deterministicCampaignFallback({
+    business: {
+      name: "quae.ai",
+      offerings:
+        "AI marketing campaigns, promotional videos, product visuals, and marketing copy.",
+      targetAudience:
+        "Small businesses that need affordable, professional marketing content.",
+      cta: "Start building your campaign.",
+    },
+    brand: null,
+    product: null,
+  });
+
+  assert.equal(
+    result.finalScript.title,
+    "Quae.ai: AI marketing campaigns, promotional videos, product visuals, and marketing copy",
+  );
+  assert.equal(result.finalScript.callToAction, "Start building your campaign");
+  assert.match(result.finalScript.script, /^Quae\.ai offers /);
+  assert.doesNotMatch(
+    JSON.stringify(publicCampaignResult(result)),
+    /\.\.|\. for|content\.\.|campaign\.\./,
+  );
+});
+
 test("unsafe source strings are not exposed to customers", () => {
   const result = deterministicCampaignFallback({
     identity: { name: '{"evidenceIds":["fact_001"]}' },
