@@ -1,4 +1,5 @@
 import { TEMPLATES } from "@workspace/templates";
+import { isPlanSlug, type BillingInterval, type PaidPlanSlug } from "@workspace/plans";
 
 export const CAMPAIGN_TEMPLATE_PRESETS = [
   {
@@ -115,6 +116,16 @@ export function campaignBuilderUrl(signedIn: boolean) {
   return signedIn ? "/studio/campaigns" : "/signin?campaignBuilder=1";
 }
 
+export function billingPlanUrl(
+  plan: PaidPlanSlug,
+  interval: BillingInterval,
+  signedIn: boolean,
+) {
+  return signedIn
+    ? `/studio/billing?plan=${plan}&interval=${interval}`
+    : `/signin?billingPlan=${plan}&billingInterval=${interval}`;
+}
+
 type VideoTemplateIntent = {
   id: string;
   name: string;
@@ -156,6 +167,16 @@ export function authenticationDestination(search: string) {
     ({ id }) => id === params.get("videoTemplate"),
   );
   if (videoTemplate) return videoTemplateStudioUrl(videoTemplate);
+  const billingPlan = params.get("billingPlan");
+  const billingInterval = params.get("billingInterval");
+  if (
+    billingPlan &&
+    isPlanSlug(billingPlan) &&
+    billingPlan !== "free" &&
+    (billingInterval === "month" || billingInterval === "year")
+  ) {
+    return billingPlanUrl(billingPlan, billingInterval, true);
+  }
   if (params.get("campaignBuilder") === "1") return "/studio/campaigns";
   return "/studio";
 }
