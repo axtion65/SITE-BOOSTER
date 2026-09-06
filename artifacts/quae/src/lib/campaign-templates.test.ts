@@ -196,6 +196,17 @@ test("loading a preset only prefills state; POST remains exclusively in form sub
   );
 });
 
+test("campaign creation requires and binds the saved Business Profile", () => {
+  assert.match(builder, /contextResponse\.status === 404/);
+  assert.match(builder, /setBusinessState\(c\?\.business\?\.id \? "ready" : "missing"\)/);
+  assert.match(builder, /href="\/studio\/business"/);
+  assert.match(builder, /Create Business Profile/);
+  assert.match(builder, /const businessId = context\?\.business\?\.id/);
+  assert.match(builder, /JSON\.stringify\(\{\s*name,\s*businessId,/);
+  assert.match(builder, /disabled=\{creating \|\| businessState !== "ready"\}/);
+  assert.match(builder, /c\?\.error \|\| "Please check the brief and try again\."/);
+});
+
 test("opening and selecting a campaign preset cannot submit or call a provider", () => {
   const picker = builder.slice(
     builder.indexOf("<Dialog open={templatePickerOpen}"),
