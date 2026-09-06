@@ -9,6 +9,7 @@ import {
   campaignFormForTemplate,
   campaignTemplateUrl,
   getCampaignTemplate,
+  protectedSignInUrl,
   videoTemplateUrl,
 } from "./campaign-templates";
 import { TEMPLATES } from "@workspace/templates";
@@ -70,6 +71,38 @@ test("homepage paid pricing CTAs preserve plan and interval through authenticati
   );
   assert.match(billing, /Selected on pricing page/);
   assert.match(billing, /Continue with \$\{plan\.name\}/);
+});
+
+test("protected billing deep links preserve only allowlisted pricing intent", () => {
+  for (const plan of ["starter", "pro", "agency"] as const) {
+    for (const interval of ["month", "year"] as const) {
+      assert.equal(
+        protectedSignInUrl(
+          "/studio/billing",
+          `?plan=${plan}&interval=${interval}`,
+        ),
+        `/signin?billingPlan=${plan}&billingInterval=${interval}`,
+      );
+    }
+  }
+  for (const search of [
+    "?plan=free&interval=month",
+    "?plan=unknown&interval=month",
+    "?plan=pro&interval=week",
+    "?plan=https%3A%2F%2Fevil.test&interval=year",
+  ]) assert.equal(protectedSignInUrl("/studio/billing", search), "/signin");
+  assert.equal(
+    protectedSignInUrl("/studio/projects", "?plan=pro&interval=year"),
+    "/signin",
+  );
+  const authGuard = readFileSync(
+    new URL("../components/auth-guard.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    authGuard,
+    /protectedSignInUrl\(window\.location\.pathname, window\.location\.search\)/,
+  );
 });
 
 test("billing authentication intent is allowlisted and cannot become an open redirect", () => {
