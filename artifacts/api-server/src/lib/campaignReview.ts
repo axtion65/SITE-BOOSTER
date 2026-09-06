@@ -37,26 +37,72 @@ const canonical = (value: unknown): string =>
           .join(",")}}`
       : JSON.stringify(value);
 
+function deterministicFallbackBrand(input: any) {
+  const positioning = text(input?.strategy?.positioning);
+  const title = text(input?.finalScript?.title);
+  const raw =
+    positioning.match(/^(.{1,120}?)\s+offers\b/)?.[1] ??
+    title.match(/^([^:]{1,120}):/)?.[1] ??
+    "";
+  return {
+    raw,
+    display: raw.replace(/^[a-z]/, (letter) => letter.toUpperCase()),
+  };
+}
+
+function projectedCustomerText(
+  value: unknown,
+  fallback: boolean,
+  brand: { raw: string; display: string },
+  phrase = false,
+) {
+  let cleaned = text(value);
+  if (!fallback || !cleaned) return cleaned;
+  if (brand.raw) {
+    const escaped = brand.raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    cleaned = cleaned.replace(new RegExp(escaped, "gi"), brand.display);
+  }
+  cleaned = cleaned
+    .replace(/\.(?=\?)/g, "")
+    .replace(/([.!?])\1+/g, "$1")
+    .replace(/[.!?]\s+(?=(?:for|from)\b)/g, " ")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .replace(/^[a-z]/, (letter) => letter.toUpperCase())
+    .trim();
+  return phrase ? cleaned.replace(/[.!?]+$/g, "").trim() : cleaned;
+}
+
 export function publicCampaignResult(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const input = value as any,
     final = input.finalScript;
   if (!final || typeof final !== "object" || Array.isArray(final)) return null;
+  const isDeterministicFallback = Boolean(
+    input.judge === null &&
+      Array.isArray(input.ledger) &&
+      input.ledger.length === 0 &&
+      input.factcheck?.pass === true &&
+      input.qa?.pass === true &&
+      input.qa?.score === 100,
+  );
+  const brand = deterministicFallbackBrand(input);
+  const visibleText = (item: unknown, phrase = false) =>
+    projectedCustomerText(item, isDeterministicFallback, brand, phrase);
   const projected = {
     strategy:
       input.strategy &&
       typeof input.strategy === "object" &&
       !Array.isArray(input.strategy)
         ? {
-            angle: text(input.strategy.angle),
-            audience: text(input.strategy.audience),
-            positioning: text(input.strategy.positioning),
+            angle: visibleText(input.strategy.angle),
+            audience: visibleText(input.strategy.audience, true),
+            positioning: visibleText(input.strategy.positioning),
           }
         : null,
     hooks: {
       hooks: Array.isArray(input.hooks?.hooks)
         ? input.hooks.hooks
-            .map((hook: any) => ({ text: text(hook?.text) }))
+            .map((hook: any) => ({ text: visibleText(hook?.text) }))
             .filter((hook: any) => hook.text)
             .slice(0, 5)
         : [],
@@ -66,15 +112,15 @@ export function publicCampaignResult(value: unknown) {
       typeof input.winningScript === "object" &&
       !Array.isArray(input.winningScript)
         ? {
-            title: text(input.winningScript.title),
-            script: text(input.winningScript.script),
+            title: visibleText(input.winningScript.title, true),
+            script: visibleText(input.winningScript.script),
           }
         : null,
     finalScript: {
-      title: text(final.title),
-      hook: text(final.hook),
-      script: text(final.script),
-      callToAction: text(final.callToAction),
+      title: visibleText(final.title, true),
+      hook: visibleText(final.hook),
+      script: visibleText(final.script),
+      callToAction: visibleText(final.callToAction, true),
     },
     factcheck: {
       pass: input.factcheck?.pass === true,
