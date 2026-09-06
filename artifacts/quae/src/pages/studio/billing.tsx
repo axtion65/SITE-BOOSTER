@@ -5,7 +5,7 @@ import { useSearch } from "wouter";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, Zap, Crown, ExternalLink, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { PLAN_BY_SLUG, PLAN_CATALOG, formatUsd, isPlanSlug, type PlanSlug } from "@workspace/plans";
+import { PLAN_BY_SLUG, PLAN_CATALOG, RENDERING_MODELS, formatUsd, getProductionCreditCost, isPlanSlug, type PlanSlug } from "@workspace/plans";
 
 interface Price {
   id: string;
@@ -18,13 +18,6 @@ interface CheckoutPlanConfig {
   slug: PlanSlug;
   prices: Price[];
 }
-
-const MODEL_COSTS = [
-  { model: "Ovi",      cost: "30",    desc: "Video + audio",    color: "#818cf8" },
-  { model: "Wan 2.5",  cost: "200",   desc: "Cinematic",        color: "#a78bfa" },
-  { model: "Kling 2.5",cost: "300",   desc: "Ultra-realistic",  color: "#c084fc" },
-  { model: "Veo 3",    cost: "1,500", desc: "Agency grade",     color: "#e879f9" },
-];
 
 function authHeader(): Record<string, string> {
   const token = localStorage.getItem("quae_token");
@@ -327,13 +320,13 @@ function BillingContent() {
 
         {/* Credit cost reference */}
         <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-          <h4 className="text-[10px] font-black text-slate-400 mb-5 text-center uppercase tracking-[0.2em]">Credit cost per video</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {MODEL_COSTS.map((m, i) => (
-              <div key={i} className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.05] hover:border-violet-500/20 transition-colors">
-                <div className="text-xs font-bold text-white mb-1">{m.model}</div>
-                <div className="font-black text-xl mb-0.5" style={{ color: m.color }}>{m.cost}</div>
-                <div className="text-[10px] text-white/25 uppercase tracking-wide">{m.desc}</div>
+          <h4 className="text-[10px] font-black text-slate-400 mb-5 text-center uppercase tracking-[0.2em]">30-second production credit cost</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {RENDERING_MODELS.map((model) => (
+              <div key={model.id} className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.05] hover:border-violet-500/20 transition-colors">
+                <div className="text-xs font-bold text-white mb-1">{model.name}</div>
+                <div className="font-black text-xl mb-0.5 text-violet-300">{getProductionCreditCost(model.id, "30s").toLocaleString()} credits</div>
+                <div className="text-[10px] text-white/25 uppercase tracking-wide">{model.capabilities[0]}</div>
               </div>
             ))}
           </div>
