@@ -304,6 +304,54 @@ test("customer projection includes safe quality feedback without internal eviden
   assert.doesNotMatch(JSON.stringify(result), /fact_001|evidenceIds/);
 });
 
+test("customer projection repairs an already-saved deterministic fallback without a provider", () => {
+  const result = publicCampaignResult({
+    strategy: {
+      angle:
+        "A straightforward introduction to AI marketing campaigns, promotional videos, product visuals, and marketing copy..",
+      audience:
+        "Small businesses that need affordable, professional marketing content.",
+      positioning:
+        "quae.ai offers AI marketing campaigns, promotional videos, product visuals, and marketing copy..",
+    },
+    hooks: {
+      hooks: [
+        {
+          text: "Explore AI marketing campaigns, promotional videos, product visuals, and marketing copy. from quae.ai.",
+        },
+      ],
+    },
+    winningScript: {
+      title:
+        "quae.ai: AI marketing campaigns, promotional videos, product visuals, and marketing copy.",
+      script:
+        "quae.ai offers AI marketing campaigns, promotional videos, product visuals, and marketing copy. for Small businesses that need affordable, professional marketing content.. Start building your campaign..",
+    },
+    finalScript: {
+      title:
+        "quae.ai: AI marketing campaigns, promotional videos, product visuals, and marketing copy.",
+      hook:
+        "Explore AI marketing campaigns, promotional videos, product visuals, and marketing copy. from quae.ai.",
+      script:
+        "quae.ai offers AI marketing campaigns, promotional videos, product visuals, and marketing copy. for Small businesses that need affordable, professional marketing content.. Start building your campaign..",
+      callToAction: "Start building your campaign.",
+    },
+    judge: null,
+    ledger: [],
+    factcheck: { pass: true },
+    qa: { pass: true, score: 100 },
+  });
+
+  assert.equal(
+    result?.finalScript.title,
+    "Quae.ai: AI marketing campaigns, promotional videos, product visuals, and marketing copy",
+  );
+  assert.equal(result?.finalScript.callToAction, "Start building your campaign");
+  assert.match(result?.finalScript.script ?? "", /^Quae\.ai offers /);
+  assert.match(result?.finalScript.hook ?? "", /from Quae\.ai\.$/);
+  assert.doesNotMatch(JSON.stringify(result), /\.\.|\. for|\. from|\bquae\.ai\b/);
+});
+
 test("owned needs-revision output with stale source is eligible for focused repair", () => {
   const stale = {
     id: "stale-run",
