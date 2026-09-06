@@ -134,6 +134,27 @@ function clearDraft() {
   }
 }
 
+function AdvertLengthSelect({
+  value,
+  onValueChange,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger aria-label="Advert length" className="border-white/20 bg-[#111C30] text-white focus:ring-violet-400">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent sideOffset={8} className="border-white/20 bg-[#111C30] text-white shadow-2xl">
+        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value="15s">15 seconds</SelectItem>
+        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value="30s">30 seconds — recommended</SelectItem>
+        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value="45s">45 seconds</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
 export default function StudioIndex() {
   return (
     <RequireAuth>
@@ -883,14 +904,7 @@ function Wizard() {
                   </div>
                   <div className="space-y-2">
                     <Label>Advert length</Label>
-                    <Select value={duration} onValueChange={setDuration}>
-                      <SelectTrigger aria-label="Advert length" className="border-white/20 bg-[#111C30] text-white focus:ring-violet-400"><SelectValue /></SelectTrigger>
-                      <SelectContent sideOffset={8} className="border-white/20 bg-[#111C30] text-white shadow-2xl">
-                        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value="15s">15 seconds</SelectItem>
-                        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value="30s">30 seconds — recommended</SelectItem>
-                        <SelectItem className="text-white focus:bg-violet-600 focus:text-white data-[state=checked]:bg-violet-700" value="45s">45 seconds</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <AdvertLengthSelect value={duration} onValueChange={setDuration} />
                     <p className="text-xs leading-5 text-white/65">Quae builds several script-matched scenes, then assembles the exact-length advert with voiceover, captions, branding, and CTA.</p>
                   </div>
                 </div>
@@ -929,6 +943,23 @@ function Wizard() {
                   }}
                 >Back</Button>}
               </div>
+
+              {campaignHandoff && (
+                <div className="grid gap-4 rounded-xl border border-violet-400/25 bg-violet-500/5 p-4 md:grid-cols-[minmax(0,240px)_1fr] md:items-end">
+                  <div className="space-y-2">
+                    <Label>Advert length</Label>
+                    <AdvertLengthSelect value={duration} onValueChange={setDuration} />
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <p className="font-semibold text-white">
+                      {isAdminUser ? "FREE (admin)" : `${getProductionCreditCost(modelId, duration)} credits`} · {duration.replace("s", " seconds")}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Changing the length keeps the approved campaign copy locked and does not run AI. Your exact cost is confirmed before rendering.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <Card className="border-primary/20 bg-primary/5">
                 {/* Hook — editable */}
