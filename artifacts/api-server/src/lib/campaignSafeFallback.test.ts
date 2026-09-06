@@ -40,6 +40,30 @@ test("deterministic fallback is stable and contains only confirmed copy", () => 
   assert.doesNotMatch(visible, /discount|guarantee|limited time|evidenceIds/i);
 });
 
+test("ordinary business campaigns keep their saved marketing context in the fallback", () => {
+  const result = deterministicCampaignFallback({
+    business: {
+      name: "Quae.ai",
+      offerings:
+        "AI marketing campaigns, promotional videos, product visuals, and marketing",
+      targetAudience:
+        "Small businesses that need affordable, professional marketing content",
+      cta: "Start building your campaign",
+    },
+    brand: null,
+    product: null,
+  });
+  const visible = JSON.stringify(publicCampaignResult(result));
+  assert.match(visible, /Quae\.ai/);
+  assert.match(visible, /AI marketing campaigns/);
+  assert.match(visible, /Small businesses/);
+  assert.equal(result.finalScript.callToAction, "Start building your campaign");
+  assert.doesNotMatch(
+    visible,
+    /This business|available products and services|people reviewing the available options/,
+  );
+});
+
 test("unsafe source strings are not exposed to customers", () => {
   const result = deterministicCampaignFallback({
     identity: { name: '{"evidenceIds":["fact_001"]}' },
