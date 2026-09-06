@@ -226,7 +226,7 @@ router.get("/campaigns/:id/workspace", async (req, res) => {
     campaign:publicCampaign,
     runs:runs.map((run:any)=>publicCampaignRun(run,validateRunSource(campaign,run).valid)),
     latestRun:latest?publicCampaignRun(latest,latestValidation.valid):null,
-    strategy:latestValidation.valid?publicCampaignRun(latest,true).final_result:null,
+    strategy:latest&&latestValidation.valid?publicCampaignRun(latest,true).final_result:null,
     visuals,
     attachedVisuals,
     videos,
