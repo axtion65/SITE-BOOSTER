@@ -16,13 +16,29 @@ function confirmedText(value: unknown, fallback: string, limit: number) {
   return cleaned && !unsafeCustomerText(cleaned) ? cleaned : fallback;
 }
 
+function firstConfirmedText(
+  values: unknown[],
+  fallback: string,
+  limit: number,
+) {
+  for (const value of values) {
+    const confirmed = confirmedText(value, "", limit);
+    if (confirmed) return confirmed;
+  }
+  return fallback;
+}
+
 function firstConfirmedProduct(context: any) {
   const products = Array.isArray(context?.products) ? context.products : [];
   for (const product of products) {
     const name = confirmedText(product?.name, "", 160);
     if (name) return name;
   }
-  return "the available products and services";
+  return firstConfirmedText(
+    [context?.product?.name, context?.business?.offerings],
+    "the available products and services",
+    160,
+  );
 }
 
 /**
@@ -32,18 +48,31 @@ function firstConfirmedProduct(context: any) {
  */
 export function deterministicCampaignFallback(context: unknown) {
   const source = context as any;
-  const businessName = confirmedText(
-    source?.identity?.name,
+  const businessName = firstConfirmedText(
+    [source?.identity?.name, source?.business?.name],
     "This business",
     120,
   );
   const product = firstConfirmedProduct(source);
-  const audience = confirmedText(
-    source?.audienceEvidence,
+  const audience = firstConfirmedText(
+    [
+      source?.audienceEvidence,
+      source?.product?.targetAudience,
+      source?.business?.targetAudience,
+    ],
     "people reviewing the available options",
     180,
   );
-  const callToAction = confirmedText(source?.ctaEvidence, "Learn more", 160);
+  const callToAction = firstConfirmedText(
+    [
+      source?.ctaEvidence,
+      source?.product?.cta,
+      source?.brand?.cta,
+      source?.business?.cta,
+    ],
+    "Learn more",
+    160,
+  );
   const title = `${businessName}: ${product}`.slice(0, 200).trim();
   const hook = `Explore ${product} from ${businessName}.`.slice(0, 300).trim();
   const script = `${businessName} offers ${product} for ${audience}. Explore the available details and decide whether this option fits your needs. When you are ready to continue, use the confirmed next step: ${callToAction}.`;
