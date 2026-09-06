@@ -126,6 +126,22 @@ export function billingPlanUrl(
     : `/signin?billingPlan=${plan}&billingInterval=${interval}`;
 }
 
+export function protectedSignInUrl(pathname: string, search: string) {
+  if (pathname !== "/studio/billing") return "/signin";
+  const params = new URLSearchParams(search);
+  const plan = params.get("plan");
+  const interval = params.get("interval");
+  if (
+    plan &&
+    isPlanSlug(plan) &&
+    plan !== "free" &&
+    (interval === "month" || interval === "year")
+  ) {
+    return billingPlanUrl(plan, interval, false);
+  }
+  return "/signin";
+}
+
 type VideoTemplateIntent = {
   id: string;
   name: string;
