@@ -101,6 +101,20 @@ test("aggregate workspace scopes campaign and every asset query to its owner", a
   assert.match(route, /publicCampaignRun/);
 });
 
+test("a brand-new campaign workspace has no strategy before its first run", async () => {
+  const source = await import("node:fs/promises").then((fs) =>
+    fs.readFile(new URL("../routes/campaigns.ts", import.meta.url), "utf8"),
+  );
+  const route = source.slice(
+    source.indexOf('router.get("/campaigns/:id/workspace"'),
+    source.indexOf('router.get("/campaigns/:id"'),
+  );
+  assert.match(
+    route,
+    /strategy:latest&&latestValidation\.valid\?publicCampaignRun\(latest,true\)\.final_result:null/,
+  );
+});
+
 test("revision queue preserves the prior quality feedback for the repair run", async () => {
   const source = await import("node:fs/promises").then((fs) =>
     fs.readFile(new URL("../routes/campaigns.ts", import.meta.url), "utf8"),
