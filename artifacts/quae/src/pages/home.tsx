@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { PLAN_CATALOG, formatUsd } from "@workspace/plans";
-import { CAMPAIGN_TEMPLATE_PRESETS, campaignBuilderUrl, campaignTemplateUrl } from "@/lib/campaign-templates";
+import { CAMPAIGN_TEMPLATE_PRESETS, billingPlanUrl, campaignBuilderUrl, campaignTemplateUrl } from "@/lib/campaign-templates";
 
 export const HERO_HEADLINE = "Grow Your Business With an Entire AI Marketing Team";
 export const SIGNED_OUT_CAMPAIGN_ROUTE = "/signin?campaignBuilder=1";
@@ -114,7 +114,7 @@ export default function Home() {
         <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{CAMPAIGN_TEMPLATE_PRESETS.map((preset, index)=><Link key={preset.slug} href={campaignTemplateUrl(preset.slug, !!token)} className={`group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 ${index===6 ? "lg:col-start-2" : ""}`}><article className="h-full rounded-2xl border border-white/[.08] bg-[#111d31] p-6 transition-colors group-hover:border-violet-300/30"><span className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">Campaign Template {String(index+1).padStart(2,"0")}</span><h3 className="mt-4 text-xl font-bold">{preset.title}</h3><p className="mt-3 leading-7 text-slate-400">{preset.homepageDescription}</p><p className="mt-5 border-t border-white/[.07] pt-4 text-sm font-semibold text-slate-300">Strategy · Copy · Visuals · Captions · Video direction · Channels</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-violet-300">Use this template <ArrowRight className="h-4 w-4" /></span></article></Link>)}</div>
       </div></section>
 
-      <PricingSection />
+      <PricingSection signedIn={!!token} />
 
       <section className="px-4 py-20 sm:px-7 lg:py-28"><div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] border border-violet-300/20 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,.3),transparent_28rem),linear-gradient(135deg,#172641,#101c30)] px-6 py-14 text-center shadow-2xl shadow-slate-950/30 sm:px-12 sm:py-18"><Sparkles className="mx-auto h-7 w-7 text-violet-300" /><h2 className="mt-5 text-3xl font-bold tracking-[-.04em] sm:text-5xl">Put your next campaign in motion.</h2><p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-300">Start with your business and goal. Quae will help turn them into a coordinated campaign you control.</p><Link href={campaignRoute} className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-violet-600 px-7 py-3 font-bold hover:bg-violet-500">Build My First Campaign <ArrowRight className="h-4 w-4" /></Link></div></section>
     </main>
@@ -138,8 +138,9 @@ function ApprovalSection() {
 }
 
 
-function PricingSection() {
+function PricingSection({ signedIn }: { signedIn: boolean }) {
   const [annual, setAnnual] = useState(false);
+  const interval = annual ? "year" : "month";
   return <section id="pricing" className="scroll-mt-24 border-b border-white/[.06] bg-[radial-gradient(circle_at_50%_0%,rgba(124,58,237,.12),transparent_28rem)] py-18 lg:py-24">
     <div className="mx-auto max-w-7xl px-4 sm:px-7 lg:px-10">
       <div className="flex flex-col items-center justify-between gap-7 lg:flex-row lg:items-end">
@@ -164,7 +165,7 @@ function PricingSection() {
           </div>
           <p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-violet-200">{plan.credits.toLocaleString()} credits / month</p>
           <ul className="mt-4 flex-1 space-y-2.5">{publicPlanBenefits[plan.slug].map(benefit => <li key={benefit} className="flex items-start gap-2 text-xs leading-5 text-slate-300"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300" />{benefit}</li>)}</ul>
-          <Link href="/signin" className={`mt-5 flex min-h-10 items-center justify-center rounded-xl text-sm font-bold transition-colors ${plan.mostPopular ? "bg-violet-600 shadow-lg shadow-violet-950/30 hover:bg-violet-500" : "border border-white/[.1] bg-white/[.05] hover:border-violet-300/30 hover:bg-white/[.09]"}`}>{plan.cta}</Link>
+          <Link href={plan.slug === "free" ? campaignBuilderUrl(signedIn) : billingPlanUrl(plan.slug, interval, signedIn)} className={`mt-5 flex min-h-10 items-center justify-center rounded-xl text-sm font-bold transition-colors ${plan.mostPopular ? "bg-violet-600 shadow-lg shadow-violet-950/30 hover:bg-violet-500" : "border border-white/[.1] bg-white/[.05] hover:border-violet-300/30 hover:bg-white/[.09]"}`}>{plan.cta}</Link>
         </article>)}
       </div>
     </div>
