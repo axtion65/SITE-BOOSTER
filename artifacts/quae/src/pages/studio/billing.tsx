@@ -36,10 +36,14 @@ function BillingContent() {
   const { user, login } = useAuth();
   const { toast } = useToast();
   const search = useSearch();
+  const intendedPlanParam = new URLSearchParams(search).get("plan");
+  const intendedPlan = intendedPlanParam && isPlanSlug(intendedPlanParam) && intendedPlanParam !== "free"
+    ? intendedPlanParam
+    : null;
   const [checkoutPlans, setCheckoutPlans] = useState<CheckoutPlanConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [plansError, setPlansError] = useState<string | null>(null);
-  const [annual, setAnnual] = useState(false);
+  const [annual, setAnnual] = useState(() => new URLSearchParams(search).get("interval") === "year");
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -233,6 +237,7 @@ function BillingContent() {
               const planKey = plan.slug;
               const isCurrent = currentPlan === planKey;
               const isPopular = plan.mostPopular;
+              const isIntended = intendedPlan === planKey;
               const interval = annual ? "year" : "month";
               const price = getPriceForInterval(plan.slug, interval);
               const displayAmount = formatUsd(plan.monthlyPriceCents);
@@ -247,7 +252,7 @@ function BillingContent() {
                       : isCurrent
                         ? "border-white/15 bg-white/[0.03] hover:shadow-xl hover:shadow-white/5"
                         : "border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:shadow-xl"
-                  }`}
+                  } ${isIntended && !isCurrent ? "ring-2 ring-violet-400/50" : ""}`}
                 >
                   {isPopular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-violet-500 text-white text-[10px] font-black rounded-full uppercase tracking-widest whitespace-nowrap shadow-lg shadow-violet-500/30">
@@ -263,6 +268,9 @@ function BillingContent() {
                   <div className="mb-5">
                     <h3 className="font-black text-white text-lg mb-0.5">{plan.name}</h3>
                     <p className="text-[11px] text-slate-400 min-h-[2rem] leading-relaxed">{plan.description}</p>
+                    {isIntended && !isCurrent && (
+                      <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-violet-300">Selected on pricing page</p>
+                    )}
                   </div>
 
                   <div className="mb-1">
@@ -308,6 +316,8 @@ function BillingContent() {
                       "Free Plan"
                     ) : !price ? (
                       "Checkout not configured"
+                    ) : isIntended ? (
+                      `Continue with ${plan.name}`
                     ) : (
                       `Upgrade to ${plan.name}`
                     )}
