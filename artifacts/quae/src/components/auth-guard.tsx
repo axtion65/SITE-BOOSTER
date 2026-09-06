@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Spinner } from "@/components/ui/spinner";
+import { protectedSignInUrl } from "@/lib/campaign-templates";
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, token, isLoading } = useAuth();
@@ -9,7 +10,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !token) {
-      setLocation("/signin");
+      setLocation(protectedSignInUrl(window.location.pathname, window.location.search));
     }
   }, [isLoading, token, setLocation]);
 
