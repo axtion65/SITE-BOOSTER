@@ -5,6 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 
 type Step = "closed" | "open" | "sent";
+const MAX_FEEDBACK_MESSAGE_LENGTH = 4000;
+const MAX_FEEDBACK_EMAIL_LENGTH = 320;
 
 export default function FeedbackWidget() {
   const [step, setStep] = useState<Step>("closed");
@@ -81,6 +83,7 @@ export default function FeedbackWidget() {
               placeholder="What's on your mind?"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
+              maxLength={MAX_FEEDBACK_MESSAGE_LENGTH}
               className="resize-none text-sm min-h-[90px] bg-white/5 border-white/10 focus:border-primary/50"
               autoFocus
             />
@@ -90,6 +93,7 @@ export default function FeedbackWidget() {
               placeholder="Email (optional, for replies)"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              maxLength={MAX_FEEDBACK_EMAIL_LENGTH}
               className="text-sm bg-white/5 border-white/10 focus:border-primary/50"
             />
 

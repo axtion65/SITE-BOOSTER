@@ -4,6 +4,9 @@ import { sql } from "drizzle-orm";
 import { resolveUserFromToken } from "./auth";
 
 const router = Router();
+const FEEDBACK_TYPES = new Set<string>(["idea", "bug", "other"]);
+const MAX_FEEDBACK_MESSAGE_LENGTH = 4000;
+const MAX_FEEDBACK_EMAIL_LENGTH = 320;
 
 // POST /api/feedback — store user feedback
 router.post("/feedback", async (req, res) => {
@@ -11,8 +14,24 @@ router.post("/feedback", async (req, res) => {
     type?: string; message?: string; email?: string;
   };
 
-  if (!message?.trim()) {
+  const normalizedMessage = typeof message === "string" ? message.trim() : "";
+  const normalizedEmail = typeof email === "string" ? email.trim() : "";
+  const normalizedType = typeof type === "string" ? type : "other";
+
+  if (!normalizedMessage) {
     res.status(400).json({ error: "message is required" });
+    return;
+  }
+  if (normalizedMessage.length > MAX_FEEDBACK_MESSAGE_LENGTH) {
+    res.status(400).json({ error: `message must be ${MAX_FEEDBACK_MESSAGE_LENGTH} characters or fewer` });
+    return;
+  }
+  if (normalizedEmail.length > MAX_FEEDBACK_EMAIL_LENGTH) {
+    res.status(400).json({ error: `email must be ${MAX_FEEDBACK_EMAIL_LENGTH} characters or fewer` });
+    return;
+  }
+  if (!FEEDBACK_TYPES.has(normalizedType)) {
+    res.status(400).json({ error: "invalid feedback type" });
     return;
   }
 
@@ -20,7 +39,7 @@ router.post("/feedback", async (req, res) => {
     // Store in DB using a simple raw insert (no schema needed — uses jsonb log table pattern)
     await db.execute(sql`
       INSERT INTO feedback (type, message, email, created_at)
-      VALUES (${type ?? "other"}, ${message.trim()}, ${email?.trim() ?? null}, NOW())
+      VALUES (${normalizedType}, ${normalizedMessage}, ${normalizedEmail || null}, NOW())
     `);
   } catch {
     // If the table doesn't exist yet, create it and retry
@@ -36,7 +55,7 @@ router.post("/feedback", async (req, res) => {
       `);
       await db.execute(sql`
         INSERT INTO feedback (type, message, email, created_at)
-        VALUES (${type ?? "other"}, ${message.trim()}, ${email?.trim() ?? null}, NOW())
+        VALUES (${normalizedType}, ${normalizedMessage}, ${normalizedEmail || null}, NOW())
       `);
     } catch (err) {
       console.error("[feedback] DB error:", err);
@@ -45,7 +64,7 @@ router.post("/feedback", async (req, res) => {
     }
   }
 
-  console.log(`[feedback] ${type ?? "other"}: "${message.trim().slice(0, 80)}" ${email ? `<${email}>` : ""}`);
+  console.log(`[feedback] ${normalizedType}: "${normalizedMessage.slice(0, 80)}" ${normalizedEmail ? `<${normalizedEmail}>` : ""}`);
   res.json({ ok: true });
 });
 
