@@ -12,27 +12,33 @@ export default function FeedbackWidget() {
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!message.trim()) return;
     setLoading(true);
+    setSubmitError(null);
     try {
-      await fetch("/api/feedback", {
+      const response = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, message, email }),
       });
-    } catch {
-      // Fire-and-forget — don't block the UI on network errors
-    } finally {
-      setLoading(false);
+      if (!response.ok) {
+        throw new Error("Feedback request failed");
+      }
       setStep("sent");
       setTimeout(() => {
         setStep("closed");
         setMessage("");
         setEmail("");
         setType("idea");
+        setSubmitError(null);
       }, 3000);
+    } catch {
+      setSubmitError("We couldn't send that. Please try again or email us directly.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -86,6 +92,15 @@ export default function FeedbackWidget() {
               onChange={(e) => setEmail(e.target.value)}
               className="text-sm bg-white/5 border-white/10 focus:border-primary/50"
             />
+
+            {submitError && (
+              <p role="alert" className="text-xs leading-5 text-red-300">
+                {submitError}{" "}
+                <a href="mailto:info@quae.ai" className="font-semibold underline underline-offset-2 hover:text-red-200">
+                  info@quae.ai
+                </a>
+              </p>
+            )}
 
             <Button
               className="w-full font-semibold gap-2"

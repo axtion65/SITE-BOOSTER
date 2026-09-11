@@ -40,7 +40,8 @@ router.post("/feedback", async (req, res) => {
       `);
     } catch (err) {
       console.error("[feedback] DB error:", err);
-      // Still return success — don't let a DB error block the user
+      res.status(500).json({ error: "Failed to save feedback" });
+      return;
     }
   }
 
