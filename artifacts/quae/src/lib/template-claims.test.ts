@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { TEMPLATES } from "@workspace/templates";
 
 const forbiddenClaims = [
   "3x better",
@@ -15,10 +16,7 @@ const forbiddenClaims = [
 ] as const;
 
 test("video template marketing copy avoids unsupported performance claims", () => {
-  const catalog = readFileSync(
-    new URL("../../../../lib/templates/src/index.ts", import.meta.url),
-    "utf8",
-  );
+  const catalog = JSON.stringify(TEMPLATES);
   const page = readFileSync(new URL("../pages/templates.tsx", import.meta.url), "utf8");
   const combined = `${catalog}\n${page}`.toLowerCase();
 
