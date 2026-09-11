@@ -11,6 +11,8 @@ import {
   passwordResetUrl,
 } from "../lib/passwordRecovery";
 import { sendPasswordResetEmail } from "../lib/email";
+import { refreshPaidPlanAllowance } from "../lib/subscriptionCredits";
+import { shouldRefreshPaidPlanAllowance } from "../lib/subscriptionCreditPolicy";
 
 const router = Router();
 
@@ -64,7 +66,9 @@ export async function resolveUserFromToken(authHeader: string | undefined) {
     if (impersonationExpiry !== null && (Number.isNaN(impersonationExpiry) || Date.now() > impersonationExpiry)) return null;
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-    return user?.accountStatus === "disabled" ? null : (user ?? null);
+    if (!user || user.accountStatus === "disabled") return null;
+    if (!shouldRefreshPaidPlanAllowance(user)) return user;
+    return (await refreshPaidPlanAllowance(user.id)) ?? user;
   } catch {
     return null;
   }
@@ -111,7 +115,10 @@ router.post("/auth/signin", async (req, res) => {
       .set({ passwordHash: await hashPassword(password), updatedAt: new Date() })
       .where(eq(usersTable.id, user.id));
   }
-  res.json({ user: userToPublic(user), token: generateToken(user.id) });
+  const currentUser = shouldRefreshPaidPlanAllowance(user)
+    ? (await refreshPaidPlanAllowance(user.id)) ?? user
+    : user;
+  res.json({ user: userToPublic(currentUser), token: generateToken(user.id) });
 });
 
 router.post("/auth/signup", async (req, res) => {

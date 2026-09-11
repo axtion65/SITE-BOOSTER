@@ -89,12 +89,14 @@ router.post("/billing/sync", async (req, res) => {
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
 
   try {
-    const updated = await stripeService.syncUserSubscription(userId);
-    if (!updated) { res.json({ synced: false }); return; }
-    // Send plan upgrade confirmation email
-    import("../lib/email").then(({ sendPlanUpgradeEmail }) =>
-      sendPlanUpgradeEmail(updated.email, updated.name ?? "", updated.plan, updated.credits).catch(() => {})
-    );
+    const result = await stripeService.syncUserSubscription(userId);
+    if (!result) { res.json({ synced: false }); return; }
+    const updated = result.user;
+    if (result.grantReason === "subscription_change") {
+      import("../lib/email").then(({ sendPlanUpgradeEmail }) =>
+        sendPlanUpgradeEmail(updated.email, updated.name ?? "", updated.plan, updated.credits).catch(() => {})
+      );
+    }
     res.json({ synced: true, plan: updated.plan, credits: updated.credits });
   } catch (err: any) {
     console.error("[billing] sync error", err);

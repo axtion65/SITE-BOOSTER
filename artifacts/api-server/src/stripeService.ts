@@ -1,8 +1,9 @@
 import { storage } from './storage';
 import { getStripeClient } from './stripeClient';
-import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type PaidPlanSlug } from '@workspace/plans';
+import { PLAN_CATALOG, isPlanSlug, type PaidPlanSlug } from '@workspace/plans';
 import type Stripe from 'stripe';
 import { resolveStripePriceId } from './lib/billingConfig';
+import { applyPaidSubscriptionSnapshot } from './lib/subscriptionCredits';
 
 function getPlanFromMetadata(metadata: Stripe.Metadata): PaidPlanSlug | null {
   const plan = metadata?.plan;
@@ -93,14 +94,13 @@ export class StripeService {
     const product = price.product as Stripe.Product;
     const plan = getPlanFromMetadata(product.metadata);
     if (!plan) throw new Error(`Stripe product ${product.id} has no valid plan metadata`);
-    const credits = PLAN_BY_SLUG[plan].credits;
-
-    return storage.updateUserStripeInfo(userId, {
-      stripeSubscriptionId: sub.id,
+    return applyPaidSubscriptionSnapshot(userId, {
+      customerId: user.stripeCustomerId,
+      subscriptionId: sub.id,
       plan,
-      credits,
-      subscriptionStatus: sub.status,
+      status: sub.status,
       billingInterval: price.recurring?.interval ?? null,
+      anchorAt: new Date(sub.start_date * 1000),
     });
   }
 }

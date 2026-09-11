@@ -15,6 +15,8 @@ export const usersTable = pgTable("users", {
   accountStatus: text("account_status").notNull().default("active"),
   subscriptionStatus: text("subscription_status"),
   billingInterval: text("billing_interval"),
+  creditCycleAnchorAt: timestamp("credit_cycle_anchor_at", { withTimezone: true }),
+  creditRefreshAt: timestamp("credit_refresh_at", { withTimezone: true }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
