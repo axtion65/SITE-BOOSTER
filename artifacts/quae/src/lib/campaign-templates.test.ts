@@ -307,7 +307,7 @@ test("creative video templates remain isolated in Creative Studio", () => {
   ]) {
     assert.match(videoTemplates, new RegExp(category.replace(/[+]/g, "\\+")));
   }
-  assert.match(videoTemplates, /Video Templates · Proven Formats/);
+  assert.match(videoTemplates, /Video Templates · Practical Formats/);
   assert.match(videoTemplates, /setLocation\(videoTemplateUrl\(t, !!user\)\)/);
   assert.doesNotMatch(videoTemplates, /\/studio\/campaigns\?template=/);
 });
