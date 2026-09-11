@@ -24,6 +24,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0017_campaign_video_production.sql",
     "0018_video_production_pipeline.sql",
     "0019_secure_password_recovery.sql",
+    "0020_subscription_credit_cycles.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
@@ -151,4 +152,15 @@ test("generation schema guard bundles every route-required column", async () => 
   for (const column of ["creative_direction","idempotency_key","creation_path","brand_model_id","product_reference_paths","job_stage","queued_at","lease_owner","lease_expires_at","attempt_count"]) assert.match(sql,new RegExp(`ADD COLUMN IF NOT EXISTS ${column}`));
   assert.match(sql,/mockup_versions_project_idempotency_unique/);
   assert.doesNotMatch(sql,/DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
+});
+
+
+test("subscription credit cycle migration is additive and preserves balances", async () => {
+  const sql = await readFile(
+    new URL("lib/db/migrations/0020_subscription_credit_cycles.sql", root),
+    "utf8",
+  );
+  assert.match(sql, /credit_cycle_anchor_at TIMESTAMPTZ/);
+  assert.match(sql, /credit_refresh_at TIMESTAMPTZ/);
+  assert.doesNotMatch(sql, /UPDATE\s+users|DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
 });

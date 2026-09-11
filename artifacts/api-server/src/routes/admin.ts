@@ -200,10 +200,10 @@ router.post("/admin/users/:id/sync-subscription", async (req, res) => {
   const admin = await getAdminUser(req.headers.authorization);
   if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
   const { stripeService } = await import("../stripeService");
-  const updated = await stripeService.syncUserSubscription(req.params.id);
+  const result = await stripeService.syncUserSubscription(req.params.id);
   logger.info({ action: "admin.user.sync_subscription", adminId: admin.id, targetUserId: req.params.id }, "Admin synchronized subscription");
-  if (!updated) { res.status(404).json({ error: "No active Stripe subscription found" }); return; }
-  res.json(publicAdminUser(updated));
+  if (!result) { res.status(404).json({ error: "No active Stripe subscription found" }); return; }
+  res.json(publicAdminUser(result.user));
 });
 
 // ─── Email queue monitoring ───────────────────────────────────────────────────

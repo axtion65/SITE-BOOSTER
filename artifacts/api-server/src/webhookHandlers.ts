@@ -1,6 +1,7 @@
 import { getStripeClient } from './stripeClient';
 import { storage } from './storage';
 import { PLAN_BY_SLUG, isPlanSlug, type PaidPlanSlug } from '@workspace/plans';
+import { applyPaidSubscriptionSnapshot } from './lib/subscriptionCredits';
 
 function getPlanFromMetadata(metadata: Stripe.Metadata): PaidPlanSlug | null {
   const plan = metadata?.plan;
@@ -58,18 +59,16 @@ async function handleSubscriptionChange(stripe: Stripe, sub: Stripe.Subscription
   const product = price.product as Stripe.Product;
   const plan = getPlanFromMetadata(product.metadata);
   if (!plan) throw new Error(`Stripe product ${product.id} has no valid plan metadata`);
-  const credits = PLAN_BY_SLUG[plan].credits;
-
-  await storage.updateUserStripeInfo(user.id, {
-    stripeCustomerId: customerId,
-    stripeSubscriptionId: sub.id,
+  const result = await applyPaidSubscriptionSnapshot(user.id, {
+    customerId,
+    subscriptionId: sub.id,
     plan,
-    credits,
-    subscriptionStatus: sub.status,
+    status: sub.status,
     billingInterval: price.recurring?.interval ?? null,
+    anchorAt: new Date(sub.start_date * 1000),
   });
 
-  console.log(`[webhook] Updated user ${user.id} → plan=${plan} credits=${credits}`);
+  console.log(`[webhook] Updated user ${user.id} → plan=${plan} grant=${result?.grantReason ?? "none"}`);
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
@@ -83,6 +82,8 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
     credits: PLAN_BY_SLUG.free.credits,
     subscriptionStatus: sub.status,
     billingInterval: null,
+    creditCycleAnchorAt: null,
+    creditRefreshAt: null,
   });
 
   console.log(`[webhook] Downgraded user ${user.id} to free`);

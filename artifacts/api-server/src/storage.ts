@@ -20,6 +20,8 @@ export class Storage {
     credits?: number;
     subscriptionStatus?: string | null;
     billingInterval?: string | null;
+    creditCycleAnchorAt?: Date | null;
+    creditRefreshAt?: Date | null;
   }) {
     const [user] = await db.update(usersTable)
       .set({ ...info, updatedAt: new Date() })
