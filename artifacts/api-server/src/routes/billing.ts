@@ -53,7 +53,7 @@ router.post("/billing/checkout", async (req, res) => {
 
     const session = await stripeService.createCheckoutSession(
       customerId, priceId,
-      `${domain}/studio/dashboard?checkout_success=true`,
+      `${domain}/studio/billing?checkout_success=true`,
       `${domain}/studio/dashboard`
     );
 

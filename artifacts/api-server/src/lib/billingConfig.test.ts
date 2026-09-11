@@ -41,6 +41,8 @@ test("billing routes use the public app origin and Stripe webhooks fail closed",
   const billing = readFileSync(new URL("../routes/billing.ts", import.meta.url), "utf8");
   const webhook = readFileSync(new URL("../webhookHandlers.ts", import.meta.url), "utf8");
   assert.match(billing, /getPublicAppOrigin\(\)/);
+  assert.match(billing, /studio\/billing\?checkout_success=true/);
+  assert.doesNotMatch(billing, /studio\/dashboard\?checkout_success=true/);
   assert.doesNotMatch(billing, /REPLIT_DOMAINS|localhost:3000/);
   assert.match(webhook, /if \(!webhookSecret\) throw/);
   assert.doesNotMatch(webhook, /JSON\.parse\(payload|skipping signature verification/);
