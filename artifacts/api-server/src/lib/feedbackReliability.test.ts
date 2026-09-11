@@ -17,3 +17,19 @@ test("feedback only reports success after storage succeeds", () => {
   assert.match(widget, /mailto:info@quae\.ai/);
   assert.match(widget, /setStep\("sent"\)/);
 });
+
+test("public feedback input is bounded before storage", () => {
+  const route = readFileSync(new URL("../routes/feedback.ts", import.meta.url), "utf8");
+  const widget = readFileSync(
+    new URL("../../../quae/src/components/feedback-widget.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(route, /MAX_FEEDBACK_MESSAGE_LENGTH = 4000/);
+  assert.match(route, /MAX_FEEDBACK_EMAIL_LENGTH = 320/);
+  assert.match(route, /FEEDBACK_TYPES\.has\(normalizedType\)/);
+  assert.match(route, /normalizedMessage\.length > MAX_FEEDBACK_MESSAGE_LENGTH/);
+  assert.match(route, /normalizedEmail\.length > MAX_FEEDBACK_EMAIL_LENGTH/);
+  assert.match(widget, /maxLength=\{MAX_FEEDBACK_MESSAGE_LENGTH\}/);
+  assert.match(widget, /maxLength=\{MAX_FEEDBACK_EMAIL_LENGTH\}/);
+});
