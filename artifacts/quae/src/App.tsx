@@ -27,6 +27,13 @@ import WebsiteImportPage from '@/pages/studio/website-import';
 import Admin from '@/pages/admin';
 import FeedbackWidget from '@/components/feedback-widget';
 import { ErrorBoundary } from '@/components/error-boundary';
+import {
+  ContactSupport,
+  PrivacyPolicy,
+  PublicTrustLinks,
+  RefundPolicy,
+  TermsOfService,
+} from '@/pages/legal';
 
 const queryClient = new QueryClient();
 
@@ -35,6 +42,10 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/signin" component={SignIn} />
+      <Route path="/privacy" component={PrivacyPolicy} />
+      <Route path="/terms" component={TermsOfService} />
+      <Route path="/refund-policy" component={RefundPolicy} />
+      <Route path="/contact" component={ContactSupport} />
       <Route path="/templates" component={() => <StudioLayout><Templates embedded /></StudioLayout>} />
       
       {/* Studio App */}
@@ -69,6 +80,7 @@ function App() {
           <AuthProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
               <Router />
+              <PublicTrustLinks />
             </WouterRouter>
             <Toaster />
             <FeedbackWidget />
