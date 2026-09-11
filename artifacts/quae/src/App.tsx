@@ -8,6 +8,7 @@ import { AuthProvider } from '@/hooks/use-auth';
 // Pages
 import Home from '@/pages/home';
 import SignIn from '@/pages/signin';
+import HowTo from '@/pages/how-to';
 import StudioLayout from '@/pages/studio/layout';
 import StudioIndex from '@/pages/studio/index';
 import StudioProjects from '@/pages/studio/projects';
@@ -42,6 +43,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/signin" component={SignIn} />
+      <Route path="/how-to" component={HowTo} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route path="/terms" component={TermsOfService} />
       <Route path="/refund-policy" component={RefundPolicy} />

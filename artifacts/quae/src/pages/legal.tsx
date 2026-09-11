@@ -115,13 +115,14 @@ export function ContactSupport() {
   </Shell>;
 }
 
-const PUBLIC_TRUST_PATHS = new Set(["/", "/signin", "/privacy", "/terms", "/refund-policy", "/contact"]);
+const PUBLIC_TRUST_PATHS = new Set(["/", "/signin", "/how-to", "/privacy", "/terms", "/refund-policy", "/contact"]);
 
 export function PublicTrustLinks() {
   const [location] = useLocation();
   if (!PUBLIC_TRUST_PATHS.has(location)) return null;
   return <div className="border-t border-white/[.07] bg-[#091322] text-slate-400">
-    <nav aria-label="Legal and support" className="mx-auto flex max-w-5xl flex-wrap justify-center gap-x-6 gap-y-2 px-5 py-5 text-xs sm:px-8">
+    <nav aria-label="Help, legal, and support" className="mx-auto flex max-w-5xl flex-wrap justify-center gap-x-6 gap-y-2 px-5 py-5 text-xs sm:px-8">
+      <Link href="/how-to" className="font-semibold text-violet-300 hover:text-white">How to use Quae</Link>
       <Link href="/privacy" className="hover:text-white">Privacy</Link>
       <Link href="/terms" className="hover:text-white">Terms</Link>
       <Link href="/refund-policy" className="hover:text-white">Cancellation &amp; Refunds</Link>
