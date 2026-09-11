@@ -28,7 +28,7 @@ const TEMPLATE_PHOTOS: Record<string, string> = {
 
 // Per-template accent color for the overlay tint & example hook
 const TEMPLATE_ACCENT: Record<string, { color: string; label: string }> = {
-  "tiktok-viral-hook":       { color: "#69C9D0", label: "VIRAL FORMAT" },
+  "tiktok-viral-hook":       { color: "#69C9D0", label: "HOOK FORMAT" },
   "ugc-review":              { color: "#f0f0f0", label: "AUTHENTIC" },
   "before-after":            { color: "#a78bfa", label: "TRANSFORMATION" },
   "product-demo":            { color: "#34d399", label: "LIVE DEMO" },
@@ -197,13 +197,13 @@ export default function Templates({ embedded = false }: { embedded?: boolean }) 
       <main className="flex-1 max-w-[1600px] mx-auto w-full px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
         {/* Hero */}
         <div className="mb-14">
-          <p className="text-[11px] font-black tracking-[0.25em] uppercase text-violet-400/70 mb-4">Video Templates · Proven Formats</p>
+          <p className="text-[11px] font-black tracking-[0.25em] uppercase text-violet-400/70 mb-4">Video Templates · Practical Formats</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.02] mb-5 max-w-xl">
             Start with a format<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-purple-300">that converts.</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-purple-300">that fits your goal.</span>
           </h1>
           <p className="text-[#AAB6CA] text-lg max-w-lg leading-relaxed">
-            12 battle-tested video structures used by 7-figure brands. Pick your format — the AI writes the script, the video model does the rest.
+            12 reusable video structures for common marketing goals. Pick a format — Quae carries the structure into your creative workflow.
           </p>
         </div>
 
