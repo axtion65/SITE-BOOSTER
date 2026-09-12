@@ -35,9 +35,9 @@ const team = [
 
 const publicPlanBenefits = {
   free: ["Complete campaigns", "Product visuals", "Social + marketing copy"],
-  starter: ["Complete campaigns", "More creative production", "Higher monthly capacity"],
-  pro: ["Higher monthly capacity", "Priority production", "Campaign history + premium exports"],
-  agency: ["More creative production", "Priority production", "Team workflow access"],
+  starter: ["Complete campaigns", "LTX multi-scene video production", "Saved video history"],
+  pro: ["More monthly production capacity", "LTX multi-scene video production", "Saved campaign and video history"],
+  agency: ["Highest monthly production capacity", "LTX multi-scene video production", "Saved campaign and video history"],
 } as const satisfies Record<(typeof PLAN_CATALOG)[number]["slug"], readonly [string, string, string]>;
 
 function Logo() {
@@ -162,9 +162,9 @@ function PricingSection({ signedIn }: { signedIn: boolean }) {
             <h3 className="text-lg font-extrabold tracking-tight">{plan.name}</h3>
             <p className="mt-1 min-h-8 text-xs leading-4 text-slate-400">{plan.description}</p>
             <p className="mt-3"><span className="text-3xl font-extrabold tracking-[-.04em]">${formatUsd(plan.monthlyPriceCents)}</span><span className="text-xs text-slate-400">/mo</span></p>
-            {annual && plan.annualPriceCents ? <p className="mt-1 text-[11px] font-semibold text-emerald-300">${formatUsd(plan.annualPriceCents)}/yr · save ${formatUsd(plan.monthlyPriceCents * 12 - plan.annualPriceCents)}</p> : <p className="mt-1 text-[11px] text-slate-500">Monthly billing</p>}
+            {annual && plan.annualPriceCents ? <p className="mt-1 text-[11px] font-semibold text-emerald-300">${formatUsd(plan.annualPriceCents)}/yr · save ${formatUsd(plan.monthlyPriceCents * 12 - plan.annualPriceCents)}</p> : <p className="mt-1 text-[11px] text-slate-500">{plan.slug === "free" ? "No subscription" : "Monthly billing"}</p>}
           </div>
-          <p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-violet-200">{plan.credits.toLocaleString()} credits / month</p>
+          <p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-violet-200">{plan.creditLabel}</p>
           <ul className="mt-4 flex-1 space-y-2.5">{publicPlanBenefits[plan.slug].map(benefit => <li key={benefit} className="flex items-start gap-2 text-xs leading-5 text-slate-300"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300" />{benefit}</li>)}</ul>
           <Link href={plan.slug === "free" ? campaignBuilderUrl(signedIn) : billingPlanUrl(plan.slug, interval, signedIn)} className={`mt-5 flex min-h-10 items-center justify-center rounded-xl text-sm font-bold transition-colors ${plan.mostPopular ? "bg-violet-600 shadow-lg shadow-violet-950/30 hover:bg-violet-500" : "border border-white/[.1] bg-white/[.05] hover:border-violet-300/30 hover:bg-white/[.09]"}`}>{plan.cta}</Link>
         </article>)}
