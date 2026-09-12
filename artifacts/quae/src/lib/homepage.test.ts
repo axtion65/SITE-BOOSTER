@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { PLAN_BY_SLUG } from "@workspace/plans";
 import { CAMPAIGN_TEMPLATE_PRESETS } from "./campaign-templates";
 
 const home = readFileSync(
@@ -8,6 +9,10 @@ const home = readFileSync(
   "utf8",
 );
 const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+const billing = readFileSync(
+  new URL("../pages/studio/billing.tsx", import.meta.url),
+  "utf8",
+);
 
 test("homepage presents Quae as an AI marketing department", () => {
   assert.match(home, /Grow Your Business With an Entire AI Marketing Team/);
@@ -59,6 +64,23 @@ test("public pricing avoids technical model marketing", () => {
   assert.doesNotMatch(home, /\b(?:Ovi|Wan|Kling|Veo)\b/);
   assert.doesNotMatch(home, /plan\.videos|plan\.features/);
   assert.match(home, /publicPlanBenefits\[plan\.slug\]/);
+});
+
+test("public and account pricing make only currently available promises", () => {
+  const advertisedFeatures = Object.values(PLAN_BY_SLUG)
+    .flatMap((plan) => plan.features)
+    .join(" ");
+
+  assert.equal(PLAN_BY_SLUG.free.creditLabel, "90 credits at sign-up");
+  assert.doesNotMatch(
+    advertisedFeatures,
+    /Kling|Priority support|Priority rendering|Fastest rendering|Team workspace|API access/,
+  );
+  assert.match(home, /\{plan\.creditLabel\}/);
+  assert.match(home, /plan\.slug === "free" \? "No subscription" : "Monthly billing"/);
+  assert.doesNotMatch(home, /Priority production|premium exports|Team workflow access/);
+  assert.match(billing, /\{plan\.creditLabel\}/);
+  assert.doesNotMatch(billing, /credits<\/span>\/mo/);
 });
 
 test("pricing uses the exact four-card breakpoint for compact desktop viewports", () => {

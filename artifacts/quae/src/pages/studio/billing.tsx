@@ -285,7 +285,7 @@ function BillingContent() {
 
                   {/* Credits highlight */}
                   <div className="p-3 rounded-xl bg-white/[0.04] text-[11px] text-white/50 mb-5 text-center border border-white/[0.06]">
-                    <span className="text-white font-black">{plan.credits.toLocaleString()} credits</span>/mo
+                    <span className="text-white font-black">{plan.creditLabel}</span>
                   </div>
 
                   <ul className="space-y-2.5 mb-6 flex-1">

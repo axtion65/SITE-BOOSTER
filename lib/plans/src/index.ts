@@ -51,6 +51,7 @@ export interface PlanDefinition {
   monthlyPriceCents: number;
   annualPriceCents: number;
   credits: number;
+  creditLabel: string;
   videos: string;
   features: readonly string[];
   cta: string;
@@ -67,6 +68,7 @@ export const PLAN_CATALOG = [
     monthlyPriceCents: 0,
     annualPriceCents: 0,
     credits: 90,
+    creditLabel: "90 credits at sign-up",
     videos: "1 complete 15s advert",
     features: ["90 production credits", "15-second LTX advert", "Voiceover + captions", "1080p export"],
     cta: "Start Free",
@@ -79,32 +81,35 @@ export const PLAN_CATALOG = [
     monthlyPriceCents: 2300,
     annualPriceCents: annualPrice(2300),
     credits: 600,
+    creditLabel: "600 credits / month",
     videos: "3 complete 30s adverts",
-    features: ["600 credits/month", "LTX 2.3 multi-scene adverts", "All platforms", "1080p export", "Priority support"],
+    features: ["600 credits/month", "LTX 2.3 multi-scene adverts", "All platforms", "1080p export", "Saved video history"],
     cta: "Get Starter",
     mostPopular: false,
   },
   {
     slug: "pro",
     name: "Pro",
-    description: "Growing brands & teams",
+    description: "Growing brands with more production",
     monthlyPriceCents: 4900,
     annualPriceCents: annualPrice(4900),
     credits: 2000,
-    videos: "11 LTX or 5 Kling 30s adverts",
-    features: ["2,000 credits/month", "LTX 2.3 + Kling 3", "All platforms", "1080p export", "Priority rendering", "Video history"],
+    creditLabel: "2,000 credits / month",
+    videos: "11 complete 30s LTX adverts",
+    features: ["2,000 credits/month", "LTX 2.3 multi-scene adverts", "All platforms", "1080p export", "Saved campaign and video history"],
     cta: "Get Pro",
     mostPopular: true,
   },
   {
     slug: "agency",
     name: "Agency",
-    description: "Agencies & high-volume teams",
+    description: "Agencies with high-volume production",
     monthlyPriceCents: 9900,
     annualPriceCents: annualPrice(9900),
     credits: 6000,
-    videos: "33 LTX or 15 Kling 30s adverts",
-    features: ["6,000 credits/month", "LTX 2.3 + Kling 3", "All platforms", "1080p export", "Fastest rendering", "Team workspace", "API access"],
+    creditLabel: "6,000 credits / month",
+    videos: "33 complete 30s LTX adverts",
+    features: ["6,000 credits/month", "LTX 2.3 multi-scene adverts", "All platforms", "1080p export", "Saved campaign and video history", "Highest monthly capacity"],
     cta: "Get Agency",
     mostPopular: false,
   },
