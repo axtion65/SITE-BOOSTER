@@ -24,6 +24,9 @@ test("customer how-to walkthrough is public, linked, and uses the bundled video"
   const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
   const legal = readFileSync(new URL("../pages/legal.tsx", import.meta.url), "utf8");
   const howTo = readFileSync(new URL("../pages/how-to.tsx", import.meta.url), "utf8");
+  const video = readFileSync(
+    new URL("../../public/videos/quae-how-to.mp4", import.meta.url),
+  );
 
   assert.match(app, /path="\/how-to" component=\{HowTo\}/);
   assert.match(legal, /href="\/how-to"/);
@@ -34,4 +37,8 @@ test("customer how-to walkthrough is public, linked, and uses the bundled video"
   assert.match(howTo, /playsInline/);
   assert.match(howTo, /src="\/videos\/quae-how-to\.mp4"/);
   assert.match(howTo, /Business Profile → Campaign → Approval → Creative → Download/);
+  assert.doesNotMatch(howTo, /48-second/);
+  assert.ok(video.length > 100_000, "walkthrough must not be the tiny placeholder");
+  assert.ok(video.includes(Buffer.from("avc1")), "walkthrough must include H.264 video");
+  assert.ok(video.includes(Buffer.from("mp4a")), "walkthrough must include AAC narration");
 });
