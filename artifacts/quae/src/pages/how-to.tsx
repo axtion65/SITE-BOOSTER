@@ -28,7 +28,7 @@ export default function HowTo() {
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-xs font-black uppercase tracking-[.22em] text-violet-300">Customer walkthrough</p>
           <h1 className="mt-4 text-4xl font-black tracking-[-.04em] sm:text-5xl">How to use Quae.ai</h1>
-          <p className="mt-5 text-base leading-7 text-slate-300 sm:text-lg">Watch the 48-second walkthrough, then follow the same seven steps whenever you build a campaign.</p>
+          <p className="mt-5 text-base leading-7 text-slate-300 sm:text-lg">Watch the simple step-by-step walkthrough, then follow the same seven steps whenever you build a campaign.</p>
         </div>
 
         <section className="mx-auto mt-10 max-w-4xl overflow-hidden rounded-3xl border border-white/[.1] bg-[#111d31] shadow-2xl shadow-slate-950/30">
