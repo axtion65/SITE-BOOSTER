@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Film, Zap, CheckCircle2, Clock, PlusCircle, TrendingUp, Coins, ArrowRight, Megaphone, Package, Palette } from "lucide-react";
+import { Film, Zap, CheckCircle2, Clock, PlusCircle, TrendingUp, Coins, ArrowRight, Megaphone, Package, Palette, PlayCircle } from "lucide-react";
 import { PLAN_BY_SLUG, isPlanSlug } from "@workspace/plans";
 
 export default function StudioDashboard() {
@@ -46,11 +46,18 @@ function DashboardContent() {
             </h1>
             <p className="mt-3 max-w-xl text-base leading-7 text-[#B9C5D8]">Your marketing workspace is ready. Create a campaign asset, continue recent work, or review your production activity.</p>
           </div>
-          <Link href="/studio">
-            <Button className="relative h-12 px-6 bg-gradient-to-r from-violet-600 to-[#5B7CFA] hover:from-violet-500 hover:to-indigo-400 rounded-xl font-bold text-sm shadow-xl shadow-violet-950/35 gap-2 transition-all">
-              <PlusCircle className="h-4 w-4" /> New Video
-            </Button>
-          </Link>
+          <div className="relative flex flex-col gap-3 sm:flex-row">
+            <Link href="/how-to">
+              <Button variant="outline" className="h-12 gap-2 rounded-xl border-white/15 bg-white/[.04] px-6 font-bold text-white hover:bg-white/[.09]">
+                <PlayCircle className="h-4 w-4" /> Watch Tutorial
+              </Button>
+            </Link>
+            <Link href="/studio">
+              <Button className="h-12 gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-[#5B7CFA] px-6 text-sm font-bold shadow-xl shadow-violet-950/35 transition-all hover:from-violet-500 hover:to-indigo-400">
+                <PlusCircle className="h-4 w-4" /> New Video
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Stats Row */}

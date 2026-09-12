@@ -205,7 +205,7 @@ function BroadcastPanel() {
         </CardHeader>
         <CardContent className="space-y-3">
           {[
-            { label: "Welcome email", desc: "Sent when someone signs up", status: "active" },
+            { label: "Welcome + tutorial", desc: "Sent automatically when someone signs up", status: "active" },
             { label: "Video ready", desc: "Sent when a render completes successfully", status: "active" },
             { label: "Render failed", desc: "Sent when a render fails (includes credit refund notice)", status: "active" },
             { label: "Plan upgrade", desc: "Sent when a user upgrades their subscription", status: "active" },
@@ -218,9 +218,7 @@ function BroadcastPanel() {
               <Badge variant="success" className="ml-3 shrink-0">Active</Badge>
             </div>
           ))}
-          <p className="text-xs text-muted-foreground pt-2">
-            Requires <code className="bg-secondary px-1 rounded">EMAILJS_TEMPLATE_ID</code> secret to be set.
-          </p>
+          <p className="text-xs text-muted-foreground pt-2">Automatic delivery uses the configured Resend account.</p>
         </CardContent>
       </Card>
     </div>

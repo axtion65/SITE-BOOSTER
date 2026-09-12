@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import {
   ArrowRight, BadgeCheck, BookOpenCheck, BrainCircuit, Check, CheckCircle2,
   ClipboardCheck, FileText, Image, Lightbulb, Megaphone, MessageSquareText,
-  PenLine, PlaySquare, Search, ShieldCheck, Sparkles, Target, WandSparkles,
+  PenLine, PlayCircle, PlaySquare, Search, ShieldCheck, Sparkles, Target, WandSparkles,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { PLAN_CATALOG, formatUsd } from "@workspace/plans";
@@ -63,9 +63,10 @@ export default function Home() {
       <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-7 lg:px-10">
         <Link href="/" aria-label="Quae.ai home"><Logo /></Link>
         <nav aria-label="Homepage navigation" className="hidden items-center gap-7 text-sm font-semibold text-slate-300 md:flex">
-          <a href="#department" className="hover:text-white">What Quae creates</a><a href="#how" className="hover:text-white">How it works</a><a href="#campaign-templates" className="hover:text-white">Campaign Templates</a><a href="#pricing" className="hover:text-white">Pricing</a>
+          <a href="#department" className="hover:text-white">What Quae creates</a><Link href="/how-to" className="hover:text-white">Watch tutorial</Link><a href="#campaign-templates" className="hover:text-white">Campaign Templates</a><a href="#pricing" className="hover:text-white">Pricing</a>
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
+          <Link href="/how-to" aria-label="Watch tutorial" title="Watch tutorial" className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-300 hover:bg-white/[.05] hover:text-white md:hidden"><PlayCircle className="h-5 w-5" /></Link>
           <Link href={token ? "/studio/dashboard" : "/signin"} className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-300 hover:text-white sm:block">{token ? "Open workspace" : "Sign in"}</Link>
           <Link href={campaignRoute} className="rounded-xl bg-violet-600 px-3.5 py-2.5 text-sm font-bold shadow-lg shadow-violet-950/40 transition-colors hover:bg-violet-500 sm:px-5">Build a campaign</Link>
         </div>
