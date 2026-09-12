@@ -17,6 +17,8 @@ export const RENDERING_MODELS = [
   { id:"kling", name:"Premium Ad — Kling 3", description:"A higher-fidelity multi-scene advert assembled to the approved script.", nativeDurationSeconds:10, creditCost:390, tier:"pro", badge:"Premium", supports:{textToVideo:true,imageToVideo:true}, capabilities:["15–45 second advert","Premium scene quality","Voiceover + captions","1080p export"] },
 ] as const satisfies readonly RenderingModelDefinition[];
 export const RENDERING_MODEL_BY_ID = Object.fromEntries(RENDERING_MODELS.map(model => [model.id, model])) as Record<string, RenderingModelDefinition>;
+/** Models currently offered in the new customer production flow. */
+export const CUSTOMER_RENDERING_MODELS = [RENDERING_MODEL_BY_ID["ltx-fast"]] as const;
 
 export const PRODUCTION_VIDEO_DURATIONS = ["15s", "30s", "45s"] as const;
 

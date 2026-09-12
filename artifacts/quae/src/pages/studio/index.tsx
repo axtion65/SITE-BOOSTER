@@ -20,7 +20,7 @@ import { approvedCampaignToStudio, campaignVideoIdempotencyKey, preparedVideoBri
 import { compilePreviewRenderBrief } from "@/lib/render-brief";
 import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
-import { getProductionCreditCost, normalizeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
+import { CUSTOMER_RENDERING_MODELS, getProductionCreditCost, normalizeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 import { buildStudioProjectRequest } from "@/lib/studio-project-request";
 import { privateImageUrl } from "@/lib/marketing-api";
 
@@ -342,7 +342,7 @@ function Wizard() {
   // Provider choice is an internal production detail. Keep the legacy picker
   // implementation isolated for old code paths, but expose only the automatic
   // LTX production profile to new customer work.
-  const models = [RENDERING_MODEL_BY_ID["ltx-fast"]];
+  const models = CUSTOMER_RENDERING_MODELS;
   const modelsLoading = false;
   const expandMutation = useExpandPrompt();
   const regenerateSceneMutation = useRegenerateScene();

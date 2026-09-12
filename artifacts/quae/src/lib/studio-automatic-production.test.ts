@@ -1,14 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { CUSTOMER_RENDERING_MODELS } from "@workspace/plans";
 
 const studioSource = () => readFile(new URL("../pages/studio/index.tsx", import.meta.url), "utf8");
+const billingSource = () => readFile(new URL("../pages/studio/billing.tsx", import.meta.url), "utf8");
 
 test("new customer videos use Quae's automatic LTX production profile", async () => {
   const source = await studioSource();
+  assert.deepEqual(CUSTOMER_RENDERING_MODELS.map((model) => model.id), ["ltx-fast"]);
+  assert.match(source, /const models = CUSTOMER_RENDERING_MODELS/);
   assert.match(source, /useState<string>\("ltx-fast"\)/);
   assert.match(source, /parsed\.modelId = "ltx-fast"/);
   assert.match(source, /if \(parsed\.step === 3\) parsed\.step = 4/);
+});
+
+test("billing prices only the models available in new customer production", async () => {
+  const source = await billingSource();
+  assert.match(source, /CUSTOMER_RENDERING_MODELS\.map/);
+  assert.doesNotMatch(source, /(?:^|[^A-Z_])RENDERING_MODELS\.map/);
 });
 
 test("the customer journey skips the retired model-selection step", async () => {
