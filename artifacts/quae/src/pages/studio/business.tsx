@@ -19,6 +19,6 @@ export default function BusinessPage() {
     <PremiumCard className="grid gap-5 md:grid-cols-2"><div className="md:col-span-2"><SectionHeading title="Customer & positioning" description="Help your AI marketing department understand who you serve and what matters most."/></div>
     {[['targetCustomer','Target customer'],['primaryGoal','Primary business goal'],['productsServices','Main products / services']].map(([key,label]) => <Field key={key} label={label} wide><textarea className={fieldClass} rows={3} value={form[key] ?? ""} onChange={(e) => set(key,e.target.value)} /></Field>)}
     <Field label="Preferred marketing channels (comma separated)" wide><input className={fieldClass} value={(form.preferredChannels ?? []).join(", ")} onChange={(e) => set("preferredChannels", e.target.value.split(",").map(v=>v.trim()).filter(Boolean))} /></Field>
-    </PremiumCard><div className="sticky bottom-4 flex justify-end rounded-2xl border border-white/[.07] bg-[#101827]/90 p-3 shadow-2xl backdrop-blur-xl"><SaveButton saving={saving} /></div>
+    </PremiumCard><div className="sticky bottom-20 flex justify-end rounded-2xl border border-white/[.07] bg-[#101827]/90 p-3 shadow-2xl backdrop-blur-xl"><SaveButton saving={saving} /></div>
   </form></MarketingPage>;
 }
