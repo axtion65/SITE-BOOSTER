@@ -11,13 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { KeyRound } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
-import { authenticationDestination } from "@/lib/campaign-templates";
+import { authenticationDestination, isFreeAdPackIntent } from "@/lib/campaign-templates";
 
 export default function SignIn() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
   const { toast } = useToast();
   const destination = authenticationDestination(window.location.search);
+  const freeAdPackIntent = isFreeAdPackIntent(window.location.search);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -157,7 +158,7 @@ export default function SignIn() {
         </Link>
 
         <Card className="w-full max-w-md border-white/10 shadow-xl shadow-black/50">
-          <Tabs defaultValue="signin" className="w-full">
+          <Tabs defaultValue={freeAdPackIntent ? "signup" : "signin"} className="w-full">
             <TabsList className="grid w-full grid-cols-2 p-1 bg-secondary/50 rounded-t-xl rounded-b-none border-b border-border">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Create Account</TabsTrigger>
@@ -213,7 +214,11 @@ export default function SignIn() {
             <TabsContent value="signup">
               <CardHeader>
                 <CardTitle>Create an account</CardTitle>
-                <CardDescription>Start creating professional video ads in minutes.</CardDescription>
+                <CardDescription>
+                  {freeAdPackIntent
+                    ? "Create your free account to make and download your three-size ad pack."
+                    : "Start building coordinated marketing campaigns for your business."}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSignUp} className="space-y-4">

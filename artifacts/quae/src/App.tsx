@@ -23,6 +23,7 @@ import CampaignsPage from '@/pages/studio/campaigns';
 import CampaignDetail from '@/pages/studio/campaign-detail';
 import MockupsPage from '@/pages/studio/mockups';
 import VisualsPage from '@/pages/studio/visuals';
+import FreeAdPackPage from '@/pages/studio/free-ad-pack';
 import Templates from '@/pages/templates';
 import WebsiteImportPage from '@/pages/studio/website-import';
 import Admin from '@/pages/admin';
@@ -65,6 +66,7 @@ function Router() {
       <Route path="/studio/products" component={() => <StudioLayout><ProductsPage /></StudioLayout>} />
       <Route path="/studio/mockups" component={() => <StudioLayout><MockupsPage /></StudioLayout>} />
       <Route path="/studio/visuals" component={() => <StudioLayout><VisualsPage /></StudioLayout>} />
+      <Route path="/studio/free-ad-pack" component={() => <StudioLayout><FreeAdPackPage /></StudioLayout>} />
       
       {/* Admin */}
       <Route path="/admin" component={Admin} />

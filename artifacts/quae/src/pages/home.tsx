@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { PLAN_CATALOG, formatUsd } from "@workspace/plans";
-import { CAMPAIGN_TEMPLATE_PRESETS, billingPlanUrl, campaignBuilderUrl, campaignTemplateUrl } from "@/lib/campaign-templates";
+import { CAMPAIGN_TEMPLATE_PRESETS, billingPlanUrl, campaignBuilderUrl, campaignTemplateUrl, freeAdPackUrl } from "@/lib/campaign-templates";
 
 export const HERO_HEADLINE = "Grow Your Business With an Entire AI Marketing Team";
 export const SIGNED_OUT_CAMPAIGN_ROUTE = "/signin?campaignBuilder=1";
@@ -58,12 +58,13 @@ function SectionIntro({ eyebrow, title, copy }: { eyebrow: string; title: string
 export default function Home() {
   const { token } = useAuth();
   const campaignRoute = campaignBuilderUrl(!!token);
+  const freeAdPackRoute = freeAdPackUrl(!!token);
   return <div className="min-h-screen overflow-x-hidden bg-[#091322] text-white selection:bg-violet-400/30">
     <header className="sticky top-0 z-50 border-b border-white/[.08] bg-[#091322]/90 backdrop-blur-xl">
       <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-7 lg:px-10">
         <Link href="/" aria-label="Quae.ai home"><Logo /></Link>
         <nav aria-label="Homepage navigation" className="hidden items-center gap-7 text-sm font-semibold text-slate-300 md:flex">
-          <a href="#department" className="hover:text-white">What Quae creates</a><Link href="/how-to" className="hover:text-white">Watch tutorial</Link><a href="#campaign-templates" className="hover:text-white">Campaign Templates</a><a href="#pricing" className="hover:text-white">Pricing</a>
+          <a href="#department" className="hover:text-white">What Quae creates</a><a href="#free-ad-pack" className="hover:text-white">Free Ad Pack</a><Link href="/how-to" className="hover:text-white">Watch tutorial</Link><a href="#campaign-templates" className="hover:text-white">Campaign Templates</a><a href="#pricing" className="hover:text-white">Pricing</a>
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
           <Link href="/how-to" aria-label="Watch tutorial" title="Watch tutorial" className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-300 hover:bg-white/[.05] hover:text-white md:hidden"><PlayCircle className="h-5 w-5" /></Link>
@@ -90,6 +91,8 @@ export default function Home() {
           <WorkflowVisual />
         </div>
       </section>
+
+      <FreeAdPackSection href={freeAdPackRoute} />
 
       <section id="department" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-20 sm:px-7 lg:px-10 lg:py-28">
         <SectionIntro eyebrow="One coordinated department" title="Everything Your Marketing Department Creates" copy="Strategy and production work together, so every deliverable supports the same campaign rather than becoming another disconnected asset." />
@@ -121,6 +124,80 @@ export default function Home() {
     </main>
     <footer className="border-t border-white/[.07]"><div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-7 lg:px-10"><Logo /><p>Quae.ai — Your AI Marketing Department</p></div></footer>
   </div>;
+}
+
+function FreeAdPackSection({ href }: { href: string }) {
+  return (
+    <section
+      id="free-ad-pack"
+      className="scroll-mt-24 border-b border-white/[.06] bg-[#0d192b] py-16 sm:py-20"
+    >
+      <div className="mx-auto grid max-w-7xl items-center gap-9 px-4 sm:px-7 lg:grid-cols-[1fr_.8fr] lg:px-10">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[.24em] text-emerald-300">
+            Free signup tool · 0 credits
+          </p>
+          <h2 className="mt-4 text-3xl font-extrabold tracking-[-.04em] sm:text-5xl">
+            Turn one product photo into a ready-to-post ad pack.
+          </h2>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
+            Create a polished square post, vertical story, landscape ad,
+            headline, call to action, and social caption—all from your real
+            product photo.
+          </p>
+          <ul className="mt-6 grid gap-3 text-sm text-slate-200 sm:grid-cols-2">
+            {[
+              "Three professional social sizes",
+              "Ready-to-post caption",
+              "Your brand color and offer",
+              "No video credits required",
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+                {item}
+              </li>
+            ))}
+          </ul>
+          <Link
+            href={href}
+            className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-xl shadow-emerald-950/25 hover:bg-emerald-500"
+          >
+            Create My Free Ad Pack <ArrowRight className="h-4 w-4" />
+          </Link>
+          <p className="mt-3 text-xs text-slate-500">
+            Free account required. No credit card.
+          </p>
+        </div>
+        <div className="rounded-[2rem] border border-white/10 bg-[#111d31] p-5 shadow-2xl shadow-slate-950/30">
+          <div className="aspect-square overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_72%_24%,rgba(124,58,237,.62),transparent_34%),linear-gradient(150deg,#20304a,#07101d)] p-7">
+            <p className="text-xs font-extrabold uppercase tracking-[.18em] text-white">
+              Your Business
+            </p>
+            <div className="mt-2 h-1 w-16 rounded-full bg-emerald-400" />
+            <div className="flex h-[72%] flex-col justify-end">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">
+                Your product
+              </p>
+              <p className="mt-2 text-3xl font-black leading-tight text-white sm:text-4xl">
+                Your best offer goes here.
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-200">
+                Add the benefit customers should understand right away.
+              </p>
+              <span className="mt-5 w-fit rounded-full bg-emerald-500 px-5 py-2 text-sm font-extrabold text-white">
+                Shop now
+              </span>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[11px] font-bold text-slate-300">
+            <span className="rounded-lg bg-white/[.05] p-2">Square</span>
+            <span className="rounded-lg bg-white/[.05] p-2">Story</span>
+            <span className="rounded-lg bg-white/[.05] p-2">Landscape</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function WorkflowVisual() {
