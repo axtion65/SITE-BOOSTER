@@ -24,6 +24,9 @@ test("customer how-to walkthrough is public, linked, and uses the bundled video"
   const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
   const legal = readFileSync(new URL("../pages/legal.tsx", import.meta.url), "utf8");
   const howTo = readFileSync(new URL("../pages/how-to.tsx", import.meta.url), "utf8");
+  const home = readFileSync(new URL("../pages/home.tsx", import.meta.url), "utf8");
+  const studioLayout = readFileSync(new URL("../pages/studio/layout.tsx", import.meta.url), "utf8");
+  const dashboard = readFileSync(new URL("../pages/studio/dashboard.tsx", import.meta.url), "utf8");
   const video = readFileSync(
     new URL("../../public/videos/quae-how-to.mp4", import.meta.url),
   );
@@ -31,6 +34,11 @@ test("customer how-to walkthrough is public, linked, and uses the bundled video"
   assert.match(app, /path="\/how-to" component=\{HowTo\}/);
   assert.match(legal, /href="\/how-to"/);
   assert.match(legal, /How to use Quae/);
+  assert.match(home, /href="\/how-to"[^>]*>Watch tutorial<\/Link>/);
+  assert.match(home, /aria-label="Watch tutorial"/);
+  assert.match(studioLayout, /href="\/how-to" label="How to Use"/);
+  assert.match(dashboard, /href="\/how-to"/);
+  assert.match(dashboard, /Watch Tutorial/);
   assert.match(howTo, /How to use Quae\.ai/);
   assert.match(howTo, /<video/);
   assert.match(howTo, /controls/);

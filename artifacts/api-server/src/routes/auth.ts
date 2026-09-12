@@ -141,10 +141,12 @@ router.post("/auth/signup", async (req, res) => {
     credits: PLAN_BY_SLUG.free.credits,
     isAdmin: false,
   }).returning();
-  // Fire-and-forget welcome email
-  import("../lib/email").then(({ sendWelcomeEmail }) =>
-    sendWelcomeEmail(user.email, user.name ?? "").catch(() => {})
-  );
+  // Keep signup fast. Delivery failures use the existing durable email queue.
+  void import("../lib/email").then(async ({ sendWelcomeEmail }) => {
+    await sendWelcomeEmail(user.email, user.name ?? "");
+  }).catch((error) => {
+    console.error("[auth] Welcome tutorial email could not be scheduled:", user.id, error);
+  });
   res.status(201).json({ user: userToPublic(user), token: generateToken(user.id) });
 });
 

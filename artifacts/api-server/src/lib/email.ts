@@ -3,6 +3,7 @@
 // Free tier: 3,000 emails/month, 100/day
 
 const RESEND_URL = "https://api.resend.com/emails";
+export const TUTORIAL_URL = "https://quae.ai/how-to";
 
 function isConfigured() {
   return !!process.env.RESEND_API_KEY;
@@ -224,15 +225,15 @@ export async function sendWelcomeEmail(email: string, name: string) {
   const firstName = (name || "").split(" ")[0] || "there";
   const html = wrap(`
     ${h1(`Welcome to Quae.ai, ${firstName}! 🎬`)}
-    ${p("You're now part of the fastest-growing AI video ad platform for e-commerce. Your account comes with <strong style='color:#fff'>300 free credits</strong> to get started.")}
+    ${p("Your AI marketing workspace is ready. Start with the simple tutorial so you always know what to do next.")}
     ${divider()}
-    ${p("<strong style='color:#fff'>Here's how it works:</strong>")}
-    ${p("1️⃣ &nbsp;Describe your product — 2️⃣ &nbsp;AI writes the script — 3️⃣ &nbsp;Pick a model — 4️⃣ &nbsp;Download your video ad")}
+    ${p("<strong style='color:#fff'>The walkthrough shows seven clear steps:</strong> Business Profile → Campaign → Approval → Creative → Video → Download → Reuse.")}
+    ${p("Watching the tutorial does not use campaign credits.")}
+    ${btn("Watch the Step-by-Step Tutorial →", TUTORIAL_URL)}
     ${divider()}
-    ${p("Ready to create your first video ad?")}
-    ${btn("Create Your First Ad →", "https://quae.ai/studio")}
+    ${p("After the tutorial, open your <a href='https://quae.ai/studio/dashboard' style='color:#a78bfa;font-weight:600;'>Quae workspace</a> and build your first campaign.")}
   `);
-  await sendEmail(email, name, "Welcome to Quae.ai 🎬", html);
+  await sendEmail(email, name, "Welcome to Quae.ai — start with the tutorial", html);
 }
 
 export async function sendPasswordResetEmail(

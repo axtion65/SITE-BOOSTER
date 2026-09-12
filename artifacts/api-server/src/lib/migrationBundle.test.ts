@@ -25,6 +25,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0018_video_production_pipeline.sql",
     "0019_secure_password_recovery.sql",
     "0020_subscription_credit_cycles.sql",
+    "0021_tutorial_email_onboarding.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
@@ -162,5 +163,18 @@ test("subscription credit cycle migration is additive and preserves balances", a
   );
   assert.match(sql, /credit_cycle_anchor_at TIMESTAMPTZ/);
   assert.match(sql, /credit_refresh_at TIMESTAMPTZ/);
+  assert.doesNotMatch(sql, /UPDATE\s+users|DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
+});
+
+test("tutorial email migration queues existing active users exactly once", async () => {
+  const sql = await readFile(
+    new URL("lib/db/migrations/0021_tutorial_email_onboarding.sql", root),
+    "utf8",
+  );
+  assert.match(sql, /INSERT INTO email_queue/);
+  assert.match(sql, /'tutorial-onboarding:' \|\| id/);
+  assert.match(sql, /https:\/\/quae\.ai\/how-to/);
+  assert.match(sql, /WHERE account_status = 'active'/);
+  assert.match(sql, /ON CONFLICT \(id\) DO NOTHING/);
   assert.doesNotMatch(sql, /UPDATE\s+users|DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
 });

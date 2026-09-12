@@ -29,6 +29,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         {/* Nav Links */}
         <nav aria-label="Primary navigation" className="order-3 -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-1 overflow-x-auto px-1 pb-0.5 lg:order-none lg:mx-0 lg:w-auto lg:flex-1 lg:px-0">
           <NavLink href="/studio/dashboard" label="Dashboard" />
+          <NavLink href="/how-to" label="How to Use" exact />
           <NavLink href="/studio/campaigns" label="Campaigns" />
           <NavLink href="/studio" label="Creative" exact />
           <NavLink href="/studio/visuals" label="My Visuals" />
