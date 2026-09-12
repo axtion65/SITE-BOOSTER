@@ -97,6 +97,16 @@ export const CAMPAIGN_TEMPLATE_PRESETS = [
 export type CampaignTemplatePreset = (typeof CAMPAIGN_TEMPLATE_PRESETS)[number];
 export type CampaignTemplateSlug = CampaignTemplatePreset["slug"];
 
+export const FREE_AD_PACK_ROUTE = "/studio/free-ad-pack";
+
+export function freeAdPackUrl(signedIn: boolean) {
+  return signedIn ? FREE_AD_PACK_ROUTE : "/signin?freeAdPack=1";
+}
+
+export function isFreeAdPackIntent(search: string) {
+  return new URLSearchParams(search).get("freeAdPack") === "1";
+}
+
 export function getCampaignTemplate(
   value: string | null | undefined,
 ): CampaignTemplatePreset | undefined {
@@ -127,6 +137,7 @@ export function billingPlanUrl(
 }
 
 export function protectedSignInUrl(pathname: string, search: string) {
+  if (pathname === FREE_AD_PACK_ROUTE) return freeAdPackUrl(false);
   if (pathname !== "/studio/billing") return "/signin";
   const params = new URLSearchParams(search);
   const plan = params.get("plan");
@@ -177,6 +188,7 @@ export function videoTemplateUrl(template: VideoTemplateIntent, signedIn: boolea
 
 export function authenticationDestination(search: string) {
   const params = new URLSearchParams(search);
+  if (isFreeAdPackIntent(search)) return FREE_AD_PACK_ROUTE;
   const preset = getCampaignTemplate(params.get("campaignTemplate"));
   if (preset) return `/studio/campaigns?template=${preset.slug}`;
   const videoTemplate = TEMPLATES.find(
