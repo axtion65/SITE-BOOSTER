@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const source = await readFile(
+  new URL("../routes/admin.ts", import.meta.url),
+  "utf8",
+);
+const operationsRoute = source.slice(
+  source.indexOf('router.get("/admin/operations"'),
+  source.indexOf('router.get("/admin/render-debug"'),
+);
+
+test("admin storage health recognizes the object storage bucket variables", () => {
+  assert.match(operationsRoute, /process\.env\.AWS_S3_BUCKET_NAME/);
+  assert.match(operationsRoute, /process\.env\.BUCKET/);
+  assert.doesNotMatch(operationsRoute, /process\.env\.AWS_BUCKET_NAME/);
+});
