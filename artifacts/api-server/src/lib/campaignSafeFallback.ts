@@ -49,6 +49,28 @@ function firstConfirmedProduct(context: any) {
   );
 }
 
+function firstConfirmedProductDetail(context: any) {
+  const products = Array.isArray(context?.products) ? context.products : [];
+  for (const product of products) {
+    const benefits = Array.isArray(product?.benefits) ? product.benefits : [];
+    const detail = firstConfirmedText(
+      [product?.description, product?.offer, ...benefits],
+      "",
+      320,
+    );
+    if (detail) return detail;
+  }
+  return firstConfirmedText(
+    [
+      context?.product?.description,
+      context?.product?.offer,
+      context?.offerEvidence,
+    ],
+    "",
+    320,
+  );
+}
+
 /**
  * Produces a conservative, customer-visible campaign from confirmed context.
  * It makes no provider call and intentionally avoids prices, performance claims,
@@ -87,15 +109,19 @@ export function deterministicCampaignFallback(context: unknown) {
       160,
     ),
   );
+  const productDetail = customerPhrase(firstConfirmedProductDetail(source));
   const title = `${businessName}: ${product}`.slice(0, 200).trim();
-  const hook = `Explore ${product} from ${businessName}.`.slice(0, 300).trim();
-  const script = `${businessName} offers ${product} for ${audience}. Explore the available details and decide whether this option fits your needs. When you are ready to continue, use the confirmed next step: ${callToAction}.`;
+  const hook = `Meet ${product} from ${businessName}.`.slice(0, 300).trim();
+  const detail = productDetail
+    ? `Here is what to know: ${customerDisplayName(productDetail)}.`
+    : "Take a clear look and decide if it fits your needs.";
+  const script = `${businessName} offers ${product} for ${audience}. ${detail} Ready to continue? ${callToAction}.`;
   const hookTexts = [
     hook,
-    `Learn more about ${product}.`,
-    `See what ${businessName} offers.`,
+    `${audience}: meet ${product}.`,
+    `See what ${businessName} offers with ${product}.`,
     `Looking for ${product}? Start here.`,
-    `Explore options for ${audience}.`,
+    `Could ${product} fit your needs?`,
     `A straightforward look at ${product}.`,
     `Find out whether ${product} fits your needs.`,
     `Take a closer look at ${businessName}.`,
@@ -122,7 +148,7 @@ export function deterministicCampaignFallback(context: unknown) {
     audience,
     positioning: `${businessName} offers ${product}.`.slice(0, 500),
     corePromise: `Clear information about ${product}.`.slice(0, 500),
-    angle: `A straightforward introduction to ${product}.`.slice(0, 500),
+    angle: `A clear introduction to ${product} for ${audience}.`.slice(0, 500),
     objections: ["Fit and next steps"],
     tone: "Clear and informative",
     channels: ["Digital"],

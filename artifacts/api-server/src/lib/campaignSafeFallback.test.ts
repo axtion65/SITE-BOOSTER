@@ -40,6 +40,38 @@ test("deterministic fallback is stable and contains only confirmed copy", () => 
   assert.doesNotMatch(visible, /discount|guarantee|limited time|evidenceIds/i);
 });
 
+test("deterministic fallback uses confirmed product detail in clear customer copy", () => {
+  const result = deterministicCampaignFallback({
+    identity: { name: "Quae.ai" },
+    products: [
+      {
+        name: "AI marketing workspace",
+        description:
+          "Build campaigns, product visuals, video plans, and marketing copy",
+      },
+    ],
+    audienceEvidence: "Small businesses",
+    ctaEvidence: "Start building",
+  });
+
+  assert.equal(
+    result.finalScript.hook,
+    "Meet AI marketing workspace from Quae.ai.",
+  );
+  assert.match(
+    result.finalScript.script,
+    /Here is what to know: Build campaigns, product visuals, video plans, and marketing copy\./,
+  );
+  assert.match(
+    result.finalScript.script,
+    /Ready to continue\? Start building\./,
+  );
+  assert.doesNotMatch(
+    result.finalScript.script,
+    /Explore the available details|confirmed next step/,
+  );
+});
+
 test("ordinary business campaigns keep their saved marketing context in the fallback", () => {
   const result = deterministicCampaignFallback({
     business: {
