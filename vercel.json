@@ -16,6 +16,66 @@
         { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
         { "key": "X-Permitted-Cross-Domain-Policies", "value": "none" }
       ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        { "key": "Link", "value": "<https://quae.ai/>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/how-to",
+      "headers": [
+        { "key": "Link", "value": "<https://quae.ai/how-to>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/templates",
+      "headers": [
+        { "key": "Link", "value": "<https://quae.ai/templates>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/privacy",
+      "headers": [
+        { "key": "Link", "value": "<https://quae.ai/privacy>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/terms",
+      "headers": [
+        { "key": "Link", "value": "<https://quae.ai/terms>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/refund-policy",
+      "headers": [
+        { "key": "Link", "value": "<https://quae.ai/refund-policy>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/contact",
+      "headers": [
+        { "key": "Link", "value": "<https://quae.ai/contact>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/signin",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
+    },
+    {
+      "source": "/admin/:path*",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
+    },
+    {
+      "source": "/studio/:path*",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
     }
   ],
   "rewrites": [

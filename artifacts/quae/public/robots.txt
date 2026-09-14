@@ -1,7 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /admin
-Disallow: /signin
-Disallow: /studio
 
 Sitemap: https://quae.ai/sitemap.xml
