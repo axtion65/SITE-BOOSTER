@@ -187,8 +187,10 @@ export function validateVideoProductionPlan(plan: VideoProductionPlan): void {
   const sceneMs = plan.scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
   const targetMs = plan.targetDurationSeconds * 1000;
   if (sceneMs + plan.endCardDurationMs !== targetMs) throw new Error("Production timeline does not equal its target duration");
-  if (plan.scenes.some((scene, index) => scene.index !== index || scene.durationMs < 2500 || scene.durationMs > 10_000)) {
-    throw new Error("Production scenes must be ordered and between 2.5s and 10s");
+  // The shortest advert reserves 3s for its end card, leaving 12s for up to
+  // eight approved scenes. Provider clips are generated longer and trimmed.
+  if (plan.scenes.some((scene, index) => scene.index !== index || scene.durationMs < 1500 || scene.durationMs > 10_000)) {
+    throw new Error("Production scenes must be ordered and between 1.5s and 10s");
   }
   if (plan.scenes.some((scene) => !scene.narrationText.trim())) throw new Error("Every production scene must map to a spoken beat");
   if (plan.scenes.some((scene) => scene.mediaType === "source_image" ? !scene.sourceAssetPath : Boolean(scene.sourceAssetPath))) {
