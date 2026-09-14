@@ -1,7 +1,7 @@
 import type { ExpandedScript } from "./falvideo";
 import { splitApprovedSentences } from "./sentenceSegmentation";
 
-export const VIDEO_PRODUCTION_VERSION = "bdb-hybrid-v2" as const;
+export const VIDEO_PRODUCTION_VERSION = "bdb-hybrid-v3" as const;
 export const PRODUCTION_DURATIONS = [15, 30, 45] as const;
 export type ProductionDuration = (typeof PRODUCTION_DURATIONS)[number];
 
@@ -105,6 +105,7 @@ function scenePrompt(input: {
   platform: string;
   brandName: string;
   narrationText: string;
+  hasSourceAsset: boolean;
 }): string {
   const source = input.script.scenes[input.sourceIndex] ?? input.script.scenes[0];
   const description = source?.description || input.script.hook || input.script.script;
@@ -117,6 +118,9 @@ function scenePrompt(input: {
     `Matching spoken beat: ${input.narrationText}`,
     description,
     direction,
+    input.hasSourceAsset
+      ? "Use the supplied approved customer image as the identity authority. Preserve its exact product, person, colors, and visual identity while adding believable motion for this shot."
+      : "Keep the business, product, people, and setting visually consistent with the other shots.",
     "Visually demonstrate only that spoken beat. Show one specific business benefit with believable people, consistent product identity, premium natural lighting, and a purposeful camera move.",
     "Do not introduce food, products, packaging, services, industries, or props that are not supported by this spoken beat or its approved scene.",
     "This shot must connect visually to the same advert, but must not repeat another shot.",
@@ -145,10 +149,15 @@ export function compileVideoProductionPlan(input: {
   if (!input.brand.callToAction.trim()) throw new Error("Approved call to action is required for the end card");
 
   const visualDurationMs = targetMs - 3000;
-  const sceneCount = Math.max(3, Math.min(8, Math.max(input.script.scenes.length, Math.ceil(visualDurationMs / 8000))));
+  const sourceAssets = (input.sourceAssetPaths ?? []).filter(Boolean);
+  // A customer-supplied visual needs room for one authoritative opening proof
+  // shot plus at least three distinct motion shots. The previous three-scene
+  // plan repeated the same still at both ends and generated only one moving
+  // clip in a 15-second advert.
+  const minimumSceneCount = sourceAssets.length > 0 ? 4 : 3;
+  const sceneCount = Math.max(minimumSceneCount, Math.min(8, Math.max(input.script.scenes.length, Math.ceil(visualDurationMs / 8000))));
   const durations = allocateEvenly(visualDurationMs, sceneCount);
   const narration = narrationBeats(input.script.voiceoverText || input.script.script, sceneCount);
-  const sourceAssets = (input.sourceAssetPaths ?? []).filter(Boolean);
   const vertical = input.platform === "tiktok" || input.platform === "instagram";
 
   const plan: VideoProductionPlan = {
@@ -163,17 +172,18 @@ export function compileVideoProductionPlan(input: {
     brand: { ...input.brand, name: input.brand.name.trim(), callToAction: input.brand.callToAction.trim() },
     scenes: durations.map((durationMs, index) => {
       const sourceIndex = Math.min(input.script.scenes.length - 1, Math.floor(index * input.script.scenes.length / sceneCount));
-      // Hybrid production preserves the exact customer asset in deterministic
-      // opening/closing proof shots. LTX is reserved for the supporting motion.
-      const sourceImage = sourceAssets.length > 0 && (index === 0 || index === sceneCount - 1);
-      const sourceAssetPath = sourceImage
-        ? sourceAssets[index === 0 ? 0 : (sourceAssets.length - 1)]!
+      // Preserve the exact customer asset for the opening proof shot, then use
+      // approved assets to condition every generated shot. This keeps product
+      // identity in motion without repeating the opening still later.
+      const sourceImage = sourceAssets.length > 0 && index === 0;
+      const sourceAssetPath = sourceAssets.length > 0
+        ? sourceAssets[Math.min(index, sourceAssets.length - 1)]!
         : null;
       return {
         index,
         durationMs,
         narrationText: narration[index] ?? "",
-        visualPrompt: scenePrompt({ script: input.script, sceneIndex: index, sourceIndex, platform: input.platform, brandName: input.brand.name.trim(), narrationText: narration[index] ?? "" }),
+        visualPrompt: scenePrompt({ script: input.script, sceneIndex: index, sourceIndex, platform: input.platform, brandName: input.brand.name.trim(), narrationText: narration[index] ?? "", hasSourceAsset: Boolean(sourceAssetPath) }),
         sourceAssetPath,
         mediaType: sourceImage ? "source_image" : "generated_video",
       };
@@ -193,9 +203,9 @@ export function validateVideoProductionPlan(plan: VideoProductionPlan): void {
     throw new Error("Production scenes must be ordered and between 1.5s and 10s");
   }
   if (plan.scenes.some((scene) => !scene.narrationText.trim())) throw new Error("Every production scene must map to a spoken beat");
-  if (plan.scenes.some((scene) => scene.mediaType === "source_image" ? !scene.sourceAssetPath : Boolean(scene.sourceAssetPath))) {
-    throw new Error("Hybrid scene media does not match its source asset");
-  }
+  if (plan.scenes.some((scene) => scene.mediaType === "source_image" && !scene.sourceAssetPath)) throw new Error("A source-image scene must have its approved asset");
+  if (plan.scenes.filter((scene) => scene.mediaType === "source_image").length > 1) throw new Error("A finished advert cannot repeat static source-image scenes");
+  if (plan.scenes.filter((scene) => scene.mediaType === "generated_video").length < 2) throw new Error("A finished advert needs at least two motion scenes");
   if (!plan.brand.callToAction || !plan.brand.name) throw new Error("Production plan is missing brand or CTA");
 }
 

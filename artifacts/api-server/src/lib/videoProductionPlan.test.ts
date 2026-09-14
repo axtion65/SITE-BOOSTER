@@ -34,10 +34,11 @@ test("30-second production keeps every approved beat and reserves a deterministi
   assert.equal(plan.endCardDurationMs, 3000);
   assert.equal(plan.scenes.length, 4);
   assert.equal(plan.scenes.reduce((sum, scene) => sum + scene.durationMs, 0), 27_000);
-  assert.deepEqual(plan.scenes.map((scene) => scene.mediaType), ["source_image", "generated_video", "generated_video", "source_image"]);
+  assert.deepEqual(plan.scenes.map((scene) => scene.mediaType), ["source_image", "generated_video", "generated_video", "generated_video"]);
   assert.equal(plan.scenes[0]!.sourceAssetPath, "/objects/products/approved.png");
   assert.equal(plan.scenes[3]!.sourceAssetPath, "/objects/products/approved.png");
-  assert.ok(plan.scenes.slice(1, 3).every((scene) => scene.sourceAssetPath === null));
+  assert.ok(plan.scenes.slice(1).every((scene) => scene.sourceAssetPath === "/objects/products/approved.png"));
+  assert.ok(plan.scenes.slice(1).every((scene) => /identity authority/i.test(scene.visualPrompt)));
   assert.ok(plan.scenes.every((scene) => !/Source visual context \(adapt into the one shot/i.test(scene.visualPrompt)));
   assert.match(plan.scenes[0]!.visualPrompt, /business owner overwhelmed/i);
   assert.match(plan.scenes[3]!.visualPrompt, /confidently launches/i);
@@ -159,6 +160,22 @@ test("production still rejects edit slots below the supported minimum", () => {
   plan.scenes[0]!.durationMs = 1499;
   plan.scenes[1]!.durationMs += movedDuration;
   assert.throws(() => validateVideoProductionPlan(plan), /between 1\.5s and 10s/);
+});
+
+test("15-second production uses one proof image and three image-conditioned motion shots", () => {
+  const plan = compileVideoProductionPlan({
+    script: { ...script, scenes: script.scenes.slice(0, 3), estimatedDuration: "15s" },
+    duration: "15s",
+    platform: "instagram",
+    voiceoverDurationMs: 10_000,
+    brand: { name: "Quae", callToAction: "Start now" },
+    sourceAssetPaths: ["/objects/products/approved.png"],
+  });
+  assert.equal(plan.version, "bdb-hybrid-v3");
+  assert.deepEqual(plan.scenes.map((scene) => scene.durationMs), [3000, 3000, 3000, 3000]);
+  assert.deepEqual(plan.scenes.map((scene) => scene.mediaType), ["source_image", "generated_video", "generated_video", "generated_video"]);
+  assert.ok(plan.scenes.every((scene) => scene.sourceAssetPath === "/objects/products/approved.png"));
+  assert.equal(plan.scenes.filter((scene) => scene.mediaType === "source_image").length, 1);
 });
 
 test("production narration never splits a dotted brand token", () => {

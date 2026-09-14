@@ -102,8 +102,8 @@ function captionPhrases(value: string, maximumCharacters: number): string[] {
 }
 
 export function buildAdvertSubtitles(input: BusinessAdvertRenderInput): string {
-  const captionFontSize = clamp(Math.round(input.width * 0.048), 16, 52);
-  const endCardFontSize = clamp(Math.round(input.width * 0.055), 18, 60);
+  const captionFontSize = clamp(Math.round(input.width * 0.06), 18, 68);
+  const endCardFontSize = clamp(Math.round(input.width * 0.072), 22, 78);
   const horizontalMargin = Math.round(input.width * 0.09);
   const captionBottomMargin = Math.round(input.height * 0.16);
   const captionCharacters = Math.max(16, Math.floor((input.width - horizontalMargin * 2) / (captionFontSize * 0.56)));
@@ -127,7 +127,7 @@ export function buildAdvertSubtitles(input: BusinessAdvertRenderInput): string {
     .filter(Boolean)
     .flatMap((line) => wrapLines(String(line), endCardCharacters))
     .join("\\N");
-  events.push(`Dialogue: 0,${assTime(start)},${assTime(input.targetDurationSeconds * 1000)},EndCard,,0,0,0,,${endCard}`);
+  events.push(`Dialogue: 0,${assTime(start)},${assTime(input.targetDurationSeconds * 1000)},EndCard,,0,0,0,,{\\fad(220,220)}${endCard}`);
   return [
     "[Script Info]",
     "ScriptType: v4.00+",
@@ -202,10 +202,17 @@ export async function renderBusinessAdvert(input: BusinessAdvertRenderInput): Pr
     const endCardInput = audioInput + 1;
     args.push("-f", "lavfi", "-t", "3", "-i", `color=c=${safeColor(input.brand.primaryColor)}:s=${input.width}x${input.height}:r=30`);
 
-    const filters = input.scenes.map((scene, index) =>
-      `[${index}:v]scale=${input.width}:${input.height}:force_original_aspect_ratio=increase,crop=${input.width}:${input.height},fps=30,trim=duration=${(scene.durationMs / 1000).toFixed(3)},setpts=PTS-STARTPTS,format=yuv420p[v${index}]`,
-    );
-    filters.push(`[${endCardInput}:v]trim=duration=3,setpts=PTS-STARTPTS,format=yuv420p[vend]`);
+    const filters = input.scenes.map((scene, index) => {
+      const durationSeconds = (scene.durationMs / 1000).toFixed(3);
+      if (scene.mediaType === "source_image") {
+        const scaledWidth = Math.ceil(input.width * 1.08);
+        const scaledHeight = Math.ceil(input.height * 1.08);
+        const totalFrames = Math.max(1, Math.round(scene.durationMs * 30 / 1000) - 1);
+        return `[${index}:v]scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${input.width}:${input.height}:x='(in_w-out_w)*min(n/${totalFrames},1)':y='(in_h-out_h)/2',fps=30,trim=duration=${durationSeconds},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[v${index}]`;
+      }
+      return `[${index}:v]scale=${input.width}:${input.height}:force_original_aspect_ratio=increase,crop=${input.width}:${input.height},fps=30,trim=duration=${durationSeconds},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[v${index}]`;
+    });
+    filters.push(`[${endCardInput}:v]trim=duration=3,setpts=PTS-STARTPTS,setsar=1,format=yuv420p[vend]`);
     const concatenatedInputs = input.scenes.map((_, index) => `[v${index}]`).join("") + "[vend]";
     filters.push(`${concatenatedInputs}concat=n=${input.scenes.length + 1}:v=1:a=0[base]`);
     filters.push(`[base]subtitles=filename='${ffmpegFilterPath(subtitlePath)}'[vout]`);
