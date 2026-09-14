@@ -8,6 +8,15 @@ const PRICE_ENV: Record<PaidPlanSlug, Record<BillingInterval, string>> = {
   agency: { month: "STRIPE_PRICE_AGENCY_MONTHLY", year: "STRIPE_PRICE_AGENCY_ANNUAL" },
 };
 
+const REQUIRED_STRIPE_PRICES = [
+  ["starter", "month"],
+  ["starter", "year"],
+  ["pro", "month"],
+  ["pro", "year"],
+  ["agency", "month"],
+  ["agency", "year"],
+] as const satisfies readonly (readonly [PaidPlanSlug, BillingInterval])[];
+
 export function getPublicAppOrigin(env: BillingEnvironment = process.env): string {
   const configured = env.APP_URL?.trim();
   if (!configured) {
@@ -25,7 +34,19 @@ export function getPublicAppOrigin(env: BillingEnvironment = process.env): strin
 }
 
 export function isStripeCheckoutReady(env: BillingEnvironment = process.env): boolean {
-  return Boolean(env.STRIPE_API_KEY?.trim() && env.STRIPE_WEBHOOK_SECRET?.trim());
+  if (!env.STRIPE_API_KEY?.trim() || !env.STRIPE_WEBHOOK_SECRET?.trim()) {
+    return false;
+  }
+  if (!REQUIRED_STRIPE_PRICES.every(([plan, interval]) =>
+    resolveStripePriceId(plan, interval, env))) {
+    return false;
+  }
+  try {
+    getPublicAppOrigin(env);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function resolveStripePriceId(
