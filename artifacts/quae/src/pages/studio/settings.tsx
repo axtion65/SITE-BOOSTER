@@ -151,25 +151,17 @@ function SettingsContent() {
           </div>
         </section>
 
-        {/* Notifications */}
+        {/* Email updates reflect the messages the service actually sends. */}
         <section>
-          <SectionLabel icon={<Bell className="h-3.5 w-3.5" />} label="Notifications" />
-          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] divide-y divide-white/[0.05]">
-            <ToggleRow
-              label="Video ready"
-              description="Get an email when your video finishes rendering."
-              defaultChecked={true}
-            />
-            <ToggleRow
-              label="Monthly credit summary"
-              description="A monthly recap of your credit usage."
-              defaultChecked={false}
-            />
-            <ToggleRow
-              label="Product updates"
-              description="New features, templates, and model releases."
-              defaultChecked={true}
-            />
+          <SectionLabel icon={<Bell className="h-3.5 w-3.5" />} label="Email updates" />
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
+            <p className="text-sm font-semibold text-white">Video and account updates</p>
+            <p className="mt-2 text-sm text-slate-400">
+              Video completion, account, and billing messages are sent to your account email: {email}.
+            </p>
+            <a href="/contact" className="mt-3 inline-flex text-sm font-semibold text-violet-300 hover:text-violet-200">
+              Get help with email delivery
+            </a>
           </div>
         </section>
 
@@ -192,15 +184,15 @@ function SettingsContent() {
             </div>
             <div className="p-5 flex items-center justify-between">
               <div>
-                <div className="text-red-400 text-sm font-semibold">Delete account</div>
-                <div className="text-[11px] text-slate-400">Permanently remove your account and all data. This cannot be undone.</div>
+                <div className="text-red-400 text-sm font-semibold">Account deletion</div>
+                <div className="text-[11px] text-slate-400">Contact support to request deletion of your account and data.</div>
               </div>
-              <button
-                onClick={() => toast({ title: "Contact support to delete your account.", variant: "destructive" })}
-                className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-sm font-semibold text-red-400 hover:text-red-300 transition-all"
+              <a
+                href="mailto:info@quae.ai?subject=Quae.ai%20account%20deletion%20request"
+                className="shrink-0 px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-sm font-semibold text-red-400 hover:text-red-300 transition-all"
               >
-                Delete
-              </button>
+                Request deletion
+              </a>
             </div>
           </div>
         </section>
@@ -223,40 +215,6 @@ function SectionLabel({
     <div className="flex items-center gap-2 mb-3">
       {icon && <span className={labelClass}>{icon}</span>}
       <p className={`text-[11px] font-black tracking-[0.2em] uppercase ${labelClass}`}>{label}</p>
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  description,
-  defaultChecked,
-}: {
-  label: string;
-  description: string;
-  defaultChecked: boolean;
-}) {
-  const [enabled, setEnabled] = useState(defaultChecked);
-  return (
-    <div className="px-5 py-4 flex items-center justify-between gap-4">
-      <div>
-        <div className="text-white text-sm font-semibold">{label}</div>
-        <div className="text-[11px] text-slate-400">{description}</div>
-      </div>
-      <button
-        onClick={() => setEnabled(v => !v)}
-        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 transition-colors duration-200 ${
-          enabled ? "bg-violet-600 border-violet-600" : "bg-white/10 border-white/10"
-        }`}
-        role="switch"
-        aria-checked={enabled}
-      >
-        <span
-          className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${
-            enabled ? "translate-x-3.5" : "translate-x-0"
-          }`}
-        />
-      </button>
     </div>
   );
 }
