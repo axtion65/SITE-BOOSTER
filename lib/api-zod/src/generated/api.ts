@@ -194,12 +194,33 @@ export const SignOutResponse = zod.object({
 /**
  * @summary Expand a basic description into a cinematic video script using Claude 3.5 Sonnet
  */
+export const expandPromptBodyDescriptionMax = 4000;
+
+export const expandPromptBodyProductNameMax = 200;
+
+export const expandPromptBodyTargetAudienceMax = 1000;
+
+export const expandPromptBodyPlatformMax = 100;
+
+export const expandPromptBodyDurationMax = 20;
+
+export const expandPromptBodyRenderingModelIdMax = 100;
+
+export const expandPromptBodyTemplateTypeMax = 100;
+
+export const expandPromptBodyTemplateNameMax = 200;
+
+
+
 export const ExpandPromptBody = zod.object({
-  "description": zod.string().describe('Basic product description from user'),
-  "productName": zod.string(),
-  "targetAudience": zod.string().nullish(),
-  "platform": zod.string().nullish().describe('Target platform: tiktok, youtube, instagram, amazon'),
-  "duration": zod.string().nullish().describe('Video duration: 5s, 10s, 15s, 30s, 45s, 60s, 90s, 120s, or 180s')
+  "description": zod.string().min(1).max(expandPromptBodyDescriptionMax).describe('Basic product description from user'),
+  "productName": zod.string().min(1).max(expandPromptBodyProductNameMax),
+  "targetAudience": zod.string().max(expandPromptBodyTargetAudienceMax).nullish(),
+  "platform": zod.string().max(expandPromptBodyPlatformMax).nullish().describe('Target platform: tiktok, youtube, instagram, amazon'),
+  "duration": zod.string().max(expandPromptBodyDurationMax).nullish().describe('Video duration: 5s, 10s, 15s, 30s, 45s, 60s, 90s, 120s, or 180s'),
+  "renderingModelId": zod.string().max(expandPromptBodyRenderingModelIdMax).nullish(),
+  "templateType": zod.string().max(expandPromptBodyTemplateTypeMax).nullish(),
+  "templateName": zod.string().max(expandPromptBodyTemplateNameMax).nullish()
 })
 
 export const ExpandPromptResponse = zod.object({
@@ -221,20 +242,49 @@ export const ExpandPromptResponse = zod.object({
 /**
  * @summary Regenerate a single scene in an existing video script using Claude
  */
+export const regenerateSceneBodySceneIndexMin = 0;
+export const regenerateSceneBodySceneIndexMax = 99;
+
+export const regenerateSceneBodySceneNumberMax = 100;
+
+export const regenerateSceneBodyCurrentDescriptionMax = 4000;
+
+export const regenerateSceneBodyCurrentVisualDirectionMax = 4000;
+
+export const regenerateSceneBodyTotalScenesMax = 100;
+
+export const regenerateSceneBodyProductNameMax = 200;
+
+export const regenerateSceneBodyDescriptionMax = 4000;
+
+export const regenerateSceneBodyTargetAudienceMax = 1000;
+
+export const regenerateSceneBodyPlatformMax = 100;
+
+export const regenerateSceneBodyDurationMax = 20;
+
+export const regenerateSceneBodyTemplateTypeMax = 100;
+
+export const regenerateSceneBodyTemplateNameMax = 200;
+
+export const regenerateSceneBodyHintMax = 1000;
+
+
+
 export const RegenerateSceneBody = zod.object({
-  "sceneIndex": zod.number().optional(),
-  "sceneNumber": zod.number(),
-  "currentDescription": zod.string().nullish(),
-  "currentVisualDirection": zod.string().nullish(),
-  "totalScenes": zod.number().optional(),
-  "productName": zod.string(),
-  "description": zod.string(),
-  "targetAudience": zod.string().nullish(),
-  "platform": zod.string().nullish(),
-  "duration": zod.string().nullish(),
-  "templateType": zod.string().nullish(),
-  "templateName": zod.string().nullish(),
-  "hint": zod.string().nullish()
+  "sceneIndex": zod.number().min(regenerateSceneBodySceneIndexMin).max(regenerateSceneBodySceneIndexMax).optional(),
+  "sceneNumber": zod.number().min(1).max(regenerateSceneBodySceneNumberMax),
+  "currentDescription": zod.string().max(regenerateSceneBodyCurrentDescriptionMax).nullish(),
+  "currentVisualDirection": zod.string().max(regenerateSceneBodyCurrentVisualDirectionMax).nullish(),
+  "totalScenes": zod.number().min(1).max(regenerateSceneBodyTotalScenesMax).optional(),
+  "productName": zod.string().min(1).max(regenerateSceneBodyProductNameMax),
+  "description": zod.string().min(1).max(regenerateSceneBodyDescriptionMax),
+  "targetAudience": zod.string().max(regenerateSceneBodyTargetAudienceMax).nullish(),
+  "platform": zod.string().max(regenerateSceneBodyPlatformMax).nullish(),
+  "duration": zod.string().max(regenerateSceneBodyDurationMax).nullish(),
+  "templateType": zod.string().max(regenerateSceneBodyTemplateTypeMax).nullish(),
+  "templateName": zod.string().max(regenerateSceneBodyTemplateNameMax).nullish(),
+  "hint": zod.string().max(regenerateSceneBodyHintMax).nullish()
 })
 
 export const RegenerateSceneResponse = zod.object({

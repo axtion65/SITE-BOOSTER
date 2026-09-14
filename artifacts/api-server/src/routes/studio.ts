@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { ExpandPromptBody } from "@workspace/api-zod";
+import { ExpandPromptBody, RegenerateSceneBody } from "@workspace/api-zod";
 import OpenAI from "openai";
 import { resolveUserIdFromToken } from "./auth";
 import { durationPlanInstruction, normalizeScriptTiming, parseRequestedDuration, validateScript, type AdScript } from "../lib/scriptEngine";
@@ -183,11 +183,23 @@ router.post("/studio/expand-prompt", async (req, res) => {
   const parsed = ExpandPromptBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
 
-  const { description, productName, targetAudience, platform, duration } = parsed.data;
-  const normalizedDuration = normalizeProductionModelDuration(req.body?.renderingModelId, duration);
+  const {
+    description: rawDescription,
+    productName: rawProductName,
+    targetAudience,
+    platform,
+    duration,
+    renderingModelId,
+    templateType: rawTemplateType,
+    templateName,
+  } = parsed.data;
+  const description = rawDescription.trim();
+  const productName = rawProductName.trim();
+  const templateType = rawTemplateType ?? undefined;
+  if (!description || !productName) { res.status(400).json({ error: "Invalid input" }); return; }
+
+  const normalizedDuration = normalizeProductionModelDuration(renderingModelId, duration);
   const requestedDuration = typeof normalizedDuration === "string" ? normalizedDuration : duration;
-  const templateType = (req.body as any).templateType as string | undefined;
-  const templateName = (req.body as any).templateName as string | undefined;
   const effectiveSec = parseRequestedDuration(requestedDuration);
   const effectiveDuration = `${effectiveSec}s`;
   const planningContract = durationPlanInstruction(effectiveSec, templateType);
@@ -288,23 +300,11 @@ router.post("/studio/regenerate-scene", async (req, res) => {
   const userId = res.locals.providerActionUserId ?? await resolveUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
 
-  const body = req.body as {
-    sceneIndex?: number;
-    sceneNumber?: number;
-    currentDescription?: string;
-    currentVisualDirection?: string;
-    totalScenes?: number;
-    productName?: string;
-    description?: string;
-    targetAudience?: string;
-    platform?: string;
-    duration?: string;
-    templateType?: string;
-    templateName?: string;
-    hint?: string;
-  };
+  const parsed = RegenerateSceneBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
 
   const {
+    sceneIndex,
     sceneNumber,
     currentDescription,
     currentVisualDirection,
@@ -317,12 +317,16 @@ router.post("/studio/regenerate-scene", async (req, res) => {
     templateType,
     templateName,
     hint,
-  } = body;
+  } = parsed.data;
 
-  if (!sceneNumber || !productName || !description) {
-    res.status(400).json({ error: "sceneNumber, productName and description are required" });
+  const cleanProductName = productName.trim();
+  const cleanDescription = description.trim();
+  const sceneCoordinates = [sceneNumber, sceneIndex, totalScenes].filter((value): value is number => value !== undefined);
+  if (!cleanProductName || !cleanDescription || sceneCoordinates.some(value => !Number.isInteger(value))) {
+    res.status(400).json({ error: "Invalid input" });
     return;
   }
+  const sceneCount = totalScenes ?? sceneNumber;
 
   const baseSystemPrompt = templateType
     ? (TEMPLATE_SYSTEM_PROMPTS[templateType] ?? GENERIC_SYSTEM_PROMPT)
@@ -340,10 +344,10 @@ Respond with ONLY valid JSON (no markdown, no explanation):
   "visualDirection": "exact camera angle, movement, lighting, performance, and visual storytelling"
 }`;
 
-  const userPrompt = `Rewrite Scene ${sceneNumber} of ${totalScenes} for this product:
+  const userPrompt = `Rewrite Scene ${sceneNumber} of ${sceneCount} for this product:
 
-Product: ${productName}
-Description: ${description}
+Product: ${cleanProductName}
+Description: ${cleanDescription}
 Audience: ${targetAudience || "general consumers"}
 Platform: ${platform || "multi-platform"}
 Duration: ${duration || "30s"}
@@ -359,7 +363,7 @@ ${hint ? `\nUser guidance: ${hint}` : ""}
 Write a fresh version of this scene. The description should be vivid and purposeful. The visualDirection should be specific about camera, movement, lighting, performance, and purely visual storytelling. Do NOT copy the existing scene — rewrite it with fresh creative energy while keeping it consistent with the product and ad format.`;
 
   try {
-    console.log(`[openai] Regenerating scene ${sceneNumber}/${totalScenes} — hint: ${hint ? "yes" : "none"}`);
+    console.log(`[openai] Regenerating scene ${sceneNumber}/${sceneCount} — hint: ${hint ? "yes" : "none"}`);
 
     const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o",

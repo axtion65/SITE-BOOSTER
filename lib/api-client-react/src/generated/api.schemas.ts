@@ -88,21 +88,49 @@ export interface AuthResponse {
 }
 
 export interface PromptExpandInput {
-  /** Basic product description from user */
+  /**
+     * Basic product description from user
+     * @minLength 1
+     * @maxLength 4000
+     */
   description: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
   productName: string;
-  /** @nullable */
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
   targetAudience?: string | null;
   /**
      * Target platform: tiktok, youtube, instagram, amazon
+     * @maxLength 100
      * @nullable
      */
   platform?: string | null;
   /**
      * Video duration: 5s, 10s, 15s, 30s, 45s, 60s, 90s, 120s, or 180s
+     * @maxLength 20
      * @nullable
      */
   duration?: string | null;
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  renderingModelId?: string | null;
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  templateType?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  templateName?: string | null;
 }
 
 export type ExpandedScriptScenesItem = {
@@ -127,26 +155,70 @@ export interface ExpandedScript {
 }
 
 export interface RegenerateSceneInput {
+  /**
+     * @minimum 0
+     * @maximum 99
+     */
   sceneIndex?: number;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
   sceneNumber: number;
-  /** @nullable */
+  /**
+     * @maxLength 4000
+     * @nullable
+     */
   currentDescription?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 4000
+     * @nullable
+     */
   currentVisualDirection?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
   totalScenes?: number;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
   productName: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
   description: string;
-  /** @nullable */
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
   targetAudience?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 100
+     * @nullable
+     */
   platform?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 20
+     * @nullable
+     */
   duration?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 100
+     * @nullable
+     */
   templateType?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 200
+     * @nullable
+     */
   templateName?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
   hint?: string | null;
 }
 
