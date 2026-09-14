@@ -104,7 +104,7 @@ function RenderDebugPanel() {
   useEffect(() => { void load(); }, []);
   const testRender = async () => { if (!prompt.trim()) { toast({ title: "Enter a test prompt", variant: "destructive" }); return; } if (!confirm("Submit a real fal.ai test render? This can incur provider costs.")) return; const response = await fetch("/api/debug/fal-video-test", { method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ prompt, confirmProviderCost: true }) }); const body = await response.json(); toast({ title: response.ok ? "Test render complete" : "Test render failed", description: body.video_url ?? body.error, variant: response.ok ? "default" : "destructive" }); };
   return <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-    <Card><CardHeader><CardTitle>Video testing</CardTitle></CardHeader><CardContent className="space-y-3"><Textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Render test prompt" /><Button className="w-full" onClick={testRender}>Render test prompt</Button><Button variant="outline" className="w-full" onClick={load}>Refresh render logs</Button><div className="max-h-96 overflow-auto space-y-2">{renders.map(render => <button key={render.id} onClick={() => setSelected(render)} className="w-full text-left rounded border border-border p-2 hover:bg-secondary"><p className="truncate text-sm font-medium">{render.title}</p><p className="text-xs text-muted-foreground">{render.status} · {render.model}</p></button>)}</div></CardContent></Card>
+    <Card><CardHeader><CardTitle>Video testing</CardTitle></CardHeader><CardContent className="space-y-3"><Textarea aria-label="Render test prompt" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Render test prompt" /><Button className="w-full" onClick={testRender}>Render test prompt</Button><Button variant="outline" className="w-full" onClick={load}>Refresh render logs</Button><div className="max-h-96 overflow-auto space-y-2">{renders.map(render => <button key={render.id} onClick={() => setSelected(render)} className="w-full text-left rounded border border-border p-2 hover:bg-secondary"><p className="truncate text-sm font-medium">{render.title}</p><p className="text-xs text-muted-foreground">{render.status} · {render.model}</p></button>)}</div></CardContent></Card>
     <Card><CardHeader><CardTitle>Prompt debugging</CardTitle></CardHeader><CardContent>{!selected ? <p className="text-muted-foreground">Select a recent render.</p> : <div className="space-y-4">{[["Original customer request",selected.originalRequest],["AI writer output",selected.aiWriterOutput],["Validation output",selected.validationOutput],["Final visual prompt",selected.finalVisualPrompt],["Voiceover",selected.voiceover],["Scene timing",selected.sceneTiming],["Estimated runtime",selected.estimatedRuntime],["Raw prompt",selected.rawPrompt],["Sanitized prompt",selected.sanitizedPrompt],["Final fal.ai payload",JSON.stringify(selected.falPayload,null,2)],["Render logs",JSON.stringify(selected.logs,null,2)]].map(([label,value]) => <div key={label}><p className="text-xs font-semibold text-primary mb-1">{label}</p><pre className="whitespace-pre-wrap break-words rounded bg-black/30 p-3 text-xs text-muted-foreground">{value || "Not captured"}</pre></div>)}</div>}</CardContent></Card>
   </div>;
 }
@@ -189,7 +189,7 @@ function BroadcastPanel() {
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-1 block">Audience</label>
             <Select value={audience} onValueChange={setAudience}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Broadcast audience">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -202,6 +202,7 @@ function BroadcastPanel() {
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-1 block">Subject</label>
             <Input
+              aria-label="Broadcast subject"
               placeholder="e.g. Exciting new feature at Quae.ai 🎬"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
@@ -210,6 +211,7 @@ function BroadcastPanel() {
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-1 block">Message</label>
             <Textarea
+              aria-label="Broadcast message"
               placeholder="Write your message here. Use blank lines between paragraphs."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -330,13 +332,14 @@ function SubscribersList() {
         </div>
         <div className="flex gap-3 mt-4">
           <Input
+            aria-label="Search subscribers by name or email"
             placeholder="Search by name or email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="max-w-xs"
           />
           <Select value={filterPlan} onValueChange={setFilterPlan}>
-            <SelectTrigger className="w-36">
+            <SelectTrigger aria-label="Filter subscribers by plan" className="w-36">
               <SelectValue placeholder="All Plans" />
             </SelectTrigger>
             <SelectContent>
@@ -524,7 +527,7 @@ function AdminUsersTable() {
     <Card className="overflow-hidden">
       <CardHeader className="border-b border-border gap-4 md:flex-row md:items-center md:justify-between">
         <div><CardTitle>User management</CardTitle><p className="text-sm text-muted-foreground mt-1">{filtered.length} of {users?.length ?? 0} accounts</p></div>
-        <div className="relative w-full md:w-80"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or email" /></div>
+        <div className="relative w-full md:w-80"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Search users by name or email" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or email" /></div>
       </CardHeader>
       <div className="overflow-x-auto"><Table>
         <TableHeader><TableRow><TableHead>Name / email</TableHead><TableHead>Plan</TableHead><TableHead>Credits</TableHead><TableHead>Admin</TableHead><TableHead>Stripe customer</TableHead><TableHead>Subscription</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
