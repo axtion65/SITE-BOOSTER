@@ -7,7 +7,11 @@
  */
 
 export interface SignInInput {
+  /** @maxLength 254 */
   email: string;
-  /** @minLength 6 */
+  /**
+     * @minLength 6
+     * @maxLength 128
+     */
   password: string;
 }

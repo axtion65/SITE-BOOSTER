@@ -65,13 +65,16 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Sign in with email and password
  */
+export const signInBodyEmailMax = 254;
+
 export const signInBodyPasswordMin = 6;
+export const signInBodyPasswordMax = 128;
 
 
 
 export const SignInBody = zod.object({
-  "email": zod.string().email(),
-  "password": zod.string().min(signInBodyPasswordMin)
+  "email": zod.string().email().max(signInBodyEmailMax),
+  "password": zod.string().min(signInBodyPasswordMin).max(signInBodyPasswordMax)
 })
 
 export const SignInResponse = zod.object({
@@ -91,14 +94,19 @@ export const SignInResponse = zod.object({
 /**
  * @summary Create a new account
  */
+export const signUpBodyEmailMax = 254;
+
 export const signUpBodyPasswordMin = 8;
+export const signUpBodyPasswordMax = 128;
+
+export const signUpBodyNameMax = 100;
 
 
 
 export const SignUpBody = zod.object({
-  "email": zod.string().email(),
-  "password": zod.string().min(signUpBodyPasswordMin),
-  "name": zod.string().optional()
+  "email": zod.string().email().max(signUpBodyEmailMax),
+  "password": zod.string().min(signUpBodyPasswordMin).max(signUpBodyPasswordMax),
+  "name": zod.string().max(signUpBodyNameMax).optional()
 })
 
 export const SignUpResponse = zod.object({
@@ -118,8 +126,12 @@ export const SignUpResponse = zod.object({
 /**
  * @summary Send a single-use password reset link
  */
+export const forgotPasswordBodyEmailMax = 254;
+
+
+
 export const ForgotPasswordBody = zod.object({
-  "email": zod.string().email()
+  "email": zod.string().email().max(forgotPasswordBodyEmailMax)
 })
 
 export const ForgotPasswordResponse = zod.object({
@@ -131,14 +143,16 @@ export const ForgotPasswordResponse = zod.object({
  * @summary Set a new password with a single-use reset token
  */
 export const resetPasswordBodyTokenMin = 32;
+export const resetPasswordBodyTokenMax = 512;
 
 export const resetPasswordBodyNewPasswordMin = 8;
+export const resetPasswordBodyNewPasswordMax = 128;
 
 
 
 export const ResetPasswordBody = zod.object({
-  "token": zod.string().min(resetPasswordBodyTokenMin),
-  "newPassword": zod.string().min(resetPasswordBodyNewPasswordMin)
+  "token": zod.string().min(resetPasswordBodyTokenMin).max(resetPasswordBodyTokenMax),
+  "newPassword": zod.string().min(resetPasswordBodyNewPasswordMin).max(resetPasswordBodyNewPasswordMax)
 })
 
 export const ResetPasswordResponse = zod.object({

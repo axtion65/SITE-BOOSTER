@@ -102,6 +102,7 @@ export default function SignUpScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 value={name}
                 onChangeText={setName}
+                maxLength={100}
                 autoCapitalize="words"
                 returnKeyType="next"
                 autoComplete="name"
@@ -116,6 +117,7 @@ export default function SignUpScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 value={email}
                 onChangeText={setEmail}
+                maxLength={254}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 returnKeyType="next"
@@ -131,6 +133,7 @@ export default function SignUpScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
                 onChangeText={setPassword}
+                maxLength={128}
                 secureTextEntry
                 returnKeyType="done"
                 onSubmitEditing={handleSignUp}

@@ -127,6 +127,7 @@ export default function SignIn() {
               <Input
                 id="new-pw"
                 type="password"
+                maxLength={128}
                 placeholder="Min. 8 characters"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -137,6 +138,7 @@ export default function SignIn() {
               <Input
                 id="confirm-pw"
                 type="password"
+                maxLength={128}
                 placeholder="Repeat new password"
                 value={newPasswordConfirm}
                 onChange={(e) => setNewPasswordConfirm(e.target.value)}
@@ -176,6 +178,7 @@ export default function SignIn() {
                     <Input
                       id="email"
                       type="email"
+                      maxLength={254}
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -199,6 +202,7 @@ export default function SignIn() {
                     <Input
                       id="password"
                       type="password"
+                      maxLength={128}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       autoComplete="current-password"
@@ -232,6 +236,7 @@ export default function SignIn() {
                       placeholder="John Doe"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      maxLength={100}
                       autoComplete="name"
                     />
                   </div>
@@ -240,6 +245,7 @@ export default function SignIn() {
                     <Input
                       id="email-signup"
                       type="email"
+                      maxLength={254}
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -256,6 +262,7 @@ export default function SignIn() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       minLength={8}
+                      maxLength={128}
                       placeholder="At least 8 characters"
                       autoComplete="new-password"
                       aria-describedby="signup-password-help"
