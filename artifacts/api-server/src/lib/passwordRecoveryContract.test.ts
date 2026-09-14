@@ -41,6 +41,7 @@ test("reset-password atomically consumes one unexpired token", () => {
   assert.match(resetRoute, /isNull\(passwordResetTokensTable\.usedAt\)/);
   assert.match(resetRoute, /gt\(passwordResetTokensTable\.expiresAt, now\)/);
   assert.match(resetRoute, /\.set\(\{ usedAt: now \}\)/);
+  assert.match(resetRoute, /sessionInvalidBefore: now/);
 });
 
 test("raw reset credentials are absent from durable storage and the browser", () => {

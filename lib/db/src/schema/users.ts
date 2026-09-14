@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   isAdmin: boolean("is_admin").notNull().default(false),
   accountStatus: text("account_status").notNull().default("active"),
+  sessionInvalidBefore: timestamp("session_invalid_before", { withTimezone: true }),
   subscriptionStatus: text("subscription_status"),
   billingInterval: text("billing_interval"),
   creditCycleAnchorAt: timestamp("credit_cycle_anchor_at", { withTimezone: true }),

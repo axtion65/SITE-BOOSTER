@@ -14,6 +14,7 @@ import { sendPasswordResetEmail } from "../lib/email";
 import { refreshPaidPlanAllowance } from "../lib/subscriptionCredits";
 import { shouldRefreshPaidPlanAllowance } from "../lib/subscriptionCreditPolicy";
 import { createRateLimitMiddleware, emailRateLimitIdentity } from "../lib/rateLimit";
+import { isSessionCurrent } from "../lib/sessionSecurity";
 
 const router = Router();
 
@@ -95,6 +96,7 @@ export async function resolveUserFromToken(authHeader: string | undefined) {
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
     if (!user || user.accountStatus === "disabled") return null;
+    if (!isSessionCurrent(ts, user.sessionInvalidBefore)) return null;
     if (!shouldRefreshPaidPlanAllowance(user)) return user;
     return (await refreshPaidPlanAllowance(user.id)) ?? user;
   } catch {
@@ -195,8 +197,13 @@ router.post("/auth/change-password", changePasswordRateLimit, async (req, res) =
     res.status(401).json({ error: "Current password is incorrect" });
     return;
   }
+  const now = new Date();
   await db.update(usersTable)
-    .set({ passwordHash: await hashPassword(newPassword), updatedAt: new Date() })
+    .set({
+      passwordHash: await hashPassword(newPassword),
+      sessionInvalidBefore: now,
+      updatedAt: now,
+    })
     .where(eq(usersTable.id, user.id));
   res.json({ user: userToPublic(user), token: generateToken(user.id) });
 });
@@ -262,7 +269,7 @@ router.post("/auth/reset-password", resetPasswordRateLimit, async (req, res) => 
     if (!claimed) return null;
 
     const [updated] = await tx.update(usersTable)
-      .set({ passwordHash, updatedAt: now })
+      .set({ passwordHash, sessionInvalidBefore: now, updatedAt: now })
       .where(and(
         eq(usersTable.id, claimed.userId),
         eq(usersTable.accountStatus, "active"),
