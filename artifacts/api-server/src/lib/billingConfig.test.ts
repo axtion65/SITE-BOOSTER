@@ -67,31 +67,80 @@ test("Stripe key mode recognizes live and test secret or restricted keys", () =>
   assert.equal(getStripeKeyMode("pk_live_x"), "unknown");
 });
 
-test("Stripe catalog verification matches mode, amount, currency, and interval", async () => {
-  const prices = new Map([
-    ["price_starter_month", { amount: 2300, interval: "month" }],
-    ["price_starter_year", { amount: 22080, interval: "year" }],
-    ["price_pro_month", { amount: 4900, interval: "month" }],
-    ["price_pro_year", { amount: 47040, interval: "year" }],
-    ["price_agency_month", { amount: 9900, interval: "month" }],
-    ["price_agency_year", { amount: 95040, interval: "year" }],
-  ]);
-  const retrievePrice = async (priceId: string) => {
-    const price = prices.get(priceId);
-    if (!price) throw new Error("missing price");
-    return {
-      active: true,
-      currency: "usd",
-      livemode: true,
-      recurring: { interval: price.interval },
-      type: "recurring",
-      unit_amount: price.amount,
-    };
-  };
+const stripePriceSpecs = new Map([
+  ["price_starter_month", { plan: "starter", amount: 2300, interval: "month" }],
+  ["price_starter_year", { plan: "starter", amount: 22080, interval: "year" }],
+  ["price_pro_month", { plan: "pro", amount: 4900, interval: "month" }],
+  ["price_pro_year", { plan: "pro", amount: 47040, interval: "year" }],
+  ["price_agency_month", { plan: "agency", amount: 9900, interval: "month" }],
+  ["price_agency_year", { plan: "agency", amount: 95040, interval: "year" }],
+]);
 
-  assert.equal(await verifyStripeCatalog(retrievePrice, completeBillingEnvironment), true);
-  prices.set("price_pro_month", { amount: 1, interval: "month" });
-  assert.equal(await verifyStripeCatalog(retrievePrice, completeBillingEnvironment), false);
+function validStripePrice(priceId: string) {
+  const spec = stripePriceSpecs.get(priceId);
+  if (!spec) throw new Error("missing fixture price");
+  return {
+    active: true,
+    billing_scheme: "per_unit",
+    currency: "usd",
+    livemode: true,
+    product: {
+      id: `prod_${spec.plan}`,
+      active: true,
+      livemode: true,
+      metadata: { plan: spec.plan },
+    },
+    recurring: { interval: spec.interval, interval_count: 1, usage_type: "licensed" },
+    transform_quantity: null,
+    type: "recurring",
+    unit_amount: spec.amount,
+  };
+}
+
+test("Stripe catalog accepts all six fixed subscription prices with their correct credit plan", async () => {
+  const retrieved: string[] = [];
+  assert.equal(await verifyStripeCatalog(async priceId => {
+    retrieved.push(priceId);
+    return validStripePrice(priceId);
+  }, completeBillingEnvironment), true);
+  assert.deepEqual(retrieved.sort(), [...stripePriceSpecs.keys()].sort());
+});
+
+const invalidStripePriceCases: [string, (price: ReturnType<typeof validStripePrice>) => unknown][] = [
+  ["missing product plan metadata", price => ({ ...price, product: { ...price.product, metadata: {} } })],
+  ["wrong product credit plan", price => ({ ...price, product: { ...price.product, metadata: { plan: "starter" } } })],
+  ["free product credit plan", price => ({ ...price, product: { ...price.product, metadata: { plan: "free" } } })],
+  ["unexpanded product", price => ({ ...price, product: price.product.id })],
+  ["deleted product", price => ({ ...price, product: { id: price.product.id, deleted: true } })],
+  ["inactive product", price => ({ ...price, product: { ...price.product, active: false } })],
+  ["test mode product", price => ({ ...price, product: { ...price.product, livemode: false } })],
+  ["three-month billing frequency", price => ({ ...price, recurring: { ...price.recurring, interval_count: 3 } })],
+  ["metered usage", price => ({ ...price, recurring: { ...price.recurring, usage_type: "metered" } })],
+  ["tiered billing", price => ({ ...price, billing_scheme: "tiered" })],
+  ["transformed quantity", price => ({ ...price, transform_quantity: { divide_by: 5, round: "up" } })],
+  ["wrong amount", price => ({ ...price, unit_amount: 1 })],
+  ["inactive price", price => ({ ...price, active: false })],
+  ["wrong currency", price => ({ ...price, currency: "eur" })],
+  ["wrong interval", price => ({ ...price, recurring: { ...price.recurring, interval: "year" } })],
+  ["test mode price", price => ({ ...price, livemode: false })],
+  ["one-time price", price => ({ ...price, type: "one_time", recurring: null })],
+];
+
+for (const [description, invalidate] of invalidStripePriceCases) {
+  test(`Stripe catalog rejects ${description} even when the other five prices are valid`, async () => {
+    assert.equal(await verifyStripeCatalog(async priceId => {
+      const price = validStripePrice(priceId);
+      // External Stripe responses can contain each of these incompatible shapes.
+      return (priceId === "price_pro_month" ? invalidate(price) : price) as ReturnType<typeof validStripePrice>;
+    }, completeBillingEnvironment), false);
+  });
+}
+
+test("Stripe catalog fails closed when a price cannot be retrieved", async () => {
+  assert.equal(await verifyStripeCatalog(async priceId => {
+    if (priceId === "price_pro_month") throw new Error("Stripe unavailable");
+    return validStripePrice(priceId);
+  }, completeBillingEnvironment), false);
 });
 
 test("the canonical Agency annual price wins while the legacy Railway name remains compatible", () => {

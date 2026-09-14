@@ -31,7 +31,7 @@ export class StripeService {
 
     const stripe = getStripeClient();
     stripeCatalogReadinessCheck = verifyStripeCatalog(
-      async priceId => stripe.prices.retrieve(priceId),
+      async priceId => stripe.prices.retrieve(priceId, { expand: ['product'] }),
     ).then(ready => {
       stripeCatalogReadinessCache = {
         ready,
