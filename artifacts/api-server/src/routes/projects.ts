@@ -22,28 +22,9 @@ import { normalizeProjectSubmissionBody, projectValidationIssueFields } from "..
 import { checkFalProviderReadiness } from "../lib/falProviderReadiness";
 import { safeErrorMetadata } from "../lib/safeErrorMetadata";
 
-/** Log every field PostgreSQL/Drizzle exposes on a DB error. */
-function logDbError(context: string, err: any): void {
-  // Drizzle wraps the raw pg error in err.cause — unwrap it.
-  const cause: any = err?.cause ?? err;
-  logger.error({
-    context,
-    // Drizzle-level
-    drizzle_message: err?.message,
-    drizzle_stack: err?.stack,
-    // PostgreSQL-level (may live on cause or err directly)
-    message:    cause?.message,
-    pg_code:    cause?.code,
-    pg_detail:  cause?.detail,
-    pg_hint:    cause?.hint,
-    pg_table:   cause?.table,
-    pg_column:  cause?.column,
-    pg_constraint: cause?.constraint,
-    pg_schema:  cause?.schema,
-    pg_where:   cause?.where,
-    pg_routine: cause?.routine,
-    pg_stack:   cause?.stack,
-  }, `DB error: ${context}`);
+/** Preserve a stable operation label without logging SQL values or database details. */
+function logDbError(context: string, err: unknown): void {
+  logger.error({ context, ...safeErrorMetadata(err) }, "Database operation failed");
 }
 
 function matchesApprovedCampaignScript(value: unknown, approved: ExpandedScript): boolean {

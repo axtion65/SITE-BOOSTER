@@ -16,6 +16,7 @@ import { shouldRefreshPaidPlanAllowance } from "../lib/subscriptionCreditPolicy"
 import { createRateLimitMiddleware, emailRateLimitIdentity } from "../lib/rateLimit";
 import { isSessionCurrent } from "../lib/sessionSecurity";
 import { ChangePasswordBody } from "../lib/authInput";
+import { safeErrorMetadata } from "../lib/safeErrorMetadata";
 
 const router = Router();
 
@@ -176,7 +177,7 @@ router.post("/auth/signup", signupRateLimit, async (req, res) => {
   void import("../lib/email").then(async ({ sendWelcomeEmail }) => {
     await sendWelcomeEmail(user.email, user.name ?? "");
   }).catch((error) => {
-    console.error("[auth] Welcome tutorial email could not be scheduled:", user.id, error);
+    console.error("[auth] Welcome tutorial email could not be scheduled", safeErrorMetadata(error));
   });
   res.status(201).json({ user: userToPublic(user), token: generateToken(user.id) });
 });

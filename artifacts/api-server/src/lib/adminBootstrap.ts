@@ -22,28 +22,26 @@ export async function bootstrapAdminFromEnvironment(): Promise<void> {
     throw new Error(`${ADMIN_BOOTSTRAP_EMAIL_ENV} must be a lowercase email address`);
   }
 
-  const result = await pool.query<{ id: string; email: string; is_admin: boolean }>(
+  const result = await pool.query<{ id: string; is_admin: boolean }>(
     `UPDATE users
        SET is_admin = TRUE, updated_at = NOW()
      WHERE email = $1 AND is_admin = FALSE
-     RETURNING id, email, is_admin`,
+     RETURNING id, is_admin`,
     [email],
   );
 
   if (result.rowCount === 1) {
-    const user = result.rows[0];
-    logger.info({ userId: user.id, email: user.email }, "Admin bootstrap promoted account");
+    logger.info({ event: "admin_bootstrap_promoted" }, "Admin bootstrap promoted account");
     return;
   }
 
-  const existing = await pool.query<{ id: string; email: string; is_admin: boolean }>(
-    `SELECT id, email, is_admin FROM users WHERE email = $1`,
+  const existing = await pool.query<{ id: string; is_admin: boolean }>(
+    `SELECT id, is_admin FROM users WHERE email = $1`,
     [email],
   );
   if (existing.rowCount !== 1) {
     throw new Error(`${ADMIN_BOOTSTRAP_EMAIL_ENV} does not match an existing account`);
   }
 
-  const user = existing.rows[0];
-  logger.info({ userId: user.id, email: user.email }, "Admin bootstrap account is already an administrator");
+  logger.info({ event: "admin_bootstrap_already_applied" }, "Admin bootstrap account is already an administrator");
 }

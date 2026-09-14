@@ -42,7 +42,8 @@ test("the Stripe event ledger is retry-aware and stores no webhook payload", () 
     /attempts: sql`\$\{stripeWebhookEventsTable\.attempts\} \+ 1`/,
   );
   assert.match(ledger, /already_succeeded/);
-  assert.match(ledger, /MAX_ERROR_LENGTH = 1_000/);
+  assert.match(ledger, /JSON\.stringify\(safeErrorMetadata\(error\)\)/);
+  assert.doesNotMatch(ledger, /error\.message|String\(error\)/);
   assert.doesNotMatch(ledger, /payload|signature|payment_method|card/i);
 });
 

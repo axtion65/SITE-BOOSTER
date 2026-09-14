@@ -18,6 +18,7 @@
  */
 
 import { logger } from "./logger";
+import { safeErrorMetadata } from "./safeErrorMetadata";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // check every 5 minutes
 
@@ -70,13 +71,13 @@ async function tick() {
         const result = await retryQueuedEmail(row.id);
         if (result.ok) sent++;
       } catch (err) {
-        logger.warn({ id: row.id, err }, "[email-worker] Per-row retry error");
+        logger.warn({ id: row.id, ...safeErrorMetadata(err) }, "[email-worker] Per-row retry error");
       }
     }
 
     logger.info({ attempted: eligible.length, sent }, "[email-worker] Tick complete");
   } catch (err) {
-    logger.warn({ err }, "[email-worker] Tick failed — will retry next interval");
+    logger.warn(safeErrorMetadata(err), "[email-worker] Tick failed — will retry next interval");
   }
 }
 

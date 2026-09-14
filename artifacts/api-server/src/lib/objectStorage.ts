@@ -17,6 +17,7 @@ import {
   ObjectPermission,
   setObjectAclPolicy,
 } from "./objectAcl";
+import { safeErrorMetadata } from "./safeErrorMetadata";
 
 /**
  * Railway provides an S3-compatible bucket.
@@ -446,7 +447,7 @@ export class ObjectStorageService {
     } catch (error) {
       console.warn(
         "[objectStorage] Could not read ACL metadata; treating object as private",
-        error,
+        safeErrorMetadata(error),
       );
     }
 
@@ -624,7 +625,7 @@ export class ObjectStorageService {
     await setObjectAclPolicy(objectFile as any, { owner: identity.userId, visibility: "private" });
 
     console.log(
-      `[objectStorage] Archived video → s3://${storageConfig.bucket}/${objectName} (${buffer.length} bytes)`,
+      `[objectStorage] Archived video (${buffer.length} bytes)`,
     );
 
     return internalObjectPath(objectName);
@@ -656,7 +657,7 @@ export class ObjectStorageService {
     await setObjectAclPolicy(objectFile as any, { owner: identity.userId, visibility: "private" });
 
     console.log(
-      `[objectStorage] Uploaded video buffer → s3://${storageConfig.bucket}/${objectName} (${buffer.length} bytes)`,
+      `[objectStorage] Uploaded video buffer (${buffer.length} bytes)`,
     );
 
     return internalObjectPath(objectName);
