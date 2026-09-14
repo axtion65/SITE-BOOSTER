@@ -37,6 +37,100 @@ function matchesApprovedCampaignScript(value: unknown, approved: ExpandedScript)
     candidate.estimatedDuration === approved.estimatedDuration;
 }
 
+type CampaignAuthorityDb = Pick<typeof db, "execute">;
+
+// Creation and retry use the same approved-run and selected-visual authority.
+// Inside a render transaction these locks keep that authority stable until debit.
+async function loadApprovedVisualProduction(
+  campaignVideoBriefId: string, campaignId: string, userId: string,
+  database: CampaignAuthorityDb = db,
+): Promise<any | null> {
+  return (await database.execute(sql`SELECT vb.*,c.name campaign_name,b.name business_name,mv.object_path
+      FROM campaign_video_briefs vb
+      JOIN campaigns c ON c.id=vb.campaign_id AND c.user_id=vb.customer_id AND c.business_id=vb.business_id
+        AND c.approved_run_id=vb.campaign_run_id AND c.status='approved'
+      JOIN businesses b ON b.id=vb.business_id AND b.user_id=vb.customer_id
+      JOIN campaign_asset_selections s ON s.id=vb.selection_id AND s.active
+        AND s.campaign_id=vb.campaign_id AND s.campaign_run_id=vb.campaign_run_id
+        AND s.customer_id=vb.customer_id AND s.business_id=vb.business_id
+        AND s.mockup_project_id=vb.mockup_project_id AND s.mockup_version_id=vb.mockup_version_id
+      JOIN mockup_projects mp ON mp.id=vb.mockup_project_id AND mp.user_id=vb.customer_id AND mp.business_id=vb.business_id
+      JOIN mockup_versions mv ON mv.id=vb.mockup_version_id AND mv.mockup_project_id=mp.id
+        AND mv.object_path IS NOT NULL
+      WHERE vb.id=${campaignVideoBriefId} AND vb.campaign_id=${campaignId} AND vb.customer_id=${userId} FOR SHARE OF c,b,vb,s,mp,mv`)).rows[0] ?? null;
+}
+
+async function loadApprovedTextProduction(
+  campaignId: string, userId: string, database: CampaignAuthorityDb = db,
+): Promise<any | null> {
+  const authority: any = (await database.execute(sql`SELECT c.*,b.user_id business_owner_id,b.name business_name,b.website business_website,b.description business_description,b.target_customer business_target_customer,b.products_services business_products_services,b.primary_cta business_primary_cta,wi.id import_id,wi.approved_campaign_id import_approved_campaign_id,wi.user_id import_user_id,wi.business_id import_business_id,wi.source_url import_source_url,wi.content import_content,r.id campaign_run_id,r.status campaign_run_status,r.context_snapshot run_context,r.final_result run_final_result FROM campaigns c JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id JOIN campaign_runs r ON r.id=c.approved_run_id AND r.campaign_id=c.id LEFT JOIN website_import_drafts wi ON wi.id=c.website_import_id WHERE c.id=${campaignId} AND c.user_id=${userId} AND c.status='approved' FOR SHARE OF c,b,r`)).rows[0];
+  const approvedBrief = authority ? deriveApprovedTextVideoBrief(authority, {
+    id: authority.campaign_run_id, status: authority.campaign_run_status,
+    context_snapshot: authority.run_context, final_result: authority.run_final_result,
+  }) : null;
+  return authority && approvedBrief ? { campaign_run_id: authority.campaign_run_id, brief: approvedBrief } : null;
+}
+
+const ACTIVE_RENDER_STATUSES = ["preparing", "processing", "assembling", "narrating"];
+const RENDER_SOURCE_FIELDS = ["renderingModelId", "script", "expandedScript", "platform", "duration", "voiceId"] as const;
+const CAMPAIGN_COPY_FIELDS = ["script", "expandedScript", "platform", "duration"] as const;
+
+class ProjectMutationError extends Error {
+  constructor(message: string, readonly httpStatus = 409) { super(message); }
+}
+
+function assertProjectUpdateAllowed(
+  project: typeof projectsTable.$inferSelect,
+  updates: ReturnType<typeof UpdateProjectBody.parse>,
+): void {
+  if (updates.status !== undefined) {
+    throw new ProjectMutationError("Production status is managed by the server.", 400);
+  }
+  if (ACTIVE_RENDER_STATUSES.includes(project.status) &&
+      RENDER_SOURCE_FIELDS.some(key => updates[key] !== undefined && updates[key] !== project[key])) {
+    throw new ProjectMutationError("Video production is in progress. Its script and render settings cannot be changed.");
+  }
+  if (project.campaignId && CAMPAIGN_COPY_FIELDS.some(key => updates[key] !== undefined && updates[key] !== project[key])) {
+    throw new ProjectMutationError("Campaign copy is approved in the campaign. Approve a revision and create a new video to change it.");
+  }
+}
+
+async function approvedRerenderScript(
+  project: typeof projectsTable.$inferSelect, database: CampaignAuthorityDb,
+): Promise<ExpandedScript> {
+  let saved: ExpandedScript | null = null;
+  try { saved = JSON.parse(project.expandedScript ?? ""); } catch { /* rejected below */ }
+  if (typeof saved?.voiceoverText !== "string" || !saved.voiceoverText.trim() || !Array.isArray(saved.scenes) || !saved.scenes.length) {
+    throw new ProjectMutationError("A complete script and scene plan are required before production.", 400);
+  }
+  if (!project.campaignId) return saved;
+
+  const production = project.renderIntent === "animate"
+    ? project.campaignVideoBriefId && await loadApprovedVisualProduction(project.campaignVideoBriefId, project.campaignId, project.userId, database)
+    : await loadApprovedTextProduction(project.campaignId, project.userId, database);
+  if (!production || production.campaign_run_id !== project.campaignRunId) {
+    throw new ProjectMutationError("This video no longer matches the approved campaign. Return to the campaign and review a new video.");
+  }
+  if (project.renderIntent === "animate") {
+    if (project.mockupProjectId !== production.mockup_project_id ||
+        project.mockupVersionId !== production.mockup_version_id ||
+        project.sourceAssetId !== production.object_path ||
+        project.productImageUrl !== `/api/storage${production.object_path}`) {
+      throw new ProjectMutationError("The selected campaign visual has changed. Review the current visual before rendering.");
+    }
+  } else if (project.campaignVideoBriefId || project.sourceAssetId || project.productImageUrl) {
+    throw new ProjectMutationError("Create New must use only approved campaign copy and no visual source.");
+  }
+  let canonical: ExpandedScript;
+  try { canonical = approvedCampaignBriefToExpandedScript(production.brief); }
+  catch { throw new ProjectMutationError("The approved campaign video brief is incomplete or unavailable."); }
+  if (!matchesApprovedCampaignScript(saved, canonical) || project.platform !== approvedCampaignPlatform(production.brief?.platform)) {
+    throw new ProjectMutationError("Campaign copy changed after approval. Return to the campaign and review a new video.");
+  }
+  // Scene directions are server-authored, including for records edited before this guard existed.
+  return canonical;
+}
+
 const router = Router();
 import { resolveUserIdFromToken } from "./auth";
 const getUserIdFromToken = resolveUserIdFromToken;
@@ -317,29 +411,15 @@ router.post("/projects", async (req, res) => {
     }
     if(parsed.data.renderIntent==="animate"){
       if(!campaignVideoBriefId){res.status(409).json({error:"Prepare and confirm the selected campaign visual before animating it."});return;}
-      production = (await pool.query(`SELECT vb.*,c.name campaign_name,b.name business_name,mv.object_path
-      FROM campaign_video_briefs vb
-      JOIN campaigns c ON c.id=vb.campaign_id AND c.user_id=vb.customer_id AND c.business_id=vb.business_id
-        AND c.approved_run_id=vb.campaign_run_id AND c.status='approved'
-      JOIN businesses b ON b.id=vb.business_id AND b.user_id=vb.customer_id
-      JOIN campaign_asset_selections s ON s.id=vb.selection_id AND s.active
-        AND s.campaign_id=vb.campaign_id AND s.campaign_run_id=vb.campaign_run_id
-        AND s.customer_id=vb.customer_id AND s.business_id=vb.business_id
-        AND s.mockup_project_id=vb.mockup_project_id AND s.mockup_version_id=vb.mockup_version_id
-      JOIN mockup_projects mp ON mp.id=vb.mockup_project_id AND mp.user_id=vb.customer_id AND mp.business_id=vb.business_id
-      JOIN mockup_versions mv ON mv.id=vb.mockup_version_id AND mv.mockup_project_id=mp.id
-        AND mv.object_path IS NOT NULL
-      WHERE vb.id=$1 AND vb.campaign_id=$2 AND vb.customer_id=$3`, [campaignVideoBriefId, campaignId, userId])).rows[0];
+      production = await loadApprovedVisualProduction(campaignVideoBriefId, campaignId, userId);
       if (!production) { res.status(409).json({ error: "That prepared campaign video is stale, mismatched, or unavailable." }); return; }
       if (parsed.data.sourceAssetId !== production.object_path || parsed.data.productImageUrl !== `/api/storage${production.object_path}`) {
         res.status(409).json({ error: "The render source must be the exact confirmed visual version." }); return;
       }
     }else{
       if(campaignVideoBriefId||parsed.data.sourceAssetId||parsed.data.productImageUrl){res.status(409).json({error:"Create New must use only the approved campaign copy and no visual source."});return;}
-      const authority=(await pool.query(`SELECT c.*,b.user_id business_owner_id,b.name business_name,b.website business_website,b.description business_description,b.target_customer business_target_customer,b.products_services business_products_services,b.primary_cta business_primary_cta,wi.id import_id,wi.approved_campaign_id import_approved_campaign_id,wi.user_id import_user_id,wi.business_id import_business_id,wi.source_url import_source_url,wi.content import_content,r.id campaign_run_id,r.status campaign_run_status,r.context_snapshot run_context,r.final_result run_final_result FROM campaigns c JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id JOIN campaign_runs r ON r.id=c.approved_run_id AND r.campaign_id=c.id LEFT JOIN website_import_drafts wi ON wi.id=c.website_import_id WHERE c.id=$1 AND c.user_id=$2 AND c.status='approved'`,[campaignId,userId])).rows[0];
-      const approvedBrief=authority?deriveApprovedTextVideoBrief(authority,{id:authority.campaign_run_id,status:authority.campaign_run_status,context_snapshot:authority.run_context,final_result:authority.run_final_result}):null;
-      if(!authority||!approvedBrief){res.status(409).json({error:"The approved campaign copy is stale, unsafe, or unavailable. Return to the campaign before rendering."});return;}
-      production={campaign_run_id:authority.campaign_run_id,brief:approvedBrief};
+      production = await loadApprovedTextProduction(campaignId, userId);
+      if (!production) { res.status(409).json({ error: "The approved campaign copy is stale, unsafe, or unavailable. Return to the campaign before rendering." }); return; }
     }
     try {
       authoritativeCampaignScript = approvedCampaignBriefToExpandedScript(production.brief);
@@ -647,26 +727,25 @@ router.post("/projects/:id/rerender", async (req, res) => {
   const [project] = await db.select().from(projectsTable)
     .where(and(eq(projectsTable.id, req.params.id), eq(projectsTable.userId, userId)));
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
-  if (!project.expandedScript) { res.status(400).json({ error: "No script — generate one first." }); return; }
-
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  const creditCost = getCreditCost(project.renderingModelId ?? "quae-v1", project.duration);
   if (!user) { res.status(401).json({ error: "User not found" }); return; }
-  if (!await requireVideoProviderReadiness(
-    res,
-    project.renderingModelId ?? "ltx-fast",
-    project.renderIntent === "animate",
-  )) return;
 
-  let reset: typeof projectsTable.$inferSelect;
+  let creditCost = 0;
+  let reset: typeof projectsTable.$inferSelect | null;
   try {
     reset = await db.transaction(async (tx) => {
-      const [locked] = await tx.select({ status: projectsTable.status })
-        .from(projectsTable)
+      const [locked] = await tx.select().from(projectsTable)
         .where(and(eq(projectsTable.id, project.id), eq(projectsTable.userId, userId)))
         .for("update");
-      if (!locked) throw new Error("Project disappeared during re-render");
-      if (["preparing", "processing", "assembling", "narrating"].includes(locked.status)) throw new RenderAlreadyActiveError();
+      if (!locked) throw new ProjectMutationError("Project not found.", 404);
+      if (ACTIVE_RENDER_STATUSES.includes(locked.status)) throw new RenderAlreadyActiveError();
+      const renderScript = await approvedRerenderScript(locked, tx);
+      const model = RENDERING_MODEL_BY_ID[locked.renderingModelId];
+      if (!model?.supports.textToVideo || !isNativeClipLength(locked.renderingModelId, locked.duration)) {
+        throw new ProjectMutationError("Choose a supported rendering model and 15s, 30s, or 45s advert duration.", 400);
+      }
+      if (!await requireVideoProviderReadiness(res, locked.renderingModelId, locked.renderIntent === "animate")) return null;
+      creditCost = getCreditCost(locked.renderingModelId, locked.duration);
 
       let balanceAfter = user.credits;
       if (!user.isAdmin) {
@@ -684,7 +763,8 @@ router.post("/projects/:id/rerender", async (req, res) => {
           status: "preparing",
           videoUrl: null,
           thumbnailUrl: null,
-          script: JSON.stringify({ version: VIDEO_PRODUCTION_VERSION, targetDuration: project.duration ?? "30s", approvedScript: true }),
+          script: JSON.stringify({ version: VIDEO_PRODUCTION_VERSION, targetDuration: locked.duration ?? "30s", approvedScript: true }),
+          expandedScript: JSON.stringify(renderScript),
           productionVersion: VIDEO_PRODUCTION_VERSION,
           productionPlan: null,
           voiceoverPath: null,
@@ -712,6 +792,10 @@ router.post("/projects/:id/rerender", async (req, res) => {
       return updated!;
     });
   } catch (err) {
+    if (err instanceof ProjectMutationError) {
+      res.status(err.httpStatus).json({ error: err.message });
+      return;
+    }
     if (err instanceof InsufficientCreditsError) {
       res.status(402).json({ error: `Not enough credits. Re-render costs ${creditCost} credits.` });
       return;
@@ -723,6 +807,7 @@ router.post("/projects/:id/rerender", async (req, res) => {
     throw err;
   }
 
+  if (!reset) return;
   startVideoProduction(project.id);
 
   res.json({ ...reset, createdAt: reset.createdAt.toISOString(), updatedAt: reset.updatedAt.toISOString() });
@@ -735,23 +820,28 @@ router.patch("/projects/:id", async (req, res) => {
   const parsed = UpdateProjectBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
 
-  const [existing] = await db.select().from(projectsTable)
-    .where(and(eq(projectsTable.id, req.params.id), eq(projectsTable.userId, userId)));
-  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
-
-  const updates: Record<string, unknown> = { updatedAt: new Date() };
-  if (parsed.data.title !== undefined) updates.title = parsed.data.title;
-  if (parsed.data.description !== undefined) updates.description = parsed.data.description;
-  if (parsed.data.renderingModelId !== undefined) updates.renderingModelId = parsed.data.renderingModelId;
-  if (parsed.data.script !== undefined) updates.script = parsed.data.script;
-  if (parsed.data.expandedScript !== undefined) updates.expandedScript = parsed.data.expandedScript;
-  if (parsed.data.platform !== undefined) updates.platform = parsed.data.platform;
-  if (parsed.data.duration !== undefined) updates.duration = parsed.data.duration;
-  if (parsed.data.status !== undefined) updates.status = parsed.data.status;
-  if (parsed.data.voiceId !== undefined) updates.voiceId = parsed.data.voiceId;
-
-  const [project] = await db.update(projectsTable).set(updates).where(eq(projectsTable.id, req.params.id)).returning();
-  res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
+  try {
+    const project = await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(projectsTable)
+        .where(and(eq(projectsTable.id, req.params.id), eq(projectsTable.userId, userId)))
+        .for("update");
+      if (!existing) throw new ProjectMutationError("Not found", 404);
+      assertProjectUpdateAllowed(existing, parsed.data);
+      const { status: _status, ...editable } = parsed.data;
+      const [updated] = await tx.update(projectsTable)
+        .set({ ...editable, updatedAt: new Date() })
+        .where(and(eq(projectsTable.id, existing.id), eq(projectsTable.userId, userId)))
+        .returning();
+      return updated!;
+    });
+    res.json({ ...project, createdAt: project.createdAt.toISOString(), updatedAt: project.updatedAt.toISOString() });
+  } catch (err) {
+    if (err instanceof ProjectMutationError) {
+      res.status(err.httpStatus).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.delete("/projects/:id", async (req, res) => {
