@@ -37,7 +37,7 @@ test("subtitle timeline preserves scene copy and reserves the brand CTA end card
     assert.ok(text.split(/\s+/).length <= 6, `caption phrase is too long: ${text}`);
     assert.ok((event.match(/\\N/g) ?? []).length <= 1, `caption exceeds two lines: ${event}`);
   }
-  assert.match(subtitles, /Dialogue: 0,0:00:12\.00,0:00:15\.00,EndCard[^\n]+Quae\\NStart building\\Nquae\.ai/);
+  assert.match(subtitles, /Dialogue: 0,0:00:12\.00,0:00:15\.00,EndCard[^\n]+\\fad\(220,220\)[^\n]+Quae\\NStart building\\Nquae\.ai/);
 });
 
 function whitePixelBounds(frame: Buffer, width: number, height: number) {
@@ -63,12 +63,16 @@ function whitePixelBounds(frame: Buffer, width: number, height: number) {
 test("FFmpeg keeps long captions and the end card inside a 1080x1920 safe area", { timeout: 180_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "quae-assembler-test-"));
   try {
-    const colors = ["black", "black", "black"];
-    const scenePaths = colors.map((_, index) => path.join(directory, `scene-${index}.mp4`));
-    await Promise.all(colors.map((color, index) => execFileAsync("ffmpeg", [
+    const colors = ["black", "black"];
+    const sourcePath = path.join(directory, "source.png");
+    const generatedPaths = colors.map((_, index) => path.join(directory, `scene-${index + 1}.mp4`));
+    await Promise.all([
+      execFileAsync("ffmpeg", ["-y", "-f", "lavfi", "-i", "testsrc2=s=270x480:d=0.04", "-frames:v", "1", sourcePath], { timeout: 30_000 }),
+      ...colors.map((color, index) => execFileAsync("ffmpeg", [
       "-y", "-f", "lavfi", "-i", `color=c=${color}:s=270x480:r=30:d=4`,
-      "-c:v", "libx264", "-pix_fmt", "yuv420p", scenePaths[index]!,
-    ], { timeout: 30_000 })));
+      "-c:v", "libx264", "-pix_fmt", "yuv420p", generatedPaths[index]!,
+      ], { timeout: 30_000 })),
+    ]);
     const audioPath = path.join(directory, "voice.mp3");
     await execFileAsync("ffmpeg", ["-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=10", "-c:a", "libmp3lame", audioPath], { timeout: 30_000 });
     const output = await renderBusinessAdvert({
@@ -78,9 +82,9 @@ test("FFmpeg keeps long captions and the end card inside a 1080x1920 safe area",
       voiceoverUrl: pathToFileURL(audioPath).toString(),
       voiceoverDurationMs: 10_000,
       scenes: [
-        { videoUrl: pathToFileURL(scenePaths[0]!).toString(), durationMs: 4000, caption: "Businesses that need affordable professional marketing content can now create it." },
-        { videoUrl: pathToFileURL(scenePaths[1]!).toString(), durationMs: 4000, caption: "Build polished campaigns without the agency delay." },
-        { videoUrl: pathToFileURL(scenePaths[2]!).toString(), durationMs: 4000, caption: "Launch your next campaign with confidence today." },
+        { videoUrl: pathToFileURL(sourcePath).toString(), durationMs: 4000, caption: "Businesses that need affordable professional marketing content can now create it.", mediaType: "source_image" },
+        { videoUrl: pathToFileURL(generatedPaths[0]!).toString(), durationMs: 4000, caption: "Build polished campaigns without the agency delay." },
+        { videoUrl: pathToFileURL(generatedPaths[1]!).toString(), durationMs: 4000, caption: "Launch your next campaign with confidence today." },
       ],
       brand: { name: "Quae", callToAction: "Start building your next campaign today", website: "quae.ai", primaryColor: "#6D28D9" },
     });
@@ -90,6 +94,14 @@ test("FFmpeg keeps long captions and the end card inside a 1080x1920 safe area",
     assert.ok(Math.abs(probe.durationMs - 15_000) <= 100);
     const outputPath = path.join(directory, "output.mp4");
     await writeFile(outputPath, output);
+    const proofFrames: Buffer[] = [];
+    for (const timestamp of ["0.5", "3.5"]) {
+      const framePath = path.join(directory, `proof-${timestamp}.rgb`);
+      await execFileAsync("ffmpeg", ["-y", "-ss", timestamp, "-i", outputPath, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", framePath], { timeout: 30_000, maxBuffer: 8 * 1024 * 1024 });
+      proofFrames.push(await readFile(framePath));
+    }
+    const topHalfBytes = 1080 * 960 * 3;
+    assert.notDeepEqual(proofFrames[0]!.subarray(0, topHalfBytes), proofFrames[1]!.subarray(0, topHalfBytes), "source proof shot should have visible camera movement");
     for (const [timestamp, kind] of [["2", "caption"], ["13.5", "end card"]] as const) {
       const framePath = path.join(directory, `${kind.replace(" ", "-")}.rgb`);
       await execFileAsync("ffmpeg", [
