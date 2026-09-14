@@ -5,6 +5,7 @@ import {
   getStripeKeyMode,
   getPublicAppOrigin,
   isStripeCheckoutReady,
+  isProductionBillingEnvironment,
   resolveStripePriceId,
   verifyStripeCatalog,
 } from "./billingConfig";
@@ -31,6 +32,22 @@ test("production billing redirects use APP_URL and never localhost", () => {
     () => getPublicAppOrigin({ NODE_ENV: "production" }),
     /APP_URL is required/,
   );
+  assert.throws(
+    () => getPublicAppOrigin({ RAILWAY_ENVIRONMENT_NAME: "production" }),
+    /APP_URL is required/,
+  );
+});
+
+test("Railway and Vercel production markers enforce live billing", () => {
+  assert.equal(isProductionBillingEnvironment({ RAILWAY_ENVIRONMENT_NAME: "production" }), true);
+  assert.equal(isProductionBillingEnvironment({ VERCEL_ENV: "production" }), true);
+  assert.equal(isProductionBillingEnvironment({ NODE_ENV: "development" }), false);
+  assert.equal(isStripeCheckoutReady({
+    ...completeBillingEnvironment,
+    NODE_ENV: undefined,
+    RAILWAY_ENVIRONMENT_NAME: "production",
+    STRIPE_API_KEY: "sk_test_x",
+  }), false);
 });
 
 test("checkout is disabled unless every required Stripe setting is present", () => {
