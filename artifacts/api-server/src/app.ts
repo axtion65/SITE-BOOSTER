@@ -7,6 +7,7 @@ import { WebhookHandlers } from "./webhookHandlers";
 import { logger } from "./lib/logger";
 import { readFalWebhookHeaders, verifyFalWebhookSignature } from "./lib/falWebhookSignature";
 import { processFalCompletion, type FalCompletionEvent } from "./routes/webhooks";
+import { isAllowedBrowserOrigin } from "./lib/corsPolicy";
 
 const app: Express = express();
 
@@ -79,7 +80,20 @@ app.use(pinoHttp({
   },
 }));
 
-app.use(cors());
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!isAllowedBrowserOrigin(origin)) {
+    logger.warn({ origin, method: req.method, path: req.path }, "Blocked request from an unapproved browser origin");
+    res.status(403).json({ error: "Origin not allowed" });
+    return;
+  }
+  next();
+});
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, isAllowedBrowserOrigin(origin));
+  },
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/api", router);
