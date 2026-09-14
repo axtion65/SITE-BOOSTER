@@ -150,7 +150,7 @@ router.get("/admin/operations", async (req, res) => {
       openai: process.env.OPENAI_API_KEY ? "configured" : "not_configured",
       fal: process.env.FAL_KEY ? "configured" : "not_configured",
       stripe: process.env.STRIPE_API_KEY ? "configured" : "not_configured",
-      storage: (process.env.PRIVATE_OBJECT_DIR || process.env.AWS_BUCKET_NAME) ? "configured" : "not_configured",
+      storage: (process.env.PRIVATE_OBJECT_DIR || process.env.AWS_S3_BUCKET_NAME || process.env.BUCKET) ? "configured" : "not_configured",
       database: databaseStatus,
     },
   });
