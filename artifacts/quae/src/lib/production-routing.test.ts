@@ -27,7 +27,10 @@ test("every production page carries the browser security header baseline", () =>
   assert.deepEqual(vercel.headers[0], {
     source: "/(.*)",
     headers: [
-      { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+      {
+        key: "Content-Security-Policy",
+        value: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; frame-src 'none'; form-action 'self' https://checkout.stripe.com https://billing.stripe.com; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
+      },
       { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=()" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "Strict-Transport-Security", value: "max-age=31536000" },
@@ -36,6 +39,18 @@ test("every production page carries the browser security header baseline", () =>
       { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
     ],
   });
+
+  const contentSecurityPolicy = vercel.headers[0].headers[0].value;
+  for (const directive of [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "script-src 'self'",
+    "frame-src 'none'",
+    "upgrade-insecure-requests",
+  ]) {
+    assert.match(contentSecurityPolicy, new RegExp(directive.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
 });
 
 test("marketingApi uses one same-origin /api prefix", () => {
