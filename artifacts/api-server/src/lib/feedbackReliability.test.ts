@@ -33,3 +33,13 @@ test("public feedback input is bounded before storage", () => {
   assert.match(widget, /maxLength=\{MAX_FEEDBACK_MESSAGE_LENGTH\}/);
   assert.match(widget, /maxLength=\{MAX_FEEDBACK_EMAIL_LENGTH\}/);
 });
+
+test("public feedback storage is rate limited before its handler", () => {
+  const route = readFileSync(new URL("../routes/feedback.ts", import.meta.url), "utf8");
+
+  assert.match(route, /const feedbackRateLimit = createRateLimitMiddleware\(\{/);
+  assert.match(route, /scope: "feedback\.create\.client"/);
+  assert.match(route, /limit: 10/);
+  assert.match(route, /globalLimit: 300/);
+  assert.match(route, /router\.post\("\/feedback", feedbackRateLimit, async/);
+});
