@@ -70,14 +70,14 @@ export const signInBodyPasswordMin = 6;
 
 
 export const SignInBody = zod.object({
-  "email": zod.string(),
+  "email": zod.string().email(),
   "password": zod.string().min(signInBodyPasswordMin)
 })
 
 export const SignInResponse = zod.object({
   "user": zod.object({
   "id": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().email(),
   "name": zod.string().nullish(),
   "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
@@ -96,7 +96,7 @@ export const signUpBodyPasswordMin = 6;
 
 
 export const SignUpBody = zod.object({
-  "email": zod.string(),
+  "email": zod.string().email(),
   "password": zod.string().min(signUpBodyPasswordMin),
   "name": zod.string().optional()
 })
@@ -104,7 +104,7 @@ export const SignUpBody = zod.object({
 export const SignUpResponse = zod.object({
   "user": zod.object({
   "id": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().email(),
   "name": zod.string().nullish(),
   "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
@@ -119,7 +119,7 @@ export const SignUpResponse = zod.object({
  * @summary Send a single-use password reset link
  */
 export const ForgotPasswordBody = zod.object({
-  "email": zod.string()
+  "email": zod.string().email()
 })
 
 export const ForgotPasswordResponse = zod.object({
@@ -144,7 +144,7 @@ export const ResetPasswordBody = zod.object({
 export const ResetPasswordResponse = zod.object({
   "user": zod.object({
   "id": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().email(),
   "name": zod.string().nullish(),
   "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
@@ -160,7 +160,7 @@ export const ResetPasswordResponse = zod.object({
  */
 export const GetMeResponse = zod.object({
   "id": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().email(),
   "name": zod.string().nullish(),
   "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
@@ -476,7 +476,7 @@ export const GetAdminStatsResponse = zod.object({
  */
 export const ListAdminUsersResponseItem = zod.object({
   "id": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().email(),
   "name": zod.string().nullish(),
   "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),
@@ -512,7 +512,7 @@ export const UpdateAdminUserBody = zod.object({
 
 export const UpdateAdminUserResponse = zod.object({
   "id": zod.string(),
-  "email": zod.string(),
+  "email": zod.string().email(),
   "name": zod.string().nullish(),
   "plan": zod.enum(['free', 'starter', 'pro', 'agency']),
   "credits": zod.number(),

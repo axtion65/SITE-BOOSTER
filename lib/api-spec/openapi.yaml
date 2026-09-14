@@ -593,6 +593,7 @@ components:
       properties:
         email:
           type: string
+          format: email
         password:
           type: string
           minLength: 6
@@ -603,6 +604,7 @@ components:
       properties:
         email:
           type: string
+          format: email
         password:
           type: string
           minLength: 6
@@ -615,6 +617,7 @@ components:
       properties:
         email:
           type: string
+          format: email
 
     PasswordResetRequestResult:
       type: object
@@ -651,6 +654,7 @@ components:
           type: string
         email:
           type: string
+          format: email
         name:
           type: ["string", "null"]
         plan:
@@ -960,6 +964,7 @@ components:
           type: string
         email:
           type: string
+          format: email
         name:
           type: ["string", "null"]
         plan:
