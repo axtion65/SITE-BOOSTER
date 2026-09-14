@@ -26,6 +26,7 @@ test("admin operations reports Resend configuration and queued delivery failures
 });
 
 test("admin Stripe health uses complete checkout readiness", () => {
-  assert.match(operationsRoute, /stripe: isStripeCheckoutReady\(\)/);
+  assert.match(operationsRoute, /stripeService\.isCheckoutCatalogReady\(\)/);
+  assert.match(operationsRoute, /stripe: stripeReady/);
   assert.doesNotMatch(operationsRoute, /stripe: process\.env\.STRIPE_API_KEY/);
 });
