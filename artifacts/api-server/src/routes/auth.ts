@@ -13,10 +13,38 @@ import {
 import { sendPasswordResetEmail } from "../lib/email";
 import { refreshPaidPlanAllowance } from "../lib/subscriptionCredits";
 import { shouldRefreshPaidPlanAllowance } from "../lib/subscriptionCreditPolicy";
+import { createRateLimitMiddleware, emailRateLimitIdentity } from "../lib/rateLimit";
 
 const router = Router();
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
+const ONE_HOUR = 60 * 60 * 1000;
+
+const signinClientRateLimit = createRateLimitMiddleware({
+  scope: "auth.signin.client", limit: 10, globalLimit: 300, windowMs: FIFTEEN_MINUTES,
+});
+const signinAccountRateLimit = createRateLimitMiddleware({
+  scope: "auth.signin.account", limit: 10, globalLimit: 300, windowMs: FIFTEEN_MINUTES,
+  identity: emailRateLimitIdentity,
+});
+const signupRateLimit = createRateLimitMiddleware({
+  scope: "auth.signup.client", limit: 5, globalLimit: 100, windowMs: ONE_HOUR,
+});
+const changePasswordRateLimit = createRateLimitMiddleware({
+  scope: "auth.change_password", limit: 5, globalLimit: 100, windowMs: FIFTEEN_MINUTES,
+  identity: emailRateLimitIdentity,
+});
+const forgotPasswordClientRateLimit = createRateLimitMiddleware({
+  scope: "auth.forgot_password.client", limit: 5, globalLimit: 100, windowMs: ONE_HOUR,
+});
+const forgotPasswordAccountRateLimit = createRateLimitMiddleware({
+  scope: "auth.forgot_password.account", limit: 3, globalLimit: 100, windowMs: ONE_HOUR,
+  identity: emailRateLimitIdentity,
+});
+const resetPasswordRateLimit = createRateLimitMiddleware({
+  scope: "auth.reset_password.client", limit: 10, globalLimit: 100, windowMs: ONE_HOUR,
+});
 
 function hmacSign(payload: string): string {
   const secret = process.env.SESSION_SECRET ?? "dev-secret-change-me";
@@ -93,7 +121,7 @@ function userToPublic(user: typeof usersTable.$inferSelect) {
   };
 }
 
-router.post("/auth/signin", async (req, res) => {
+router.post("/auth/signin", signinClientRateLimit, signinAccountRateLimit, async (req, res) => {
   const parsed = SignInBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" });
@@ -121,7 +149,7 @@ router.post("/auth/signin", async (req, res) => {
   res.json({ user: userToPublic(currentUser), token: generateToken(user.id) });
 });
 
-router.post("/auth/signup", async (req, res) => {
+router.post("/auth/signup", signupRateLimit, async (req, res) => {
   const parsed = SignUpBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" });
@@ -150,7 +178,7 @@ router.post("/auth/signup", async (req, res) => {
   res.status(201).json({ user: userToPublic(user), token: generateToken(user.id) });
 });
 
-router.post("/auth/change-password", async (req, res) => {
+router.post("/auth/change-password", changePasswordRateLimit, async (req, res) => {
   const { email, currentPassword, newPassword } = req.body as {
     email?: string; currentPassword?: string; newPassword?: string;
   };
@@ -173,7 +201,7 @@ router.post("/auth/change-password", async (req, res) => {
   res.json({ user: userToPublic(user), token: generateToken(user.id) });
 });
 
-router.post("/auth/forgot-password", async (req, res) => {
+router.post("/auth/forgot-password", forgotPasswordClientRateLimit, forgotPasswordAccountRateLimit, async (req, res) => {
   const parsed = ForgotPasswordBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" });
@@ -212,7 +240,7 @@ router.post("/auth/forgot-password", async (req, res) => {
   res.json({ accepted: true });
 });
 
-router.post("/auth/reset-password", async (req, res) => {
+router.post("/auth/reset-password", resetPasswordRateLimit, async (req, res) => {
   const parsed = ResetPasswordBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid reset request" });
