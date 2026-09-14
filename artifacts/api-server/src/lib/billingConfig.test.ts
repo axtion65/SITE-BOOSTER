@@ -47,3 +47,10 @@ test("billing routes use the public app origin and Stripe webhooks fail closed",
   assert.match(webhook, /if \(!webhookSecret\) throw/);
   assert.doesNotMatch(webhook, /JSON\.parse\(payload|skipping signature verification/);
 });
+
+test("Checkout delegates eligible payment methods to Stripe", () => {
+  const service = readFileSync(new URL("../stripeService.ts", import.meta.url), "utf8");
+  assert.match(service, /stripe\.checkout\.sessions\.create/);
+  assert.match(service, /mode: 'subscription'/);
+  assert.doesNotMatch(service, /payment_method_types/);
+});
