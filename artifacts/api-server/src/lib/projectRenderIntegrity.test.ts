@@ -12,6 +12,8 @@ const boundaryNames = ["@workspace/db", "./auth", "../lib/falvideo", "../lib/vid
 const built = await build({
   entryPoints: [fileURLToPath(new URL("../routes/projects.ts", import.meta.url))],
   bundle: true, platform: "node", format: "cjs", packages: "external", write: false,
+  // Route lazy I/O imports through the same explicit require boundary mocks.
+  supported: { "dynamic-import": false },
   plugins: [{ name: "project-test-boundaries", setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => boundaryNames.includes(args.path)
       ? { path: `test-boundary:${args.path}`, external: true } : undefined);
@@ -38,14 +40,15 @@ function harness(overrides: Record<string, unknown> = {}) {
       title: "Quae ad", description: null, renderingModelId: "ltx-fast", duration: "15s", platform: "instagram", voiceId: "alloy",
       renderIntent: "create_new", script: "old production artifact", expandedScript: JSON.stringify(canonical),
       renderAttempt: 1, createdAt: new Date(), updatedAt: new Date(), ...overrides } as any,
-    authority: textAuthority as any, events: [] as string[], queries: [] as { sql: string; params: unknown[] }[],
+    authority: textAuthority as any, events: [] as string[], queries: [] as { sql: string; params: unknown[]; inTransaction?: boolean }[],
     projectWrites: 0, debits: 0, ledgerWrites: 0, workers: 0, preflights: 0,
-    providerReady: true, sufficientCredits: true, authenticated: true, owned: true,
+    providerReady: true, sufficientCredits: true, authenticated: true, owned: true, projectExists: true,
+    inTransaction: false, onPreflight: null as (() => void) | null,
     onProjectLock: null as (() => void) | null,
   };
   const db: any = {
     select() { return { from(table: unknown) {
-      const rows = () => table === projectsTable ? (state.owned ? [{ ...state.project }] : []) : [{ id: "owner", credits: 600, isAdmin: false }];
+      const rows = () => table === projectsTable ? (state.owned && state.projectExists ? [{ ...state.project }] : []) : [{ id: "owner", credits: 600, isAdmin: false }];
       const cursor = {
         where(condition: any) { state.queries.push(dialect.sqlToQuery(condition)); return cursor; },
         for(mode: string) { assert.equal(mode, "update"); state.events.push("project-lock"); state.onProjectLock?.(); return Promise.resolve(rows()); },
@@ -62,19 +65,37 @@ function harness(overrides: Record<string, unknown> = {}) {
         return [{ ...state.project }];
       } };
     } }; } }; },
-    insert(table: unknown) { assert.equal(table, creditLedgerTable); return { async values(value: any) {
+    insert(table: unknown) { return { values(value: any) {
+      if (table === projectsTable) return { async returning() {
+        state.events.push("project-write"); state.projectWrites++; state.projectExists = true;
+        state.project = { ...state.project, ...value };
+        return [{ ...state.project }];
+      } };
+      assert.equal(table, creditLedgerTable);
       assert.equal(value.amount, -90); state.events.push("ledger"); state.ledgerWrites++;
+      return Promise.resolve();
     } }; },
-    async execute(query: any) { state.events.push("authority"); state.queries.push(dialect.sqlToQuery(query)); return { rows: state.authority ? [state.authority] : [] }; },
-    async transaction(work: (tx: any) => Promise<unknown>) { return work(db); },
+    async execute(query: any) { state.events.push("authority"); state.queries.push({ ...dialect.sqlToQuery(query), inTransaction: state.inTransaction }); return { rows: state.authority ? [{ ...state.authority }] : [] }; },
+    async transaction(work: (tx: any) => Promise<unknown>) {
+      state.inTransaction = true;
+      try { return await work(db); } finally { state.inTransaction = false; }
+    },
   };
   const boundaries: Record<string, any> = {
-    "@workspace/db": { db, pool: { query() { throw new Error("Unexpected raw database I/O"); } }, projectsTable, usersTable, creditLedgerTable },
+    "@workspace/db": { db, pool: { async query(query: string) {
+      assert.equal(query, "SELECT 1 FROM campaigns WHERE id=$1 AND user_id=$2 AND status='approved'");
+      return { rows: state.authority ? [{}] : [] };
+    } }, projectsTable, usersTable, creditLedgerTable },
     "./auth": { resolveUserIdFromToken: async () => state.authenticated ? "owner" : null },
     "../lib/falvideo": { MODEL_CREDIT_COSTS: {}, isFalToken: () => false, isWebhookFalToken: () => false, pollFalVideoRender: () => { throw new Error("Provider polling forbidden"); } },
     "../lib/videoProduction": { startVideoProduction(id: string) { assert.equal(id, "project"); state.events.push("worker"); state.workers++; } },
-    "../lib/falProviderReadiness": { async checkFalProviderReadiness() { state.events.push("preflight"); state.preflights++; return { ready: state.providerReady, code: "unavailable" }; } },
+    "../lib/falProviderReadiness": { async checkFalProviderReadiness() { state.events.push("preflight"); state.preflights++; state.onPreflight?.(); return { ready: state.providerReady, code: "unavailable" }; } },
     "../lib/logger": { logger: { error() {}, warn() {} } },
+    "../lib/objectStorage": { ObjectStorageService: class {
+      normalizeObjectEntityPath(value: string) { return value; }
+      async getObjectEntityFile(value: string) { return { path: value }; }
+      async canAccessObjectEntity() { return true; }
+    } },
   };
   const module = { exports: {} as any };
   new Function("require", "module", "exports", built.outputFiles[0]!.text)((id: string) => {
@@ -85,9 +106,10 @@ function harness(overrides: Record<string, unknown> = {}) {
     }
     return require(id);
   }, module, module.exports);
-  return { state, async request(method: "patch" | "post", body: unknown = {}) {
-    const path = method === "patch" ? "/projects/:id" : "/projects/:id/rerender";
-    const layer = module.exports.default.stack.find((entry: any) => entry.route?.path === path && entry.route.methods[method]);
+  return { state, async request(method: "patch" | "post" | "create", body: unknown = {}) {
+    const path = method === "create" ? "/projects" : method === "patch" ? "/projects/:id" : "/projects/:id/rerender";
+    const verb = method === "create" ? "post" : method;
+    const layer = module.exports.default.stack.find((entry: any) => entry.route?.path === path && entry.route.methods[verb]);
     assert.ok(layer, `Actual ${method} ${path} handler must exist`);
     const response = { code: 200, body: null as any, status(code: number) { this.code = code; return this; }, json(value: unknown) { this.body = value; return this; } };
     await layer.route.stack[0].handle({ headers: { authorization: "Bearer test" }, params: { id: "project" }, body }, response);
@@ -202,4 +224,92 @@ test("provider unavailability and insufficient credits do not start a retry", as
   const insufficient = harness(); insufficient.state.sufficientCredits = false;
   assert.equal((await insufficient.request("post")).code, 402);
   assert.equal(insufficient.state.workers, 0); assert.equal(insufficient.state.projectWrites, 0); assert.equal(insufficient.state.ledgerWrites, 0);
+});
+
+const createBody = {
+  title: "Quae ad", renderingModelId: "ltx-fast", platform: "instagram", duration: "15s",
+  renderIntent: "create_new", expandedScript: JSON.stringify(canonical),
+  campaignId: "campaign", confirmed: true, idempotencyKey: "create-once",
+};
+
+test("initial creation rejects approval withdrawn after preflight before charging", async () => {
+  const { state, request } = harness(); state.projectExists = false;
+  state.onPreflight = () => { state.authority = null; };
+  const result = await request("create", createBody);
+  assert.equal(result.code, 409);
+  assertNoProduction(state);
+});
+
+test("initial creation rejects a superseded run even when its approved words are identical", async () => {
+  const { state, request } = harness(); state.projectExists = false;
+  state.onPreflight = () => { state.authority = { ...textAuthority, approved_run_id: "new-run", campaign_run_id: "new-run" }; };
+  assert.equal((await request("create", createBody)).code, 409);
+  assertNoProduction(state);
+});
+
+test("initial creation rejects changed approved copy or platform inside its transaction", async () => {
+  for (const changes of [
+    { run_final_result: { ...textAuthority.run_final_result, finalScript: { ...textAuthority.run_final_result.finalScript, script: "Different approved words" } } },
+    { brief: { ...textAuthority.brief, channel: "YouTube" } },
+  ]) {
+    const { state, request } = harness(); state.projectExists = false;
+    state.onPreflight = () => { state.authority = { ...textAuthority, ...changes }; };
+    assert.equal((await request("create", createBody)).code, 409);
+    assertNoProduction(state);
+  }
+});
+
+test("initial creation locks current approval before its single debit and retains idempotency", async () => {
+  const { state, request } = harness(); state.projectExists = false;
+  assert.equal((await request("create", createBody)).code, 201);
+  assert.deepEqual(state.events, ["authority", "preflight", "authority", "debit", "project-write", "ledger", "worker"]);
+  const authorityReads = state.queries.filter(query => query.sql.includes("FROM campaigns c"));
+  assert.deepEqual(authorityReads.map(query => query.inTransaction), [false, true]);
+  assert.match(authorityReads[1]!.sql, /FOR SHARE OF c,b,r/);
+  assert.equal(state.project.campaignRunId, "run");
+  assert.deepEqual(JSON.parse(state.project.expandedScript), canonical);
+  const replay = await request("create", createBody);
+  assert.equal(replay.code, 200);
+  assert.equal(state.debits, 1); assert.equal(state.projectWrites, 1); assert.equal(state.ledgerWrites, 1); assert.equal(state.workers, 1);
+});
+
+const animateBody = {
+  ...createBody, renderIntent: "animate", campaignVideoBriefId: "brief",
+  sourceAssetId: "/objects/product.png", productImageUrl: "/api/storage/objects/product.png",
+};
+const visualAuthority = {
+  id: "brief", campaign_run_id: "run", mockup_project_id: "mockup", mockup_version_id: "version",
+  object_path: "/objects/product.png", brief,
+};
+
+test("initial animation creation rejects visual replacement or deselection before debit", async () => {
+  for (const current of [null, { ...visualAuthority, mockup_version_id: "new-version" }, { ...visualAuthority, object_path: "/objects/new.png" }]) {
+    const { state, request } = harness(); state.projectExists = false; state.authority = visualAuthority;
+    state.onPreflight = () => { state.authority = current; };
+    assert.equal((await request("create", animateBody)).code, 409);
+    assertNoProduction(state);
+  }
+});
+
+test("initial animation creation locks the exact confirmed visual through debit and persistence", async () => {
+  const { state, request } = harness(); state.projectExists = false; state.authority = visualAuthority;
+  assert.equal((await request("create", animateBody)).code, 201);
+  assert.equal(state.project.campaignRunId, "run");
+  assert.equal(state.project.campaignVideoBriefId, "brief");
+  assert.equal(state.project.mockupVersionId, "version");
+  assert.equal(state.project.sourceAssetId, "/objects/product.png");
+  assert.equal(state.debits, 1); assert.equal(state.workers, 1);
+  const authorityReads = state.queries.filter(query => query.sql.includes("FROM campaign_video_briefs"));
+  assert.deepEqual(authorityReads.map(query => query.inTransaction), [false, true]);
+  assert.match(authorityReads[1]!.sql, /FOR SHARE OF c,b,vb,s,mp,mv/);
+});
+
+test("standalone initial creation does not require a campaign; provider failure cannot debit", async () => {
+  const ordinary = harness(); ordinary.state.projectExists = false;
+  assert.equal((await ordinary.request("create", { ...createBody, campaignId: undefined })).code, 201);
+  assert.equal(ordinary.state.queries.filter(query => query.sql.includes("FROM campaigns c")).length, 0);
+  assert.equal(ordinary.state.debits, 1);
+  const unavailable = harness(); unavailable.state.projectExists = false; unavailable.state.providerReady = false;
+  assert.equal((await unavailable.request("create", createBody)).code, 503);
+  assertNoProduction(unavailable.state);
 });

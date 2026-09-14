@@ -513,6 +513,28 @@ router.post("/projects", async (req, res) => {
   let project: typeof projectsTable.$inferSelect;
   try {
     project = await db.transaction(async (tx) => {
+      if (campaignId) {
+        const current = renderIntent === "animate"
+          ? await loadApprovedVisualProduction(campaignVideoBriefId!, campaignId, userId, tx)
+          : await loadApprovedTextProduction(campaignId, userId, tx);
+        if (!current || current.campaign_run_id !== production.campaign_run_id ||
+          (renderIntent === "animate" && (current.object_path !== ownedSourcePath ||
+            current.mockup_project_id !== production.mockup_project_id ||
+            current.mockup_version_id !== production.mockup_version_id))) {
+          throw new ProjectMutationError("The approved campaign or selected visual changed. Review the current campaign before rendering.");
+        }
+        let currentScript: ExpandedScript;
+        try { currentScript = approvedCampaignBriefToExpandedScript(current.brief); }
+        catch { throw new ProjectMutationError("The approved campaign video brief is incomplete or unavailable."); }
+        if (!matchesApprovedCampaignScript(renderScript, currentScript) ||
+          approvedCampaignPlatform(current.brief?.platform) !== authoritativeCampaignPlatform) {
+          throw new ProjectMutationError("Campaign copy changed after confirmation. Review the current campaign before rendering.");
+        }
+        // The approval and exact visual stay locked through the debit and insert.
+        // Persist the canonical scene directions from that same locked authority.
+        production = current;
+        renderScript = currentScript;
+      }
       let balanceAfter = user.credits;
       if (!user.isAdmin) {
         const [balance] = await tx
@@ -564,6 +586,10 @@ router.post("/projects", async (req, res) => {
       return created!;
     });
   } catch (err) {
+    if (err instanceof ProjectMutationError) {
+      res.status(err.httpStatus).json({ error: err.message });
+      return;
+    }
     if (err instanceof InsufficientCreditsError) {
       res.status(402).json({ error: `Not enough credits. This render costs ${creditCost} credits.` });
       return;
