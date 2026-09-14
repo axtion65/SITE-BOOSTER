@@ -53,14 +53,14 @@ export default function FeedbackWidget() {
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
       {/* Panel */}
       {step === "open" && (
-        <div className="w-80 rounded-2xl border border-white/10 bg-[#0f0f14] shadow-2xl shadow-black/60 overflow-hidden">
+        <div role="dialog" aria-label="Share feedback" className="w-80 rounded-2xl border border-white/10 bg-[#0f0f14] shadow-2xl shadow-black/60 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
             <div className="flex items-center gap-2">
               <img src="/images/logo-icon.png" alt="Quae.ai" className="h-5 w-5 rounded-md object-cover" />
               <span className="text-sm font-semibold text-white">Share feedback</span>
             </div>
-            <button onClick={() => setStep("closed")} className="text-muted-foreground hover:text-white transition-colors">
+            <button aria-label="Close feedback" onClick={() => setStep("closed")} className="text-muted-foreground hover:text-white transition-colors">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -85,6 +85,7 @@ export default function FeedbackWidget() {
             </div>
 
             <Textarea
+              aria-label="Feedback message"
               placeholder="What's on your mind?"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -94,6 +95,7 @@ export default function FeedbackWidget() {
             />
 
             <Input
+              aria-label="Reply email (optional)"
               type="email"
               placeholder="Email (optional, for replies)"
               value={email}
@@ -139,6 +141,7 @@ export default function FeedbackWidget() {
       {/* Trigger button */}
       {step !== "sent" && (
         <button
+          aria-label={step === "open" ? "Close feedback" : "Open feedback"}
           onClick={() => setStep(step === "open" ? "closed" : "open")}
           className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg shadow-black/40 border transition-all font-medium text-sm ${
             step === "open"

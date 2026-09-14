@@ -784,6 +784,7 @@ function Wizard() {
                 <div className="space-y-2">
                   <Label>Product Name</Label>
                   <Input
+                    aria-label="Product name"
                     placeholder="e.g. Lumina Sleep Mask"
                     className="h-12 text-lg"
                     value={productName}
@@ -794,6 +795,7 @@ function Wizard() {
                 <div className="space-y-2">
                   <Label>Product Description & Benefits</Label>
                   <Textarea
+                    aria-label="Product description and benefits"
                     placeholder="What does it do? Why is it great? What problem does it solve?"
                     className="min-h-[120px] text-base resize-none"
                     value={description}
@@ -873,6 +875,7 @@ function Wizard() {
                   {campaignId&&<div className="mt-4 rounded-xl border border-white/10 p-4"><p className="text-sm font-bold">Choose from My Visuals</p><p className="mt-1 text-xs text-muted-foreground">Choose one primary visual and optional additional campaign visuals. Originals stay in My Visuals.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{visualOptions.map((visual:any)=>{const selected=selectedVisualIds.includes(visual.version_id);return <button type="button" key={visual.version_id} onClick={()=>{const ids=selected?selectedVisualIds.filter(id=>id!==visual.version_id):[...selectedVisualIds,visual.version_id];if(ids.length)void saveVisualSelection(ids)}} className={`overflow-hidden rounded-lg border text-left text-xs ${selected?"border-violet-400 bg-violet-500/10":"border-white/10"}`}><MarketingImage objectPath={visual.object_path} alt={visual.name} className="aspect-video w-full object-cover"/><div className="p-3"><b className="block text-sm">{visual.name}</b><span>Status: {String(visual.status).replaceAll("_"," ")} · Version {visual.version_number}</span><span className="block mt-1">Created {new Date(visual.created_at).toLocaleDateString()}</span><span className="mt-2 block font-bold text-violet-200">{selected?(selectedVisualIds[0]===visual.version_id?"Primary visual":"Additional visual"):"Attach visual"}</span></div></button>})}{visualOptions.length===0&&<p className="text-xs text-muted-foreground">No selectable saved visuals yet.</p>}</div></div>}
 
                   <input
+                    aria-label="Upload product image"
                     ref={imageInputRef}
                     type="file"
                     accept="image/*"
@@ -885,6 +888,7 @@ function Wizard() {
                   <div className="space-y-2">
                     <Label>Target Audience</Label>
                     <Input
+                      aria-label="Target audience"
                       placeholder="e.g. Insomniacs"
                       value={targetAudience}
                       onChange={(e) => setTargetAudience(e.target.value)}
@@ -893,7 +897,7 @@ function Wizard() {
                   <div className="space-y-2">
                     <Label>Platform</Label>
                     <Select value={platform} onValueChange={handlePlatformChange}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label="Platform"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="tiktok">TikTok</SelectItem>
                         <SelectItem value="instagram">Instagram Reels</SelectItem>
@@ -969,6 +973,7 @@ function Wizard() {
                     <Pencil className="h-3 w-3 text-primary/60" />
                   </div>
                   <Textarea
+                    aria-label="Advertising hook"
                     value={expandedScript.hook}
                     readOnly={Boolean(campaignHandoff)}
                     onChange={(e) => updateHook(e.target.value)}
@@ -1042,6 +1047,7 @@ function Wizard() {
                         {isHintOpen && (
                           <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
                             <Input
+                              aria-label={`Scene ${scene.sceneNumber} regeneration guidance`}
                               placeholder="Optional: nudge the AI (e.g. 'make it more dramatic')"
                               className="h-8 text-xs bg-transparent border-white/10 focus:border-primary/40 flex-1"
                               value={sceneHints[idx] ?? ""}
@@ -1075,6 +1081,7 @@ function Wizard() {
                             <Pencil className="h-2.5 w-2.5 text-muted-foreground/60" />
                           </div>
                           <Textarea
+                            aria-label={`Scene ${scene.sceneNumber} description`}
                             value={scene.description}
                             readOnly={Boolean(campaignHandoff)}
                             onChange={(e) => updateScene(idx, "description", e.target.value)}
@@ -1091,6 +1098,7 @@ function Wizard() {
                             <Pencil className="h-2.5 w-2.5 text-primary/60" />
                           </div>
                           <Textarea
+                            aria-label={`Scene ${scene.sceneNumber} visual direction`}
                             value={scene.visualDirection}
                             readOnly={Boolean(campaignHandoff)}
                             onChange={(e) => updateScene(idx, "visualDirection", e.target.value)}
@@ -1112,6 +1120,7 @@ function Wizard() {
                   <Pencil className="h-3 w-3 text-muted-foreground/60" />
                 </div>
                 <Textarea
+                  aria-label="Full voiceover"
                   value={expandedScript.voiceoverText}
                   readOnly={Boolean(campaignHandoff)}
                   onChange={(e) => updateVoiceover(e.target.value)}

@@ -96,6 +96,7 @@ function SettingsContent() {
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-[#AAB6CA] uppercase tracking-wider">Display name</label>
               <input
+                aria-label="Display name"
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
