@@ -7,6 +7,7 @@ import { sanitizeVisualPrompt } from "../lib/falvideo";
 import { RENDERING_MODELS } from "@workspace/plans";
 import { normalizeProductionModelDuration } from "../lib/projectSubmission";
 import { createProviderActionRateLimit } from "../lib/providerActionBudget";
+import { safeErrorMetadata } from "../lib/safeErrorMetadata";
 
 const router = Router();
 const providerActionRateLimit = createProviderActionRateLimit(resolveUserIdFromToken);
@@ -261,7 +262,7 @@ The hook must stop the scroll in the first 2-3 seconds. Every scene must be purp
     const text = completion.choices[0]?.message?.content ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error("[openai] no JSON found in response:", text.slice(0, 300));
+      console.error("[openai] response did not contain the expected JSON");
       res.status(500).json({ error: "Failed to parse AI response" });
       return;
     }
@@ -290,7 +291,7 @@ The hook must stop the scroll in the first 2-3 seconds. Every scene must be purp
     if (failures.length) console.warn("[openai] script retained non-timing validation warnings after repair:", failures);
     res.json(generated);
   } catch (err: any) {
-    console.error("[openai] expand-prompt error:", err?.message ?? err);
+    console.error("[openai] expand-prompt failed", safeErrorMetadata(err));
     res.status(500).json({ error: "AI generation failed — please try again in a moment" });
   }
 });
@@ -377,7 +378,7 @@ Write a fresh version of this scene. The description should be vivid and purpose
     const text = completion.choices[0]?.message?.content ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error("[openai] no JSON in regenerate-scene response:", text.slice(0, 300));
+      console.error("[openai] regenerate-scene response did not contain the expected JSON");
       res.status(500).json({ error: "Failed to parse AI response" });
       return;
     }
@@ -388,7 +389,7 @@ Write a fresh version of this scene. The description should be vivid and purpose
       visualDirection: sanitizeVisualPrompt(scene.visualDirection),
     });
   } catch (err: any) {
-    console.error("[openai] regenerate-scene error:", err?.message ?? err);
+    console.error("[openai] regenerate-scene failed", safeErrorMetadata(err));
     res.status(500).json({ error: "AI generation failed — please try again in a moment" });
   }
 });

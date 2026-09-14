@@ -9,6 +9,7 @@ import { readFalWebhookHeaders, verifyFalWebhookSignature } from "./lib/falWebho
 import { processFalCompletion, type FalCompletionEvent } from "./routes/webhooks";
 import { isAllowedBrowserOrigin } from "./lib/corsPolicy";
 import { setApiSecurityHeaders } from "./lib/securityHeaders";
+import { safeErrorMetadata } from "./lib/safeErrorMetadata";
 
 const app: Express = express();
 app.disable("x-powered-by");
@@ -29,7 +30,7 @@ app.post(
       await WebhookHandlers.processWebhook(req.body as Buffer, sig);
       res.status(200).json({ received: true });
     } catch (err: any) {
-      console.error("[stripe-webhook] error:", err.message);
+      console.error("[stripe-webhook] processing failed", safeErrorMetadata(err));
       res.status(400).json({ error: "Webhook error" });
     }
   }
@@ -68,7 +69,7 @@ app.post(
     } catch (err) {
       // A transient JWKS/database problem must return non-2xx so fal retries the
       // same request_id. The completion path itself is idempotent.
-      logger.error({ err }, "fal webhook processing failed");
+      logger.error(safeErrorMetadata(err), "fal webhook processing failed");
       res.status(503).json({ error: "Webhook temporarily unavailable" });
     }
   },
@@ -107,14 +108,7 @@ app.use("/api", router);
 // Global error handler — Express 5 routes async rejections here automatically.
 // Logs the PostgreSQL error code/detail so Railway logs show the real cause.
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error({
-    err,
-    pg_code: err.code,
-    pg_detail: err.detail,
-    pg_hint: err.hint,
-    pg_table: err.table,
-    pg_constraint: err.constraint,
-  }, "Unhandled route error");
+  logger.error(safeErrorMetadata(err), "Unhandled route error");
   if (!res.headersSent) {
     res.status(500).json({ error: "Internal server error" });
   }

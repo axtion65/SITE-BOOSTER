@@ -7,6 +7,8 @@
  * own legacy fallback or production failure policy.
  */
 
+import { safeErrorMetadata } from "./safeErrorMetadata";
+
 const VALID_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
 type TtsVoice = typeof VALID_VOICES[number];
 
@@ -68,8 +70,7 @@ export async function generateSpeechBuffer(text: string, voice?: string | null):
     });
 
     if (!res.ok) {
-      const err = await res.text();
-      console.error(`[tts] TTS API error ${res.status}:`, err.slice(0, 300));
+      console.error("[tts] TTS API request failed", { httpStatus: res.status });
       return null;
     }
 
@@ -78,7 +79,7 @@ export async function generateSpeechBuffer(text: string, voice?: string | null):
     console.log(`[tts] Generated speech: ${buffer.length} bytes for ${input.length} chars`);
     return buffer;
   } catch (err) {
-    console.error('[tts] TTS request failed:', err);
+    console.error('[tts] TTS request failed', safeErrorMetadata(err));
     return null;
   }
 }

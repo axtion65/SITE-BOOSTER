@@ -14,6 +14,8 @@
  *   Shotstack soundtrack (royalty-free, selected by platform)
  */
 
+import { safeErrorMetadata } from "./safeErrorMetadata";
+
 const SHOTSTACK_BASE =
   process.env.SHOTSTACK_ENV === "production"
     ? "https://api.shotstack.io/edit/v1"
@@ -113,14 +115,14 @@ async function generateAIImage(prompt: string, portrait: boolean): Promise<strin
     });
 
     if (!res.ok) {
-      console.error("[fal-image] error:", res.status, await res.text());
+      console.error("[fal-image] Request failed", { httpStatus: res.status });
       return null;
     }
 
     const data = (await res.json()) as { images?: Array<{ url: string }> };
     return data.images?.[0]?.url ?? null;
   } catch (err) {
-    console.error("[fal-image] fetch error:", err);
+    console.error("[fal-image] Request failed", safeErrorMetadata(err));
     return null;
   }
 }
@@ -147,7 +149,7 @@ async function searchPexelsPhoto(query: string, portrait: boolean): Promise<stri
 
     return photo.src.large2x ?? photo.src.large ?? null;
   } catch (err) {
-    console.error("[pexels] error:", err);
+    console.error("[pexels] Request failed", safeErrorMetadata(err));
     return null;
   }
 }

@@ -3,11 +3,13 @@
  *
  * Minimal isolated test: submit one LTX 2.3 Fast job directly via the
  * official @fal-ai/client singleton, poll to completion, return the video URL.
- * No credits, no auth, no storage, no OpenAI.  Remove after smoke-test.
+ * Admin-only with explicit provider-cost confirmation. No Quae credits, storage,
+ * or OpenAI. Remove after smoke-test.
  */
 import { Router } from "express";
 import { fal } from "@fal-ai/client";
 import { resolveUserFromToken } from "./auth";
+import { safeErrorMetadata } from "../lib/safeErrorMetadata";
 
 const router = Router();
 
@@ -47,10 +49,10 @@ router.post("/debug/fal-video-test", async (req, res) => {
     requestId = enqueued.request_id;
     console.log(`[fal-debug] enqueued request_id="${requestId}"`);
   } catch (err: any) {
-    const body = err?.body ?? err?.message ?? String(err);
-    const status = err?.status ?? 500;
-    console.error(`[fal-debug] submit FAILED status=${status}:`, body);
-    res.status(500).json({ error: "fal.ai submit failed", http_status: status, body });
+    const details = safeErrorMetadata(err);
+    const status = details.httpStatus ?? 500;
+    console.error("[fal-debug] submit failed", details);
+    res.status(500).json({ error: "fal.ai submit failed", http_status: status });
     return;
   }
 
@@ -68,10 +70,10 @@ router.post("/debug/fal-video-test", async (req, res) => {
       pollStatus = statusRes?.status ?? "UNKNOWN";
       console.log(`[fal-debug] request_id="${requestId}" status="${pollStatus}" elapsed=${Math.round((Date.now() - started) / 1000)}s`);
     } catch (err: any) {
-      const body = err?.body ?? err?.message ?? String(err);
-      const httpStatus = err?.status ?? 500;
-      console.error(`[fal-debug] status poll FAILED http=${httpStatus}:`, body);
-      res.status(500).json({ error: "fal.ai status poll failed", request_id: requestId, http_status: httpStatus, body });
+      const details = safeErrorMetadata(err);
+      const httpStatus = details.httpStatus ?? 500;
+      console.error("[fal-debug] status poll failed", { requestId, ...details });
+      res.status(500).json({ error: "fal.ai status poll failed", request_id: requestId, http_status: httpStatus });
       return;
     }
 
@@ -90,13 +92,11 @@ router.post("/debug/fal-video-test", async (req, res) => {
   let raw: any;
   try {
     raw = await (fal.queue as any).result(MODEL, { requestId });
-    console.log("[fal-debug] result keys:", Object.keys(raw ?? {}));
-    console.log("[fal-debug] full result:", JSON.stringify(raw).slice(0, 2000));
   } catch (err: any) {
-    const body = err?.body ?? err?.message ?? String(err);
-    const httpStatus = err?.status ?? 500;
-    console.error(`[fal-debug] result fetch FAILED http=${httpStatus}:`, body);
-    res.status(500).json({ error: "fal.ai result fetch failed", request_id: requestId, http_status: httpStatus, body });
+    const details = safeErrorMetadata(err);
+    const httpStatus = details.httpStatus ?? 500;
+    console.error("[fal-debug] result fetch failed", { requestId, ...details });
+    res.status(500).json({ error: "fal.ai result fetch failed", request_id: requestId, http_status: httpStatus });
     return;
   }
 
@@ -113,13 +113,13 @@ router.post("/debug/fal-video-test", async (req, res) => {
     null;
 
   if (!videoUrl || typeof videoUrl !== "string") {
-    console.error("[fal-debug] COMPLETED but no video URL. raw:", JSON.stringify(raw).slice(0, 1000));
-    res.status(500).json({ error: "Job completed but no video URL found", request_id: requestId, raw });
+    console.error("[fal-debug] Completed response did not contain a video URL", { requestId });
+    res.status(500).json({ error: "Job completed but no video URL found", request_id: requestId });
     return;
   }
 
   const elapsed = Math.round((Date.now() - started) / 1000);
-  console.log(`[fal-debug] ✓ SUCCESS in ${elapsed}s — video_url=${videoUrl}`);
+  console.log(`[fal-debug] Success in ${elapsed}s`, { requestId });
 
   res.json({
     ok:          true,

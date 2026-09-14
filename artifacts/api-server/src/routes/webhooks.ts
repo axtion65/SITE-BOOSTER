@@ -2,6 +2,7 @@ import { db, projectsTable, usersTable, creditLedgerTable } from "@workspace/db"
 import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 import { extractFalRequestId } from "../lib/falvideo";
 import { processProductionSceneCompletion } from "../lib/videoProduction";
+import { safeErrorMetadata } from "../lib/safeErrorMetadata";
 
 /**
  * Atomically transition a project from "processing" → "failed" and refund credits
@@ -97,7 +98,7 @@ export async function processFalCompletion(payload: FalCompletionEvent): Promise
   }
 
   if (payload.status === "ERROR" || payload.error) {
-    console.error(`[webhook/fal] Render FAILED for project ${project.id}:`, payload.error);
+    console.error(`[webhook/fal] Render failed for project ${project.id}`, { requestId });
     const creditCost = project.creditCharge;
     const wonFail = await failAndRefund(project.id, project.userId, creditCost, project.thumbnailUrl!);
     if (wonFail) {
@@ -194,7 +195,7 @@ export async function processFalCompletion(payload: FalCompletionEvent): Promise
                 permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
               }
             } catch (err) {
-              console.error("[webhook/fal] Narration error — archiving silent video:", err);
+              console.error("[webhook/fal] Narration failed — archiving silent video", safeErrorMetadata(err));
               permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
             }
           } else {
@@ -223,13 +224,13 @@ export async function processFalCompletion(payload: FalCompletionEvent): Promise
             console.log(`[webhook/fal] Archival race: project ${projectId} was re-rendered — skipping completion`);
           }
         } catch (err) {
-          console.error("[webhook/fal] Archival failed — failing project and refunding credits:", err);
+          console.error("[webhook/fal] Archival failed — failing project and refunding credits", safeErrorMetadata(err));
           await failAndRefund(projectId, project.userId, creditCost).catch(() => {});
         }
       });
     }
   } else {
-    console.error(`[webhook/fal] OK but no URL for project ${project.id}. Keys:`, Object.keys(output), "payload_error=", payload.payload_error);
+    console.error(`[webhook/fal] Completed response did not contain a video URL for project ${project.id}`, { requestId });
     // Fail + refund atomically
     const creditCost = project.creditCharge;
     const won = await failAndRefund(project.id, project.userId, creditCost, project.thumbnailUrl!);
