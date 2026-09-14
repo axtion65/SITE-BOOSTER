@@ -19,6 +19,7 @@ import {
   type VideoProductionPlan,
   VIDEO_PRODUCTION_VERSION,
 } from "./videoProductionPlan";
+import { safeErrorMetadata } from "./safeErrorMetadata";
 
 const ACTIVE_PROJECT_STATUSES = ["preparing", "processing", "assembling"];
 const SCENE_FIRST_POLL_MS = 5 * 60_000;
@@ -27,7 +28,7 @@ const MAX_SCENE_POLLS = 2;
 const SCENE_TRANSITION_TIMEOUT_MS = 20 * 60_000;
 
 function failureText(error: unknown): string {
-  return (error instanceof Error ? error.message : String(error)).slice(0, 1000);
+  return JSON.stringify(safeErrorMetadata(error));
 }
 
 async function failProductionProject(projectId: string, failureCode: string, error: unknown): Promise<void> {
@@ -58,7 +59,7 @@ async function failProductionProject(projectId: string, failureCode: string, err
       });
     }
   });
-  console.error(`[video-production] ${projectId} failed (${failureCode}): ${failureText(error)}`);
+  console.error(`[video-production] ${projectId} failed (${failureCode})`, safeErrorMetadata(error));
 }
 
 async function productionContext(project: typeof projectsTable.$inferSelect): Promise<{
@@ -328,8 +329,8 @@ export function startVideoProductionWorker(): void {
       if (remaining[0]?.count === 0) await assembleVideoProduction(project.id, project.renderAttempt);
     }
   };
-  void tick().catch((error) => console.error("[video-production] resume worker error", error));
-  productionWorkerTimer = setInterval(() => void tick().catch((error) => console.error("[video-production] resume worker error", error)), 60_000);
+  void tick().catch((error) => console.error("[video-production] resume worker error", safeErrorMetadata(error)));
+  productionWorkerTimer = setInterval(() => void tick().catch((error) => console.error("[video-production] resume worker error", safeErrorMetadata(error))), 60_000);
   productionWorkerTimer.unref();
 }
 

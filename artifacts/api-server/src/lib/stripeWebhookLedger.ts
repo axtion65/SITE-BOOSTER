@@ -1,12 +1,9 @@
 import { db, stripeWebhookEventsTable } from "@workspace/db";
 import { and, eq, ne, sql } from "drizzle-orm";
-
-const MAX_ERROR_LENGTH = 1_000;
+import { safeErrorMetadata } from "./safeErrorMetadata";
 
 function safeErrorMessage(error: unknown): string {
-  const message =
-    error instanceof Error ? error.message : "Unknown webhook processing error";
-  return message.replace(/[\r\n\t]+/g, " ").slice(0, MAX_ERROR_LENGTH);
+  return JSON.stringify(safeErrorMetadata(error));
 }
 
 export async function recordStripeWebhookAttempt(

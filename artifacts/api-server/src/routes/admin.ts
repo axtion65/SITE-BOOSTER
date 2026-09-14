@@ -10,6 +10,7 @@ import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type PlanSlug } from "@workspac
 import { logger } from "../lib/logger";
 import { activeSubscriptionMetrics } from "../lib/adminRevenue";
 import { isStripeCheckoutReady } from "../lib/billingConfig";
+import { safeErrorMetadata } from "../lib/safeErrorMetadata";
 
 const router = Router();
 
@@ -365,12 +366,11 @@ router.post("/admin/migrate/base64-images", async (req, res) => {
         .set({ productImageUrl: newPath, updatedAt: new Date() })
         .where(eq(projectsTable.id, id));
 
-      console.log(`[migrate-base64] Migrated project ${id} → ${newPath} (owner: ${userId})`);
       results.push({ id, status: "migrated" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[migrate-base64] Failed to migrate project ${id}:`, message);
-      results.push({ id, status: "failed", error: message });
+      const details = safeErrorMetadata(err);
+      console.error("[migrate-base64] Failed to migrate project", details);
+      results.push({ id, status: "failed", error: details.errorCode ?? details.errorType });
     }
   }
 
@@ -423,12 +423,11 @@ router.post("/admin/backfill/image-acls", async (req, res) => {
 
       // Set the correct private ACL so the owner can access their image
       await setObjectAclPolicy(file, { owner: userId, visibility: "private" });
-      console.log(`[backfill-image-acls] Fixed ACL for project ${id} (owner: ${userId})`);
       results.push({ id, status: "fixed" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[backfill-image-acls] Failed for project ${id}:`, message);
-      results.push({ id, status: "failed", reason: message });
+      const details = safeErrorMetadata(err);
+      console.error("[backfill-image-acls] Failed for project", details);
+      results.push({ id, status: "failed", reason: details.errorCode ?? details.errorType });
     }
   }
 

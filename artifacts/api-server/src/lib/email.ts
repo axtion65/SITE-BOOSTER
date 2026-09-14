@@ -3,6 +3,7 @@
 // Free tier: 3,000 emails/month, 100/day
 import { logger } from "./logger";
 import { escapeHtml, normalizeEmailSubject } from "./emailContent";
+import { safeErrorMetadata } from "./safeErrorMetadata";
 
 const RESEND_URL = "https://api.resend.com/emails";
 export const TUTORIAL_URL = "https://quae.ai/how-to";
@@ -25,7 +26,7 @@ async function queueEmail(to: string, toName: string, subject: string, html: str
     logger.info({ event: "email.queued", queueId: queued?.id }, "Email queued for retry");
   } catch (err) {
     // ERROR-level so monitoring/alerting can catch persistent queue failures
-    logger.error({ event: "email.queue_failed", err }, "Email could not be queued");
+    logger.error({ event: "email.queue_failed", ...safeErrorMetadata(err) }, "Email could not be queued");
     throw err; // propagate so callers know durability failed
   }
 }
@@ -45,7 +46,7 @@ async function markQueued(id: string, status: "sent" | "failed" | "pending" | "p
   } catch (err) {
     // Log at ERROR level — if "sent" couldn't be recorded, the row will be
     // retried again and the email will be delivered twice.
-    logger.error({ event: "email.queue_status_failed", queueId: id, err }, "Email queue status could not be saved");
+    logger.error({ event: "email.queue_status_failed", queueId: id, ...safeErrorMetadata(err) }, "Email queue status could not be saved");
   }
 }
 
@@ -75,9 +76,8 @@ async function sendViaResend(
     logger.info({ event: "email.sent" }, "Email sent");
     return { ok: true };
   }
-  const text = await res.text();
   logger.error({ event: "email.provider_rejected", statusCode: res.status }, "Email provider rejected delivery");
-  return { ok: false, error: `${res.status} ${text}` };
+  return { ok: false, error: `provider_http_${res.status}` };
 }
 
 async function sendEmail(
@@ -93,7 +93,7 @@ async function sendEmail(
   } catch (err) {
     logger.error({
       event: "email.transport_failed",
-      errorType: err instanceof Error ? err.name : "unknown",
+      ...safeErrorMetadata(err),
     }, "Email transport failed");
   }
 
@@ -135,13 +135,12 @@ export async function retryQueuedEmail(id: string): Promise<{ ok: boolean; error
   try {
     result = await sendViaResend(claimed.to, claimed.toName, claimed.subject, claimed.html);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
     logger.error({
       event: "email.retry_transport_failed",
       queueId: id,
-      errorType: err instanceof Error ? err.name : "unknown",
+      ...safeErrorMetadata(err),
     }, "Email retry transport failed");
-    result = { ok: false, error: `transport: ${msg}` };
+    result = { ok: false, error: "transport_failed" };
   }
 
   if (result.ok) {
@@ -179,7 +178,7 @@ export async function retryAllPending(): Promise<{ attempted: number; sent: numb
       logger.error({
         event: "email.retry_all_row_failed",
         queueId: row.id,
-        errorType: err instanceof Error ? err.name : "unknown",
+        ...safeErrorMetadata(err),
       }, "Email retry-all skipped one row");
     }
   }

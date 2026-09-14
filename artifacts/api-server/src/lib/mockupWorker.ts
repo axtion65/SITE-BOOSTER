@@ -4,6 +4,7 @@ import { pool } from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage";
 import { buildFalImageInput, buildGenerationBrief, chooseAspectRatio, normalizeStoragePath, PRIMARY_IMAGE_ENGINE, visualQa } from "./mockupProduction";
 import { logger } from "./logger";
+import { safeErrorMetadata } from "./safeErrorMetadata";
 
 const workerId=`${hostname()}:${process.pid}:${crypto.randomUUID()}`;
 let timer:NodeJS.Timeout|undefined;
@@ -129,7 +130,7 @@ async function fail(job:Job,error:unknown){
   const code=beforePaidSubmission&&message.startsWith("reference_")?message:beforePaidSubmission?"mockup_preflight_failed":job.status==="provider_submitting"?"provider_submission_uncertain":`mockup_${job.status}_failed`;
   await pool.query("UPDATE mockup_versions SET status='failed',job_stage='failed',failure_code=$2,lease_owner=NULL,lease_expires_at=NULL WHERE id=$1",[job.id,code]).catch(()=>{});
   await pool.query("UPDATE mockup_projects SET status='failed',updated_at=NOW() WHERE id=$1",[job.mockup_project_id]).catch(()=>{});
-  logger.error({event:"mockup_job_failed",versionId:job.id,mockupId:job.mockup_project_id,stage:job.status,failureCode:code,error:message});
+  logger.error({event:"mockup_job_failed",versionId:job.id,mockupId:job.mockup_project_id,stage:job.status,failureCode:code,...safeErrorMetadata(error)});
 }
 
 export async function workMockupOnce(){

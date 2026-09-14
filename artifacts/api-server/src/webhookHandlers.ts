@@ -109,5 +109,5 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
     creditRefreshAt: null,
   });
 
-  console.log(`[webhook] Downgraded user ${user.id} to free`);
+  console.log("[webhook] Subscription deleted — account returned to free plan");
 }

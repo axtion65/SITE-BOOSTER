@@ -23,6 +23,7 @@ import { creditLedgerTable, db, projectsTable, usersTable } from "@workspace/db"
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { logger } from "./logger";
 import { MODEL_RENDER_ESTIMATE } from "./falvideo";
+import { safeErrorMetadata } from "./safeErrorMetadata";
 
 // Run every 15 minutes
 const INTERVAL_MS = 15 * 60 * 1000;
@@ -143,7 +144,7 @@ export async function autoFailStuckRenders(): Promise<void> {
     }
   } catch (err) {
     // Non-fatal — log and move on
-    logger.error({ err }, "[render-timeout] Error during stale render check");
+    logger.error(safeErrorMetadata(err), "[render-timeout] Error during stale render check");
   }
 }
 

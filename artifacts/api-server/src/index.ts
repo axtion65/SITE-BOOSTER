@@ -9,6 +9,7 @@ import { bootstrapAdminFromEnvironment } from "./lib/adminBootstrap";
 import { runSqlMigrations } from "./lib/migrations";
 import { verifyMockupPersistenceBeforeTraffic } from "./lib/mockupPersistenceInvariant";
 import { startVideoProductionWorker } from "./lib/videoProduction";
+import { safeErrorMetadata } from "./lib/safeErrorMetadata";
 
 // Idempotent schema migration — runs before the server accepts requests.
 // Safe to run on every startup: CREATE/ALTER IF NOT EXISTS never destroys data.
@@ -34,7 +35,7 @@ async function runStartupMigrations() {
       updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `).catch((err: any) => {
-    logger.error({ pg_code: err.code, pg_detail: err.detail, err }, "Migration failed: CREATE users");
+    logger.error({ migration: "users.create", ...safeErrorMetadata(err) }, "Migration failed");
     throw err;
   });
 
@@ -52,9 +53,9 @@ async function runStartupMigrations() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_interval TEXT`,
   ];
-  for (const sql of userAlters) {
+  for (const [migrationIndex, sql] of userAlters.entries()) {
     await pool.query(sql).catch((err: any) => {
-      logger.error({ pg_code: err.code, pg_detail: err.detail, sql, err }, "Migration failed: ALTER users");
+      logger.error({ migration: "users.alter", migrationIndex, ...safeErrorMetadata(err) }, "Migration failed");
       throw err;
     });
   }
@@ -82,7 +83,7 @@ async function runStartupMigrations() {
       updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `).catch((err: any) => {
-    logger.error({ pg_code: err.code, pg_detail: err.detail, err }, "Migration failed: CREATE projects");
+    logger.error({ migration: "projects.create", ...safeErrorMetadata(err) }, "Migration failed");
     throw err;
   });
 
@@ -99,9 +100,9 @@ async function runStartupMigrations() {
     `ALTER TABLE projects ADD COLUMN IF NOT EXISTS voice_id TEXT`,
     `ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
   ];
-  for (const sql of projectAlters) {
+  for (const [migrationIndex, sql] of projectAlters.entries()) {
     await pool.query(sql).catch((err: any) => {
-      logger.error({ pg_code: err.code, pg_detail: err.detail, sql, err }, "Migration failed: ALTER projects");
+      logger.error({ migration: "projects.alter", migrationIndex, ...safeErrorMetadata(err) }, "Migration failed");
       throw err;
     });
   }
@@ -122,7 +123,7 @@ async function runStartupMigrations() {
       sent_at TIMESTAMPTZ
     );
   `).catch((err: any) => {
-    logger.error({ pg_code: err.code, pg_detail: err.detail, err }, "Migration failed: CREATE email_queue");
+    logger.error({ migration: "email_queue.create", ...safeErrorMetadata(err) }, "Migration failed");
     throw err;
   });
 
@@ -165,7 +166,7 @@ await verifyMockupPersistenceBeforeTraffic(pool);
 await bootstrapAdminFromEnvironment();
 
 const server = app.listen(port, (err) => {
-  if (err) { logger.error({ err }, "Error listening on port"); process.exit(1); }
+  if (err) { logger.error(safeErrorMetadata(err), "Error listening on port"); process.exit(1); }
   logger.info({ port }, "Server listening");
   // Auto-fail renders stuck past 3× their expected render time and refund credits
   startRenderTimeoutWatcher();

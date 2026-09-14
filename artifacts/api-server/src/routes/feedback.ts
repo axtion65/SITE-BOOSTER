@@ -5,6 +5,7 @@ import { resolveUserFromToken } from "./auth";
 import { createRateLimitMiddleware } from "../lib/rateLimit";
 import { logger } from "../lib/logger";
 import { FeedbackBody } from "../lib/feedbackInput";
+import { safeErrorMetadata } from "../lib/safeErrorMetadata";
 
 const router = Router();
 const feedbackRateLimit = createRateLimitMiddleware({
@@ -48,7 +49,7 @@ router.post("/feedback", feedbackRateLimit, async (req, res) => {
         VALUES (${normalizedType}, ${normalizedMessage}, ${normalizedEmail || null}, NOW())
       `);
     } catch (err) {
-      console.error("[feedback] DB error:", err);
+      console.error("[feedback] Database operation failed", safeErrorMetadata(err));
       res.status(500).json({ error: "Failed to save feedback" });
       return;
     }
