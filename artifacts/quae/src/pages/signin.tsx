@@ -154,6 +154,7 @@ export default function SignIn() {
       </Dialog>
 
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <h1 className="sr-only">Sign in or create your Quae.ai account</h1>
         <Link href="/" className="flex items-center gap-2 font-bold text-2xl tracking-tight text-white mb-8 hover:opacity-80 transition-opacity">
           <img src="/images/logo-icon.png" alt="Quae.ai" className="h-10 w-10 rounded-lg object-cover" />
           Quae.ai
