@@ -54,7 +54,7 @@ test("Stripe sync and webhooks share the serialized allowance reconciler", () =>
   const webhook = readFileSync(new URL("../webhookHandlers.ts", import.meta.url), "utf8");
   const billing = readFileSync(new URL("../routes/billing.ts", import.meta.url), "utf8");
   assert.match(service, /applyPaidSubscriptionSnapshot/);
-  assert.match(webhook, /applyPaidSubscriptionSnapshot/);
+  assert.match(webhook, /stripeService\.syncSubscriptionToUser/);
   assert.doesNotMatch(service, /credits:\s*PLAN_BY_SLUG/);
   assert.doesNotMatch(webhook, /PLAN_BY_SLUG\[plan\]\.credits/);
   assert.match(billing, /grantReason === "subscription_change"/);

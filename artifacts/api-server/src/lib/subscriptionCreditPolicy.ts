@@ -3,6 +3,8 @@ import { isPlanSlug, type PaidPlanSlug } from "@workspace/plans";
 export interface PaidSubscriptionSnapshot {
   customerId: string;
   subscriptionId: string;
+  /** Exact previous subscription confirmed terminal by Stripe before replacement. */
+  replacesSubscriptionId?: string;
   plan: PaidPlanSlug;
   status: string;
   billingInterval: string | null;

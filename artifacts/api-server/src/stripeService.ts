@@ -54,6 +54,13 @@ export class StripeService {
     successUrl: string, cancelUrl: string
   ) {
     const stripe = getStripeClient();
+    // Stripe is authoritative here: a completed checkout may arrive before its
+    // webhook updates the local account. Existing billing belongs in the portal.
+    for await (const subscription of stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 })) {
+      if (subscription.status !== 'canceled' && subscription.status !== 'incomplete_expired') {
+        return this.createPortalSession(customerId, successUrl);
+      }
+    }
     return stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
@@ -115,6 +122,22 @@ export class StripeService {
     const sub = subs.data[0];
     if (!sub) return null;
 
+    return this.syncSubscriptionToUser(userId, sub);
+  }
+
+  async syncSubscriptionToUser(userId: string, sub: Stripe.Subscription) {
+    const user = await storage.getUser(userId);
+    const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+    if (!user || user.stripeCustomerId !== customerId) return null;
+
+    const stripe = getStripeClient();
+    let replacesSubscriptionId: string | undefined;
+    if (user.stripeSubscriptionId && user.stripeSubscriptionId !== sub.id) {
+      const existing = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
+      if (existing.status !== 'canceled' && existing.status !== 'incomplete_expired') return null;
+      replacesSubscriptionId = existing.id;
+    }
+
     const price = await stripe.prices.retrieve(sub.items.data[0].price.id, {
       expand: ['product'],
     });
@@ -122,8 +145,9 @@ export class StripeService {
     const plan = getPlanFromMetadata(product.metadata);
     if (!plan) throw new Error(`Stripe product ${product.id} has no valid plan metadata`);
     return applyPaidSubscriptionSnapshot(userId, {
-      customerId: user.stripeCustomerId,
+      customerId,
       subscriptionId: sub.id,
+      replacesSubscriptionId,
       plan,
       status: sub.status,
       billingInterval: price.recurring?.interval ?? null,
