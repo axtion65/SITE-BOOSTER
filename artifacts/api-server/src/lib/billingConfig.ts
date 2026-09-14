@@ -35,10 +35,15 @@ export function getStripeKeyMode(key: string | undefined): StripeKeyMode {
   return "unknown";
 }
 
+export function isProductionBillingEnvironment(env: BillingEnvironment = process.env): boolean {
+  return [env.NODE_ENV, env.RAILWAY_ENVIRONMENT_NAME, env.VERCEL_ENV]
+    .some(value => value?.trim().toLowerCase() === "production");
+}
+
 export function getPublicAppOrigin(env: BillingEnvironment = process.env): string {
   const configured = env.APP_URL?.trim();
   if (!configured) {
-    if (env.NODE_ENV === "production") {
+    if (isProductionBillingEnvironment(env)) {
       throw new Error("APP_URL is required for production billing redirects");
     }
     return "http://localhost:3000";
@@ -56,7 +61,7 @@ export function isStripeCheckoutReady(env: BillingEnvironment = process.env): bo
     return false;
   }
   const keyMode = getStripeKeyMode(env.STRIPE_API_KEY);
-  if (keyMode === "unknown" || (env.NODE_ENV === "production" && keyMode !== "live")) {
+  if (keyMode === "unknown" || (isProductionBillingEnvironment(env) && keyMode !== "live")) {
     return false;
   }
   if (!REQUIRED_STRIPE_PRICES.every(([plan, interval]) =>
