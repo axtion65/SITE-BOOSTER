@@ -57,6 +57,11 @@ export default function CampaignDetail() {
     fallbackDraft = result?.isFallback === true,
     copy = customerCopy(result),
     active = ["queued", "running"].includes(run?.status);
+  const approved = data?.status === "approved" &&
+    data.reviewState !== "needs_rebuild" &&
+    Boolean(data.approved_run_id) &&
+    data.approved_run_id === run?.id &&
+    run?.status === "ready_for_review";
   const qualityFeedback = Array.from(
     new Set(
       [
@@ -658,7 +663,7 @@ export default function CampaignDetail() {
         <PremiumCard elevated>
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-extrabold">Campaign preparation</h2>
-            <StatusPill>{statusLabel(run?.status || data.status)}</StatusPill>
+            <StatusPill>{statusLabel(approved ? "approved" : run?.status || data.status)}</StatusPill>
           </div>
             <p className="mt-4 text-sm text-[#B9C5D8]">
               Quae uses only this campaign’s confirmed brief and evidence, then
@@ -754,11 +759,13 @@ export default function CampaignDetail() {
                 <PremiumCard>
                   <p className="quae-eyebrow">{fallbackDraft ? "Draft source" : "Quality review"}</p>
                   <h3 className="text-xl font-bold">
-                    {fallbackDraft ? "A starter draft for your review" : "Your strongest campaign draft"}
+                    {fallbackDraft ? (approved ? "Your approved starter draft" : "A starter draft for your review") : "Your strongest campaign draft"}
                   </h3>
                   <p className="mt-3 text-[#B9C5D8]">
                     {fallbackDraft
-                      ? "Quae could not produce a draft that passed its full quality review. This starter version uses your saved business details. Review the wording and request any changes before approving it."
+                      ? (approved
+                        ? "You approved this starter version from your saved business details. It did not pass Quae’s full quality review. Your approval is saved; you can continue to Creative or request changes below."
+                        : "Quae could not produce a draft that passed its full quality review. This starter version uses your saved business details. Review the wording and request any changes before approving it.")
                       : "Quae checked the drafts for relevance, clarity, supported claims, and consistency with your confirmed campaign details."}
                   </p>
                 </PremiumCard>
@@ -776,9 +783,9 @@ export default function CampaignDetail() {
               </p>
             </PremiumCard>
             <PremiumCard>
-              <p className="quae-eyebrow">{fallbackDraft ? "Script for Your Review" : "Final Improved Script"}</p>
+              <p className="quae-eyebrow">{approved ? "Approved Script" : fallbackDraft ? "Script for Your Review" : "Final Improved Script"}</p>
               <p className="text-sm text-[#B9C5D8]">
-                {fallbackDraft ? "Review the wording before approving this draft" : "Refined and quality-checked by Quae"}
+                {approved ? "Your saved wording for Creative" : fallbackDraft ? "Review the wording before approving this draft" : "Refined and quality-checked by Quae"}
               </p>
                 <h2 className="text-2xl font-black">{copy?.title}</h2>
               <p className="mt-4 text-lg font-semibold text-violet-200">
@@ -792,7 +799,7 @@ export default function CampaignDetail() {
                     {fallbackDraft ? "Source: Saved business details" : `Fact Check: ${result.factcheck?.pass ? "Pass" : "Needs review"}`}
                 </StatusPill>
                 <StatusPill>
-                  {fallbackDraft ? "Review: Customer review required" : `Quality: ${result.qa?.pass ? "Pass" : "Needs revision"}`}
+                  {approved ? "Approval: Saved" : fallbackDraft ? "Review: Customer review required" : `Quality: ${result.qa?.pass ? "Pass" : "Needs revision"}`}
                 </StatusPill>
                   <div className="font-bold">CTA: {copy?.callToAction}</div>
               </div>
@@ -808,13 +815,17 @@ export default function CampaignDetail() {
             run?.status === "ready_for_review" && (
           <PremiumCard elevated>
             <div className="grid gap-4 md:grid-cols-2">
-              <ActionButton
+              {approved ? (
+                <p role="status" className="flex items-center gap-2 font-bold text-emerald-300">
+                  <Check className="h-4 w-4" /> Approval saved
+                </p>
+              ) : <ActionButton
                 disabled={busy !== null}
                 onClick={() => post("approve", { runId: run.id })}
               >
                 <Check className="h-4 w-4" />
                     Approve Campaign
-              </ActionButton>
+              </ActionButton>}
               <div>
                 <textarea
                   aria-label="Requested campaign changes"
@@ -841,7 +852,7 @@ export default function CampaignDetail() {
             </div>
           </PremiumCard>
         )}
-        {data.status === "approved" && (
+        {approved && (
           <PremiumCard elevated>
             <h2 className="text-2xl font-black text-emerald-300">
               Campaign Approved
