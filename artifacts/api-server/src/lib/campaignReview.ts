@@ -89,6 +89,7 @@ export function publicCampaignResult(value: unknown) {
   const visibleText = (item: unknown, phrase = false) =>
     projectedCustomerText(item, isDeterministicFallback, brand, phrase);
   const projected = {
+    isFallback: isDeterministicFallback,
     strategy:
       input.strategy &&
       typeof input.strategy === "object" &&

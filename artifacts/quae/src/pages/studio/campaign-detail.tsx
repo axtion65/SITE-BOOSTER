@@ -54,6 +54,7 @@ export default function CampaignDetail() {
   }, [params?.id]);
   const run = data?.runs?.[0],
     result = run?.final_result,
+    fallbackDraft = result?.isFallback === true,
     copy = customerCopy(result),
     active = ["queued", "running"].includes(run?.status);
   const qualityFeedback = Array.from(
@@ -751,21 +752,21 @@ export default function CampaignDetail() {
                 </div>
               </PremiumCard>
                 <PremiumCard>
-                  <p className="quae-eyebrow">Quality review</p>
+                  <p className="quae-eyebrow">{fallbackDraft ? "Draft source" : "Quality review"}</p>
                   <h3 className="text-xl font-bold">
-                    Your strongest campaign draft
+                    {fallbackDraft ? "A starter draft for your review" : "Your strongest campaign draft"}
                   </h3>
                   <p className="mt-3 text-[#B9C5D8]">
-                    Quae checked the drafts for relevance, clarity, supported
-                    claims, and consistency with your confirmed campaign
-                    details.
+                    {fallbackDraft
+                      ? "Quae could not produce a draft that passed its full quality review. This starter version uses your saved business details. Review the wording and request any changes before approving it."
+                      : "Quae checked the drafts for relevance, clarity, supported claims, and consistency with your confirmed campaign details."}
                   </p>
                 </PremiumCard>
             </div>
             <PremiumCard>
-              <p className="quae-eyebrow">Winning Draft</p>
+              <p className="quae-eyebrow">{fallbackDraft ? "Starter Draft" : "Winning Draft"}</p>
               <p className="text-sm text-[#B9C5D8]">
-                Selected after a campaign quality review
+                {fallbackDraft ? "Prepared from your saved business details" : "Selected after a campaign quality review"}
               </p>
               <h2 className="mt-4 text-xl font-black">
                 {result.winningScript?.title}
@@ -775,9 +776,9 @@ export default function CampaignDetail() {
               </p>
             </PremiumCard>
             <PremiumCard>
-              <p className="quae-eyebrow">Final Improved Script</p>
+              <p className="quae-eyebrow">{fallbackDraft ? "Script for Your Review" : "Final Improved Script"}</p>
               <p className="text-sm text-[#B9C5D8]">
-                Refined and quality-checked by Quae
+                {fallbackDraft ? "Review the wording before approving this draft" : "Refined and quality-checked by Quae"}
               </p>
                 <h2 className="text-2xl font-black">{copy?.title}</h2>
               <p className="mt-4 text-lg font-semibold text-violet-200">
@@ -788,11 +789,10 @@ export default function CampaignDetail() {
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <StatusPill>
-                    Fact Check:{" "}
-                    {result.factcheck?.pass ? "Pass" : "Needs review"}
+                    {fallbackDraft ? "Source: Saved business details" : `Fact Check: ${result.factcheck?.pass ? "Pass" : "Needs review"}`}
                 </StatusPill>
                 <StatusPill>
-                  Quality: {result.qa?.pass ? "Pass" : "Needs revision"}
+                  {fallbackDraft ? "Review: Customer review required" : `Quality: ${result.qa?.pass ? "Pass" : "Needs revision"}`}
                 </StatusPill>
                   <div className="font-bold">CTA: {copy?.callToAction}</div>
               </div>
