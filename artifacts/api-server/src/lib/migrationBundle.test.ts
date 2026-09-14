@@ -27,6 +27,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0020_subscription_credit_cycles.sql",
     "0021_tutorial_email_onboarding.sql",
     "0022_stripe_webhook_observability.sql",
+    "0023_password_session_revocation.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
@@ -192,4 +193,13 @@ test("Stripe webhook observability migration is additive and retry-aware", async
   assert.match(sql, /last_error TEXT/);
   assert.match(sql, /stripe_webhook_events_status_updated_idx/);
   assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
+});
+
+test("password session revocation migration is additive", async () => {
+  const sql = await readFile(
+    new URL("lib/db/migrations/0023_password_session_revocation.sql", root),
+    "utf8",
+  );
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS session_invalid_before TIMESTAMPTZ/);
+  assert.doesNotMatch(sql, /UPDATE\s+users|DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
 });
