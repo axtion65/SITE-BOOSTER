@@ -701,6 +701,7 @@ export default function CampaignDetail() {
                 </div>
               )}
               <textarea
+                aria-label="Additional campaign revision instructions"
                 className={`${fieldClass} mt-5`}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -816,6 +817,7 @@ export default function CampaignDetail() {
               </ActionButton>
               <div>
                 <textarea
+                  aria-label="Requested campaign changes"
                   className={fieldClass}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
