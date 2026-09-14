@@ -2,6 +2,12 @@ import { getStripeClient } from './stripeClient';
 import { storage } from './storage';
 import { PLAN_BY_SLUG, isPlanSlug, type PaidPlanSlug } from '@workspace/plans';
 import { applyPaidSubscriptionSnapshot } from './lib/subscriptionCredits';
+import {
+  recordStripeWebhookAttempt,
+  recordStripeWebhookFailure,
+  recordStripeWebhookSuccess,
+} from './lib/stripeWebhookLedger';
+import { logger } from './lib/logger';
 
 function getPlanFromMetadata(metadata: Stripe.Metadata): PaidPlanSlug | null {
   const plan = metadata?.plan;
@@ -24,22 +30,38 @@ export class WebhookHandlers {
     if (!webhookSecret) throw new Error('STRIPE_WEBHOOK_SECRET is required');
     const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
 
-    console.log(`[webhook] ${event.type}`);
+    const action = await recordStripeWebhookAttempt(event.id, event.type);
+    if (action === 'already_succeeded') {
+      logger.info({ eventId: event.id, eventType: event.type }, 'Ignoring an already completed Stripe webhook');
+      return;
+    }
 
-    switch (event.type) {
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated': {
-        const sub = event.data.object as Stripe.Subscription;
-        await handleSubscriptionChange(stripe, sub);
-        break;
+    try {
+      logger.info({ eventId: event.id, eventType: event.type }, 'Processing Stripe webhook');
+      switch (event.type) {
+        case 'customer.subscription.created':
+        case 'customer.subscription.updated': {
+          const sub = event.data.object as Stripe.Subscription;
+          await handleSubscriptionChange(stripe, sub);
+          break;
+        }
+        case 'customer.subscription.deleted': {
+          const sub = event.data.object as Stripe.Subscription;
+          await handleSubscriptionDeleted(sub);
+          break;
+        }
+        default:
+          break;
       }
-      case 'customer.subscription.deleted': {
-        const sub = event.data.object as Stripe.Subscription;
-        await handleSubscriptionDeleted(sub);
-        break;
+      await recordStripeWebhookSuccess(event.id);
+    } catch (error) {
+      try {
+        await recordStripeWebhookFailure(event.id, error);
+      } catch (ledgerError) {
+        logger.error({ err: ledgerError, eventId: event.id, eventType: event.type }, 'Failed to record Stripe webhook failure');
       }
-      default:
-        break;
+      logger.error({ err: error, eventId: event.id, eventType: event.type }, 'Stripe webhook processing failed');
+      throw error;
     }
   }
 }
