@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { Router } from "express";
 import { db, usersTable, projectsTable, emailQueueTable, stripeWebhookEventsTable } from "@workspace/db";
-import { eq, gte, count, sql, desc, like } from "drizzle-orm";
+import { eq, gte, count, sql, desc, like, or } from "drizzle-orm";
 import { UpdateAdminUserBody } from "@workspace/api-zod";
 import { resolveUserFromToken } from "./auth";
 import { S3ObjectFile } from "../lib/objectStorage";
@@ -127,12 +127,15 @@ router.get("/admin/operations", async (req, res) => {
   const admin = await getAdminUser(req.headers.authorization);
   if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
   const today = new Date(); today.setUTCHours(0, 0, 0, 0);
-  const [todayUsers, todayProjects, failedRenders, failedStripeWebhooks, queued, activeUsers, recentProjects] = await Promise.all([
+  const [todayUsers, todayProjects, failedRenders, failedStripeWebhooks, queued, emailQueue, activeUsers, recentProjects] = await Promise.all([
     db.select({ value: count() }).from(usersTable).where(gte(usersTable.createdAt, today)),
     db.select({ value: count() }).from(projectsTable).where(gte(projectsTable.createdAt, today)),
     db.select({ value: count() }).from(projectsTable).where(eq(projectsTable.status, "failed")),
     db.select({ value: count() }).from(stripeWebhookEventsTable).where(eq(stripeWebhookEventsTable.status, "failed")),
     db.select({ value: count() }).from(projectsTable).where(eq(projectsTable.status, "processing")),
+    db.select({ status: emailQueueTable.status, value: count() }).from(emailQueueTable)
+      .where(or(eq(emailQueueTable.status, "pending"), eq(emailQueueTable.status, "processing"), eq(emailQueueTable.status, "failed")))
+      .groupBy(emailQueueTable.status),
     db.select().from(usersTable).where(sql`${usersTable.subscriptionStatus} = 'active' OR (${usersTable.subscriptionStatus} IS NULL AND ${usersTable.plan} <> 'free')`),
     db.select().from(projectsTable).where(gte(projectsTable.createdAt, today)),
   ]);
@@ -141,16 +144,20 @@ router.get("/admin/operations", async (req, res) => {
   const completed = recentProjects.filter(project => project.status === "completed");
   const averageRenderTimeSeconds = completed.length ? Math.round(completed.reduce((sum, project) => sum + Math.max(0, project.updatedAt.getTime() - project.createdAt.getTime()), 0) / completed.length / 1000) : 0;
   const mrrCents = activeUsers.reduce((sum, user) => sum + (isPlanSlug(user.plan) ? PLAN_BY_SLUG[user.plan].monthlyPriceCents : 0), 0);
+  const pendingEmails = emailQueue.reduce((sum, row) => sum + (row.status === "pending" || row.status === "processing" ? Number(row.value) : 0), 0);
+  const failedEmails = emailQueue.reduce((sum, row) => sum + (row.status === "failed" ? Number(row.value) : 0), 0);
   let databaseStatus = "operational";
   try { await db.execute(sql`select 1`); } catch { databaseStatus = "down"; }
   res.json({
     usersToday: Number(todayUsers[0]?.value ?? 0), videosToday: Number(todayProjects[0]?.value ?? 0), creditsUsedToday,
     activeSubscriptions: activeUsers.length, mrrCents, failedRenders: Number(failedRenders[0]?.value ?? 0),
     failedStripeWebhooks: Number(failedStripeWebhooks[0]?.value ?? 0), queueLength: Number(queued[0]?.value ?? 0), averageRenderTimeSeconds,
+    pendingEmails, failedEmails,
     health: {
       openai: process.env.OPENAI_API_KEY ? "configured" : "not_configured",
       fal: process.env.FAL_KEY ? "configured" : "not_configured",
       stripe: process.env.STRIPE_API_KEY ? "configured" : "not_configured",
+      email: process.env.RESEND_API_KEY ? "configured" : "not_configured",
       storage: (process.env.PRIVATE_OBJECT_DIR || process.env.AWS_S3_BUCKET_NAME || process.env.BUCKET) ? "configured" : "not_configured",
       database: databaseStatus,
     },
