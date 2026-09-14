@@ -18,13 +18,24 @@ test("production billing redirects use APP_URL and never localhost", () => {
   );
 });
 
-test("checkout is disabled unless API and webhook secrets are both present", () => {
-  assert.equal(isStripeCheckoutReady({ STRIPE_API_KEY: "sk_test_x" }), false);
-  assert.equal(isStripeCheckoutReady({ STRIPE_WEBHOOK_SECRET: "whsec_x" }), false);
-  assert.equal(isStripeCheckoutReady({
+test("checkout is disabled unless every required Stripe setting is present", () => {
+  const complete = {
+    NODE_ENV: "production",
+    APP_URL: "https://quae.ai",
     STRIPE_API_KEY: "sk_test_x",
     STRIPE_WEBHOOK_SECRET: "whsec_x",
-  }), true);
+    STRIPE_PRICE_STARTER_MONTHLY: "price_starter_month",
+    STRIPE_PRICE_STARTER_ANNUAL: "price_starter_year",
+    STRIPE_PRICE_PRO_MONTHLY: "price_pro_month",
+    STRIPE_PRICE_PRO_ANNUAL: "price_pro_year",
+    STRIPE_PRICE_AGENCY_MONTHLY: "price_agency_month",
+    STRIPE_PRICE_AGENCY_ANNUAL: "price_agency_year",
+  };
+  assert.equal(isStripeCheckoutReady({ ...complete, STRIPE_API_KEY: "" }), false);
+  assert.equal(isStripeCheckoutReady({ ...complete, STRIPE_WEBHOOK_SECRET: "" }), false);
+  assert.equal(isStripeCheckoutReady({ ...complete, STRIPE_PRICE_PRO_ANNUAL: "" }), false);
+  assert.equal(isStripeCheckoutReady({ ...complete, APP_URL: "javascript:bad" }), false);
+  assert.equal(isStripeCheckoutReady(complete), true);
 });
 
 test("the canonical Agency annual price wins while the legacy Railway name remains compatible", () => {

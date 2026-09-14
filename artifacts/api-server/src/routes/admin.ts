@@ -9,6 +9,7 @@ import { setObjectAclPolicy } from "../lib/objectAcl";
 import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type PlanSlug } from "@workspace/plans";
 import { logger } from "../lib/logger";
 import { activeSubscriptionMetrics } from "../lib/adminRevenue";
+import { isStripeCheckoutReady } from "../lib/billingConfig";
 
 const router = Router();
 
@@ -161,7 +162,7 @@ router.get("/admin/operations", async (req, res) => {
     health: {
       openai: process.env.OPENAI_API_KEY ? "configured" : "not_configured",
       fal: process.env.FAL_KEY ? "configured" : "not_configured",
-      stripe: process.env.STRIPE_API_KEY ? "configured" : "not_configured",
+      stripe: isStripeCheckoutReady() ? "configured" : "not_configured",
       email: process.env.RESEND_API_KEY ? "configured" : "not_configured",
       storage: (process.env.PRIVATE_OBJECT_DIR || process.env.AWS_S3_BUCKET_NAME || process.env.BUCKET) ? "configured" : "not_configured",
       database: databaseStatus,
