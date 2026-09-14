@@ -20,6 +20,7 @@ import {
   VIDEO_PRODUCTION_VERSION,
 } from "./videoProductionPlan";
 import { safeErrorMetadata } from "./safeErrorMetadata";
+import { campaignGenerationContext } from "./campaignContext";
 
 const ACTIVE_PROJECT_STATUSES = ["preparing", "processing", "assembling"];
 const SCENE_FIRST_POLL_MS = 5 * 60_000;
@@ -68,14 +69,16 @@ async function productionContext(project: typeof projectsTable.$inferSelect): Pr
 }> {
   const brandResult = project.campaignId
     ? await pool.query(`
-      SELECT b.name,b.website,b.primary_cta,bk.default_cta,bk.logo_object_path,
+      SELECT b.name,b.website,b.primary_cta,bk.default_cta,bk.logo_object_path,r.context_snapshot,
         bk.primary_color,bk.secondary_color,bk.accent_color
       FROM campaigns c
       JOIN businesses b ON b.id=c.business_id AND b.user_id=c.user_id
+      JOIN campaign_runs r ON r.campaign_id=c.id AND r.id=$3
       LEFT JOIN brand_kits bk ON bk.business_id=b.id
       WHERE c.id=$2 AND c.user_id=$1
+        AND c.approved_run_id=r.id AND c.status='approved' AND r.status='ready_for_review'
       LIMIT 1
-    `, [project.userId, project.campaignId])
+    `, [project.userId, project.campaignId, project.campaignRunId])
     : await pool.query(`
       SELECT b.name,b.website,b.primary_cta,bk.default_cta,bk.logo_object_path,
         bk.primary_color,bk.secondary_color,bk.accent_color
@@ -86,14 +89,27 @@ async function productionContext(project: typeof projectsTable.$inferSelect): Pr
       LIMIT 1
     `, [project.userId]);
   const row = brandResult.rows[0] ?? {};
+  if (project.campaignId && !brandResult.rows.length) throw new Error("The approved campaign identity is unavailable");
+  // The approved run freezes the campaign's identity. A later business-profile
+  // edit or a different imported brand must not rewrite narration or the end card.
+  const snapshot = project.campaignId ? row.context_snapshot ?? {} : {};
+  const approved = project.campaignId ? campaignGenerationContext({
+    context_snapshot: snapshot,
+    business_name: snapshot.business?.name ?? row.name,
+    business_website: snapshot.business?.website ?? row.website,
+    business_primary_cta: snapshot.business?.cta ?? row.default_cta ?? row.primary_cta,
+  }) : null;
+  const name = String(approved?.identity?.name ?? row.name ?? project.title).trim();
+  const sameProfile = name.toLocaleLowerCase() === String(row.name ?? "").trim().toLocaleLowerCase();
+  const approvedBrand = approved?.brand;
   const brand: ProductionBrand = {
-    name: String(row.name ?? project.title).trim(),
-    website: row.website ?? null,
-    logoObjectPath: row.logo_object_path ?? null,
-    primaryColor: row.primary_color ?? null,
-    secondaryColor: row.secondary_color ?? null,
-    accentColor: row.accent_color ?? null,
-    callToAction: String(row.default_cta ?? row.primary_cta ?? "Learn more").trim(),
+    name,
+    website: approved?.identity?.website || approved?.sourceUrl || (sameProfile ? row.website : null) || null,
+    logoObjectPath: approvedBrand?.logos?.[0] ?? (sameProfile ? row.logo_object_path : null) ?? null,
+    primaryColor: approvedBrand?.colors?.primary ?? (sameProfile ? row.primary_color : null) ?? null,
+    secondaryColor: approvedBrand?.colors?.secondary ?? (sameProfile ? row.secondary_color : null) ?? null,
+    accentColor: approvedBrand?.colors?.accent ?? (sameProfile ? row.accent_color : null) ?? null,
+    callToAction: String(approved?.ctaEvidence || approvedBrand?.cta || (sameProfile && (row.default_cta ?? row.primary_cta)) || "Learn more").trim(),
   };
   const sourceAssetPaths = [project.sourceAssetId]
     .filter((value): value is string => Boolean(value));
