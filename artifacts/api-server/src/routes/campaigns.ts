@@ -47,7 +47,12 @@ import {
   validateRunSource,
 } from "../lib/campaignReview";
 import { logger } from "../lib/logger";
+import { createProviderActionRateLimit } from "../lib/providerActionBudget";
 const router = Router();
+const providerActionRateLimit = createProviderActionRateLimit(resolveUserIdFromToken);
+router.use("/campaigns/:id/rebuild", providerActionRateLimit);
+router.use("/campaigns/:id/run-team", providerActionRateLimit);
+router.use("/campaigns/:id/request-changes", providerActionRateLimit);
 async function reviewAuthority(campaignId: string, userId: string) {
   const campaign = (
     await pool.query(
@@ -69,7 +74,7 @@ async function reviewAuthority(campaignId: string, userId: string) {
   };
 }
 async function owner(req: any, res: any) {
-  const id = await resolveUserIdFromToken(req.headers.authorization);
+  const id = res.locals.providerActionUserId ?? await resolveUserIdFromToken(req.headers.authorization);
   if (!id) res.status(401).json({ error: "Not authenticated" });
   return id;
 }

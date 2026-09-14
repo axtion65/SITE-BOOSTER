@@ -9,8 +9,12 @@ import { logger } from "../lib/logger";
 import {mockupCreateSchema,mockupCreateValidationError,sceneDirectionSchema} from "../lib/mockupCreateRequest";
 import { authoritativeMockupProjectId, lockProjectAndPersistGeneration, MockupProjectUnavailableError } from "../lib/mockupGenerationPersistence";
 import { CUSTOMER_MOCKUP_LIBRARY_QUERY, CUSTOMER_MOCKUP_PROJECT_QUERY, MOCKUP_VERSIONS_QUERY } from "../lib/mockupLibrary";
+import { createProviderActionRateLimit } from "../lib/providerActionBudget";
 const router=Router();
-async function owner(req:any,res:any){const id=await resolveUserIdFromToken(req.headers.authorization);if(!id)res.status(401).json({error:"Not authenticated"});return id}
+const providerActionRateLimit=createProviderActionRateLimit(resolveUserIdFromToken);
+router.use("/brand-models/:id/generate", providerActionRateLimit);
+router.use("/mockups/:id/generate", providerActionRateLimit);
+async function owner(req:any,res:any){const id=res.locals.providerActionUserId??await resolveUserIdFromToken(req.headers.authorization);if(!id)res.status(401).json({error:"Not authenticated"});return id}
 async function business(userId:string){return (await pool.query("SELECT * FROM businesses WHERE user_id=$1",[userId])).rows[0]}
 async function ownsObject(userId:string,path:string){if(!path.startsWith("/objects/")&&!path.startsWith("/api/storage/objects/"))return false;try{const s=new ObjectStorageService();return s.canAccessObjectEntity({userId,objectFile:await s.getObjectEntityFile(path.replace(/^\/api\/storage/,"")),requestedPermission:ObjectPermission.READ})}catch{return false}}
 router.get("/mockups/context",async(req,res):Promise<any>=>{const userId=await owner(req,res);if(!userId)return;const b=await business(userId);if(!b)return res.status(404).json({error:"Create your business profile first"});const productId=String(req.query.productId||"");const campaignId=String(req.query.campaignId||"");const product=productId?(await pool.query("SELECT p.*,COALESCE(json_agg(pi ORDER BY pi.sort_order) FILTER (WHERE pi.id IS NOT NULL),'[]') images FROM products p LEFT JOIN product_images pi ON pi.product_id=p.id WHERE p.id=$1 AND p.business_id=$2 GROUP BY p.id",[productId,b.id])).rows[0]:null;if(productId&&!product)return res.status(404).json({error:"Product not found"});const campaign=campaignId?(await pool.query("SELECT c.*,r.final_result approved_strategy FROM campaigns c LEFT JOIN campaign_runs r ON r.id=c.approved_run_id WHERE c.id=$1 AND c.user_id=$2",[campaignId,userId])).rows[0]:null;if(campaignId&&!campaign)return res.status(404).json({error:"Campaign not found"});const brandKit=(await pool.query("SELECT * FROM brand_kits WHERE business_id=$1",[b.id])).rows[0]||null;res.json({business:b,brandKit,product,campaign})});
@@ -33,7 +37,7 @@ router.post("/mockups/:id/generate",async(req,res):Promise<any>=>{
   let client:any;
   try{
     stage="authentication_owner_resolution";
-    const userId=await resolveUserIdFromToken(req.headers.authorization);
+    const userId=res.locals.providerActionUserId??await resolveUserIdFromToken(req.headers.authorization);
     if(!userId){logger.warn({event:"mockup_generation_authentication_failed",...context(),error:"owner_not_resolved"});return fail(401,"Not authenticated");}
     logger.info({event:"mockup_generation_owner_resolved",...context()});
 

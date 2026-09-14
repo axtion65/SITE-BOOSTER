@@ -6,8 +6,12 @@ import { durationPlanInstruction, normalizeScriptTiming, parseRequestedDuration,
 import { sanitizeVisualPrompt } from "../lib/falvideo";
 import { RENDERING_MODELS } from "@workspace/plans";
 import { normalizeProductionModelDuration } from "../lib/projectSubmission";
+import { createProviderActionRateLimit } from "../lib/providerActionBudget";
 
 const router = Router();
+const providerActionRateLimit = createProviderActionRateLimit(resolveUserIdFromToken);
+router.use("/studio/expand-prompt", providerActionRateLimit);
+router.use("/studio/regenerate-scene", providerActionRateLimit);
 
 // Initialise OpenAI client lazily so the server starts even without the key
 // (routes that call the API will fail at request time, not at boot).
@@ -174,7 +178,7 @@ router.post("/studio/expand-prompt", async (req, res) => {
   // Script expansion invokes a paid provider and must never be reachable
   // anonymously. Resolve auth before validating content to avoid leaking route
   // behavior to unauthenticated callers.
-  const userId = await resolveUserIdFromToken(req.headers.authorization);
+  const userId = res.locals.providerActionUserId ?? await resolveUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
   const parsed = ExpandPromptBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
@@ -281,7 +285,7 @@ The hook must stop the scroll in the first 2-3 seconds. Every scene must be purp
 
 // Per-scene regeneration — rewrites only the requested scene
 router.post("/studio/regenerate-scene", async (req, res) => {
-  const userId = await resolveUserIdFromToken(req.headers.authorization);
+  const userId = res.locals.providerActionUserId ?? await resolveUserIdFromToken(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
 
   const body = req.body as {
