@@ -19,7 +19,7 @@ const script: ExpandedScript = {
   ],
 };
 
-test("30-second production keeps every approved beat and reserves a deterministic CTA", () => {
+test("30-second production groups every approved beat into complete motion windows", () => {
   const plan = compileVideoProductionPlan({
     script,
     duration: "30s",
@@ -32,16 +32,16 @@ test("30-second production keeps every approved beat and reserves a deterministi
   assert.equal(plan.width, 1080);
   assert.equal(plan.height, 1920);
   assert.equal(plan.endCardDurationMs, 3000);
-  assert.equal(plan.scenes.length, 4);
+  assert.equal(plan.scenes.length, 3);
   assert.equal(plan.scenes.reduce((sum, scene) => sum + scene.durationMs, 0), 27_000);
-  assert.deepEqual(plan.scenes.map((scene) => scene.mediaType), ["source_image", "generated_video", "generated_video", "generated_video"]);
+  assert.deepEqual(plan.scenes.map((scene) => scene.mediaType), ["generated_video", "generated_video", "generated_video"]);
   assert.equal(plan.scenes[0]!.sourceAssetPath, "/objects/products/approved.png");
-  assert.equal(plan.scenes[3]!.sourceAssetPath, "/objects/products/approved.png");
-  assert.ok(plan.scenes.slice(1).every((scene) => scene.sourceAssetPath === "/objects/products/approved.png"));
-  assert.ok(plan.scenes.slice(1).every((scene) => /identity authority/i.test(scene.visualPrompt)));
+  assert.ok(plan.scenes.slice(1).every((scene) => scene.sourceAssetPath === null));
+  assert.match(plan.scenes[0]!.visualPrompt, /identity authority/i);
+  assert.ok(plan.scenes.slice(1).every((scene) => /different composition/i.test(scene.visualPrompt)));
   assert.ok(plan.scenes.every((scene) => !/Source visual context \(adapt into the one shot/i.test(scene.visualPrompt)));
   assert.match(plan.scenes[0]!.visualPrompt, /business owner overwhelmed/i);
-  assert.match(plan.scenes[3]!.visualPrompt, /confidently launches/i);
+  assert.match(plan.scenes[2]!.visualPrompt, /confidently launches/i);
   assert.ok(plan.scenes.every((scene) => scene.visualPrompt.includes(scene.narrationText)));
   assert.match(plan.scenes[1]!.visualPrompt, /do not introduce food/i);
   assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), script.voiceoverText);
@@ -57,7 +57,7 @@ test("voiceover is measured before any provider plan can be accepted", () => {
   }), /does not fit/);
 });
 
-test("an accepted five-scene 15-second script produces every approved scene", () => {
+test("a five-beat 15-second script keeps every approved beat in two complete clips", () => {
   const voiceoverText = "Busy days deserve simple marketing. Quae keeps your campaign organized. Create professional product visuals. See every detail before launch. Start your campaign today.";
   const descriptions = [
     "A tired shopkeeper closes the shop.",
@@ -95,10 +95,10 @@ test("an accepted five-scene 15-second script produces every approved scene", ()
     voiceoverDurationMs: 10_000,
     brand: { name: "Quae", callToAction: approved.callToAction },
   });
-  assert.deepEqual(plan.scenes.map((scene) => scene.durationMs), [2400, 2400, 2400, 2400, 2400]);
+  assert.deepEqual(plan.scenes.map((scene) => scene.durationMs), [6000, 6000]);
   assert.equal(plan.scenes.reduce((sum, scene) => sum + scene.durationMs, plan.endCardDurationMs), 15_000);
   assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), voiceoverText);
-  plan.scenes.forEach((scene, index) => assert.ok(scene.visualPrompt.includes(descriptions[index]!)));
+  for (const description of descriptions) assert.ok(plan.scenes.some((scene) => scene.visualPrompt.includes(description)));
   for (const renderingModelId of ["ltx-fast", "kling"]) {
     for (const scene of plan.scenes) {
       const request = buildFalSceneRequest({ prompt: scene.visualPrompt, durationSeconds: scene.durationMs / 1000, renderingModelId, platform: plan.platform });
@@ -108,7 +108,7 @@ test("an accepted five-scene 15-second script produces every approved scene", ()
   }
 });
 
-test("shortening an eight-scene draft to 15 seconds preserves its scene order", () => {
+test("an eight-beat draft keeps every approved visual direction without short motion fragments", () => {
   const approved: ExpandedScript = {
     ...script,
     estimatedDuration: "45s",
@@ -126,11 +126,11 @@ test("shortening an eight-scene draft to 15 seconds preserves its scene order", 
     voiceoverDurationMs: 10_000,
     brand: { name: "Quae", callToAction: approved.callToAction },
   });
-  assert.equal(plan.scenes.length, 8);
-  assert.ok(plan.scenes.every((scene) => scene.durationMs === 1500));
+  assert.equal(plan.scenes.length, 2);
+  assert.ok(plan.scenes.every((scene) => scene.durationMs === 6000));
   assert.equal(plan.scenes.reduce((sum, scene) => sum + scene.durationMs, plan.endCardDurationMs), 15_000);
   assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), approved.voiceoverText);
-  plan.scenes.forEach((scene, index) => assert.ok(scene.visualPrompt.includes(approved.scenes[index]!.description)));
+  for (const scene of approved.scenes) assert.ok(plan.scenes.some((planned) => planned.visualPrompt.includes(scene.description)));
   for (const renderingModelId of ["ltx-fast", "kling"]) {
     for (const scene of plan.scenes) {
       const request = buildFalSceneRequest({ prompt: scene.visualPrompt, durationSeconds: scene.durationMs / 1000, renderingModelId, platform: plan.platform });
@@ -162,7 +162,7 @@ test("production still rejects edit slots below the supported minimum", () => {
   assert.throws(() => validateVideoProductionPlan(plan), /between 1\.5s and 10s/);
 });
 
-test("15-second production uses one proof image and three image-conditioned motion shots", () => {
+test("15-second production uses two full motion clips without restarting one source image", () => {
   const plan = compileVideoProductionPlan({
     script: { ...script, scenes: script.scenes.slice(0, 3), estimatedDuration: "15s" },
     duration: "15s",
@@ -171,11 +171,13 @@ test("15-second production uses one proof image and three image-conditioned moti
     brand: { name: "Quae", callToAction: "Start now" },
     sourceAssetPaths: ["/objects/products/approved.png"],
   });
-  assert.equal(plan.version, "bdb-hybrid-v3");
-  assert.deepEqual(plan.scenes.map((scene) => scene.durationMs), [3000, 3000, 3000, 3000]);
-  assert.deepEqual(plan.scenes.map((scene) => scene.mediaType), ["source_image", "generated_video", "generated_video", "generated_video"]);
-  assert.ok(plan.scenes.every((scene) => scene.sourceAssetPath === "/objects/products/approved.png"));
-  assert.equal(plan.scenes.filter((scene) => scene.mediaType === "source_image").length, 1);
+  assert.equal(plan.version, "bdb-native-motion-v4");
+  assert.deepEqual(plan.scenes.map((scene) => scene.durationMs), [6000, 6000]);
+  assert.deepEqual(plan.scenes.map((scene) => scene.mediaType), ["generated_video", "generated_video"]);
+  assert.deepEqual(plan.scenes.map((scene) => scene.sourceAssetPath), ["/objects/products/approved.png", null]);
+  assert.match(plan.scenes[0]!.visualPrompt, /continuous moving shot/i);
+  assert.match(plan.scenes[1]!.visualPrompt, /different composition/i);
+  assert.ok(plan.scenes.every((scene) => /Do not pause, freeze, reset/i.test(scene.visualPrompt)));
 });
 
 test("production narration never splits a dotted brand token", () => {
@@ -200,8 +202,8 @@ test("production narration never splits a dotted brand token", () => {
     brand: { name: "Quae.ai", website: "quae.ai", callToAction: dottedBrandScript.callToAction },
   });
 
-  assert.equal(plan.scenes.length, 3);
-  assert.equal(plan.scenes[1]?.narrationText, dottedBrandScript.scenes[1]?.description);
+  assert.equal(plan.scenes.length, 2);
+  assert.ok(plan.scenes.some((scene) => scene.narrationText.includes("Quae.ai creates")));
   assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), approvedCopy);
   assert.ok(plan.scenes.every((scene) => scene.narrationText !== "Quae."));
 });
@@ -227,10 +229,10 @@ test("quality gate rejects short, silent, or incomplete output", () => {
     voiceoverDurationMs: 18_400,
     brand: { name: "Quae", callToAction: "Start now" },
   });
-  assert.deepEqual(productionQualityGate({ plan, finalDurationMs: 30_000, completedSceneCount: 4, hasAudio: true }), { ok: true });
-  const short = productionQualityGate({ plan, finalDurationMs: 6_000, completedSceneCount: 4, hasAudio: true });
-  const incomplete = productionQualityGate({ plan, finalDurationMs: 30_000, completedSceneCount: 3, hasAudio: true });
-  const silent = productionQualityGate({ plan, finalDurationMs: 30_000, completedSceneCount: 4, hasAudio: false });
+  assert.deepEqual(productionQualityGate({ plan, finalDurationMs: 30_000, completedSceneCount: 3, hasAudio: true }), { ok: true });
+  const short = productionQualityGate({ plan, finalDurationMs: 6_000, completedSceneCount: 3, hasAudio: true });
+  const incomplete = productionQualityGate({ plan, finalDurationMs: 30_000, completedSceneCount: 2, hasAudio: true });
+  const silent = productionQualityGate({ plan, finalDurationMs: 30_000, completedSceneCount: 3, hasAudio: false });
   assert.equal(short.ok, false); if (!short.ok) assert.match(short.reason, /duration/i);
   assert.equal(incomplete.ok, false); if (!incomplete.ok) assert.match(incomplete.reason, /every planned scene/i);
   assert.equal(silent.ok, false); if (!silent.ok) assert.match(silent.reason, /voiceover/i);

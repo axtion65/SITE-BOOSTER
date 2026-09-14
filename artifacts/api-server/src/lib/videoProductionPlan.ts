@@ -1,7 +1,7 @@
 import type { ExpandedScript } from "./falvideo";
 import { splitApprovedSentences } from "./sentenceSegmentation";
 
-export const VIDEO_PRODUCTION_VERSION = "bdb-hybrid-v3" as const;
+export const VIDEO_PRODUCTION_VERSION = "bdb-native-motion-v4" as const;
 export const PRODUCTION_DURATIONS = [15, 30, 45] as const;
 export type ProductionDuration = (typeof PRODUCTION_DURATIONS)[number];
 
@@ -101,15 +101,18 @@ function allocateEvenly(totalMs: number, count: number): number[] {
 function scenePrompt(input: {
   script: ExpandedScript;
   sceneIndex: number;
-  sourceIndex: number;
+  sourceIndexes: number[];
   platform: string;
   brandName: string;
   narrationText: string;
   hasSourceAsset: boolean;
+  durationMs: number;
 }): string {
-  const source = input.script.scenes[input.sourceIndex] ?? input.script.scenes[0];
-  const description = source?.description || input.script.hook || input.script.script;
-  const direction = source?.visualDirection || "Show the product or service benefit through one clear action.";
+  const sources = input.sourceIndexes
+    .map((index) => input.script.scenes[index])
+    .filter((scene): scene is ExpandedScript["scenes"][number] => Boolean(scene));
+  const description = sources.map((scene) => scene.description).filter(Boolean).join(" Then, ") || input.script.hook || input.script.script;
+  const direction = sources.map((scene) => scene.visualDirection).filter(Boolean).join(" Then, ") || "Show the product or service benefit through one clear action.";
   const framing = input.platform === "tiktok" || input.platform === "instagram"
     ? "vertical 9:16 social advertisement"
     : "widescreen 16:9 advertisement";
@@ -119,8 +122,9 @@ function scenePrompt(input: {
     description,
     direction,
     input.hasSourceAsset
-      ? "Use the supplied approved customer image as the identity authority. Preserve its exact product, person, colors, and visual identity while adding believable motion for this shot."
-      : "Keep the business, product, people, and setting visually consistent with the other shots.",
+      ? "Use the supplied approved customer image as the identity authority. Preserve its exact product, person, colors, and visual identity while turning it into one continuous moving shot."
+      : "Use a visibly different composition and camera angle from the previous shot while keeping the same business story, audience, and brand mood.",
+    `Begin the action in the first frame, sustain natural movement, and complete the full visual beat within ${(input.durationMs / 1000).toFixed(0)} seconds. Do not pause, freeze, reset to the opening frame, or end on a static hold.`,
     "Visually demonstrate only that spoken beat. Show one specific business benefit with believable people, consistent product identity, premium natural lighting, and a purposeful camera move.",
     "Do not introduce food, products, packaging, services, industries, or props that are not supported by this spoken beat or its approved scene.",
     "This shot must connect visually to the same advert, but must not repeat another shot.",
@@ -149,13 +153,10 @@ export function compileVideoProductionPlan(input: {
   if (!input.brand.callToAction.trim()) throw new Error("Approved call to action is required for the end card");
 
   const visualDurationMs = targetMs - 3000;
-  const sourceAssets = (input.sourceAssetPaths ?? []).filter(Boolean);
-  // A customer-supplied visual needs room for one authoritative opening proof
-  // shot plus at least three distinct motion shots. The previous three-scene
-  // plan repeated the same still at both ends and generated only one moving
-  // clip in a 15-second advert.
-  const minimumSceneCount = sourceAssets.length > 0 ? 4 : 3;
-  const sceneCount = Math.max(minimumSceneCount, Math.min(8, Math.max(input.script.scenes.length, Math.ceil(visualDurationMs / 8000))));
+  const sourceAssets = [...new Set((input.sourceAssetPaths ?? []).filter(Boolean))];
+  // Match the provider's useful native motion windows instead of generating
+  // longer clips and discarding their final action during assembly.
+  const sceneCount = targetDurationSeconds === 15 ? 2 : targetDurationSeconds === 30 ? 3 : 6;
   const durations = allocateEvenly(visualDurationMs, sceneCount);
   const narration = narrationBeats(input.script.voiceoverText || input.script.script, sceneCount);
   const vertical = input.platform === "tiktok" || input.platform === "instagram";
@@ -171,21 +172,20 @@ export function compileVideoProductionPlan(input: {
     endCardDurationMs: 3000,
     brand: { ...input.brand, name: input.brand.name.trim(), callToAction: input.brand.callToAction.trim() },
     scenes: durations.map((durationMs, index) => {
-      const sourceIndex = Math.min(input.script.scenes.length - 1, Math.floor(index * input.script.scenes.length / sceneCount));
-      // Preserve the exact customer asset for the opening proof shot, then use
-      // approved assets to condition every generated shot. This keeps product
-      // identity in motion without repeating the opening still later.
-      const sourceImage = sourceAssets.length > 0 && index === 0;
-      const sourceAssetPath = sourceAssets.length > 0
-        ? sourceAssets[Math.min(index, sourceAssets.length - 1)]!
-        : null;
+      const sourceStart = Math.floor(index * input.script.scenes.length / sceneCount);
+      const sourceEnd = Math.max(sourceStart, Math.floor((index + 1) * input.script.scenes.length / sceneCount) - 1);
+      const sourceIndexes = Array.from({ length: sourceEnd - sourceStart + 1 }, (_, offset) => sourceStart + offset);
+      // Each approved reference is used once. If the customer selected one
+      // visual, it anchors the first clip and later clips use new compositions
+      // instead of restarting from the same frame.
+      const sourceAssetPath = sourceAssets[index] ?? null;
       return {
         index,
         durationMs,
         narrationText: narration[index] ?? "",
-        visualPrompt: scenePrompt({ script: input.script, sceneIndex: index, sourceIndex, platform: input.platform, brandName: input.brand.name.trim(), narrationText: narration[index] ?? "", hasSourceAsset: Boolean(sourceAssetPath) }),
+        visualPrompt: scenePrompt({ script: input.script, sceneIndex: index, sourceIndexes, platform: input.platform, brandName: input.brand.name.trim(), narrationText: narration[index] ?? "", hasSourceAsset: Boolean(sourceAssetPath), durationMs }),
         sourceAssetPath,
-        mediaType: sourceImage ? "source_image" : "generated_video",
+        mediaType: "generated_video",
       };
     }),
   };
@@ -197,15 +197,18 @@ export function validateVideoProductionPlan(plan: VideoProductionPlan): void {
   const sceneMs = plan.scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
   const targetMs = plan.targetDurationSeconds * 1000;
   if (sceneMs + plan.endCardDurationMs !== targetMs) throw new Error("Production timeline does not equal its target duration");
-  // The shortest advert reserves 3s for its end card, leaving 12s for up to
-  // eight approved scenes. Provider clips are generated longer and trimmed.
+  // Every production slot is long enough for a complete provider motion beat.
   if (plan.scenes.some((scene, index) => scene.index !== index || scene.durationMs < 1500 || scene.durationMs > 10_000)) {
     throw new Error("Production scenes must be ordered and between 1.5s and 10s");
   }
   if (plan.scenes.some((scene) => !scene.narrationText.trim())) throw new Error("Every production scene must map to a spoken beat");
-  if (plan.scenes.some((scene) => scene.mediaType === "source_image" && !scene.sourceAssetPath)) throw new Error("A source-image scene must have its approved asset");
-  if (plan.scenes.filter((scene) => scene.mediaType === "source_image").length > 1) throw new Error("A finished advert cannot repeat static source-image scenes");
+  if (plan.scenes.some((scene) => scene.mediaType !== "generated_video")) throw new Error("Current adverts require continuous generated motion");
   if (plan.scenes.filter((scene) => scene.mediaType === "generated_video").length < 2) throw new Error("A finished advert needs at least two motion scenes");
+  const sourcePaths = plan.scenes.map((scene) => scene.sourceAssetPath).filter((value): value is string => Boolean(value));
+  if (new Set(sourcePaths).size !== sourcePaths.length) throw new Error("An approved source image cannot restart more than one motion scene");
+  if (plan.targetDurationSeconds === 15 && (plan.scenes.length !== 2 || plan.scenes.some((scene) => scene.durationMs !== 6000))) {
+    throw new Error("A 15-second advert requires two complete six-second motion scenes");
+  }
   if (!plan.brand.callToAction || !plan.brand.name) throw new Error("Production plan is missing brand or CTA");
 }
 
