@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 
 type Step = "closed" | "open" | "sent";
 const MAX_FEEDBACK_MESSAGE_LENGTH = 4000;
-const MAX_FEEDBACK_EMAIL_LENGTH = 320;
+const MAX_FEEDBACK_EMAIL_LENGTH = 254;
+const VALID_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function FeedbackWidget() {
   const [step, setStep] = useState<Step>("closed");
@@ -18,6 +19,10 @@ export default function FeedbackWidget() {
 
   const handleSubmit = async () => {
     if (!message.trim()) return;
+    if (email.trim() && !VALID_EMAIL.test(email.trim())) {
+      setSubmitError("Enter a valid reply email or leave the email field blank.");
+      return;
+    }
     setLoading(true);
     setSubmitError(null);
     try {
