@@ -50,3 +50,14 @@ test("customer how-to walkthrough is public, linked, and uses the bundled video"
   assert.ok(video.includes(Buffer.from("avc1")), "walkthrough must include H.264 video");
   assert.ok(video.includes(Buffer.from("mp4a")), "walkthrough must include AAC narration");
 });
+
+test("account creation explains its security and legal agreement", () => {
+  const signIn = readFileSync(new URL("../pages/signin.tsx", import.meta.url), "utf8");
+
+  assert.match(signIn, /Use at least 8 characters\./);
+  assert.match(signIn, /By creating an account, you agree to our/);
+  assert.match(signIn, /href="\/terms"[^>]*>Terms of Service<\/Link>/);
+  assert.match(signIn, /href="\/privacy"[^>]*>Privacy Policy<\/Link>/);
+  assert.match(signIn, /autoComplete="new-password"/);
+  assert.match(signIn, /autoComplete="current-password"/);
+});

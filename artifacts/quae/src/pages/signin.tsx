@@ -179,6 +179,7 @@ export default function SignIn() {
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
                       required
                     />
                   </div>
@@ -200,6 +201,7 @@ export default function SignIn() {
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
                       required
                     />
                   </div>
@@ -230,6 +232,7 @@ export default function SignIn() {
                       placeholder="John Doe"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      autoComplete="name"
                     />
                   </div>
                   <div className="space-y-2">
@@ -240,6 +243,7 @@ export default function SignIn() {
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
                       required
                     />
                   </div>
@@ -254,12 +258,22 @@ export default function SignIn() {
                       minLength={8}
                       placeholder="At least 8 characters"
                       autoComplete="new-password"
+                      aria-describedby="signup-password-help"
                     />
+                    <p id="signup-password-help" className="text-xs text-muted-foreground">
+                      Use at least 8 characters.
+                    </p>
                   </div>
                   <Button type="submit" className="w-full mt-4" disabled={signUpMutation.isPending}>
                     {signUpMutation.isPending ? <Spinner className="mr-2" /> : null}
                     Create Account
                   </Button>
+                  <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                    By creating an account, you agree to our{" "}
+                    <Link href="/terms" className="text-primary hover:underline">Terms of Service</Link>{" "}
+                    and acknowledge our{" "}
+                    <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+                  </p>
                 </form>
               </CardContent>
             </TabsContent>
