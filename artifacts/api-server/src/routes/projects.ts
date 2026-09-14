@@ -21,6 +21,7 @@ import { VIDEO_PRODUCTION_VERSION } from "../lib/videoProductionPlan";
 import { normalizeProjectSubmissionBody, projectValidationIssueFields } from "../lib/projectSubmission";
 import { checkFalProviderReadiness } from "../lib/falProviderReadiness";
 import { safeErrorMetadata } from "../lib/safeErrorMetadata";
+import { normalizePersistedObjectPath } from "../lib/mockupProduction";
 
 /** Preserve a stable operation label without logging SQL values or database details. */
 function logDbError(context: string, err: unknown): void {
@@ -45,7 +46,7 @@ async function loadApprovedVisualProduction(
   campaignVideoBriefId: string, campaignId: string, userId: string,
   database: CampaignAuthorityDb = db,
 ): Promise<any | null> {
-  return (await database.execute(sql`SELECT vb.*,c.name campaign_name,b.name business_name,mv.object_path
+  const production = (await database.execute(sql`SELECT vb.*,c.name campaign_name,b.name business_name,mv.object_path
       FROM campaign_video_briefs vb
       JOIN campaigns c ON c.id=vb.campaign_id AND c.user_id=vb.customer_id AND c.business_id=vb.business_id
         AND c.approved_run_id=vb.campaign_run_id AND c.status='approved'
@@ -58,6 +59,10 @@ async function loadApprovedVisualProduction(
       JOIN mockup_versions mv ON mv.id=vb.mockup_version_id AND mv.mockup_project_id=mp.id
         AND mv.object_path IS NOT NULL
       WHERE vb.id=${campaignVideoBriefId} AND vb.campaign_id=${campaignId} AND vb.customer_id=${userId} FOR SHARE OF c,b,vb,s,mp,mv`)).rows[0] ?? null;
+  // Storage persists /api/storage/objects/...; render sources use /objects/....
+  // Compare the same internal identity for creation, its locked recheck, and retry.
+  const objectPath = normalizePersistedObjectPath(production?.object_path);
+  return production && objectPath ? { ...production, object_path: objectPath } : null;
 }
 
 async function loadApprovedTextProduction(
