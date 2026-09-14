@@ -43,3 +43,9 @@ test("account, brand, admin, and feedback controls expose programmatic names", (
   assert.match(feedback, /aria-label="Feedback message"/);
   assert.match(feedback, /aria-label="Reply email \(optional\)"/);
 });
+
+test("campaign revision fields expose programmatic names in every review state", () => {
+  const campaign = read("../pages/studio/campaign-detail.tsx");
+  assert.match(campaign, /aria-label="Additional campaign revision instructions"/);
+  assert.match(campaign, /aria-label="Requested campaign changes"/);
+});
