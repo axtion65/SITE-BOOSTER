@@ -238,6 +238,7 @@ function BillingContent() {
               const isCurrent = currentPlan === planKey;
               const isPopular = plan.mostPopular;
               const isIntended = intendedPlan === planKey;
+              const managesExistingPlan = currentPlan !== "free";
               const interval = annual ? "year" : "month";
               const price = getPriceForInterval(plan.slug, interval);
               const displayAmount = formatUsd(plan.monthlyPriceCents);
@@ -298,8 +299,8 @@ function BillingContent() {
                   </ul>
 
                   <button
-                    disabled={isCurrent || !price || checkingOut === plan.slug}
-                    onClick={() => !isCurrent && handleUpgrade(plan.slug)}
+                    disabled={isCurrent || plan.slug === "free" || (managesExistingPlan ? openingPortal : !price || checkingOut !== null)}
+                    onClick={() => !isCurrent && (managesExistingPlan ? handlePortal() : handleUpgrade(plan.slug))}
                     className={`w-full flex items-center justify-center h-10 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPopular
                         ? "bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20"
@@ -308,12 +309,14 @@ function BillingContent() {
                           : "bg-white/[0.05] hover:bg-white/10 text-white border border-white/[0.08] hover:border-white/15"
                     }`}
                   >
-                    {checkingOut === plan.slug ? (
+                    {checkingOut === plan.slug || (managesExistingPlan && openingPortal && !isCurrent && plan.slug !== "free") ? (
                       <><Spinner className="h-4 w-4 mr-2" /> Redirecting…</>
                     ) : isCurrent ? (
                       "Current Plan"
                     ) : plan.slug === "free" ? (
                       "Free Plan"
+                    ) : managesExistingPlan ? (
+                      "Manage plans"
                     ) : !price ? (
                       "Checkout not configured"
                     ) : isIntended ? (

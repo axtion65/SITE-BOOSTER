@@ -1,7 +1,6 @@
 import { getStripeClient } from './stripeClient';
 import { storage } from './storage';
-import { PLAN_BY_SLUG, isPlanSlug, type PaidPlanSlug } from '@workspace/plans';
-import { applyPaidSubscriptionSnapshot } from './lib/subscriptionCredits';
+import { stripeService } from './stripeService';
 import {
   recordStripeWebhookAttempt,
   recordStripeWebhookFailure,
@@ -9,12 +8,6 @@ import {
 } from './lib/stripeWebhookLedger';
 import { logger } from './lib/logger';
 import { safeErrorMetadata } from './lib/safeErrorMetadata';
-
-function getPlanFromMetadata(metadata: Stripe.Metadata): PaidPlanSlug | null {
-  const plan = metadata?.plan;
-  if (!plan || !isPlanSlug(plan) || plan === 'free') return null;
-  return plan;
-}
 
 import type Stripe from 'stripe';
 
@@ -75,23 +68,12 @@ async function handleSubscriptionChange(stripe: Stripe, sub: Stripe.Subscription
     return;
   }
 
-  const priceId = sub.items.data[0]?.price?.id;
-  if (!priceId) return;
+  // Stripe can deliver older events after newer ones. Reconcile its current
+  // subscription state, never the status/plan frozen in an earlier event.
+  const current = await stripe.subscriptions.retrieve(sub.id);
+  const result = await stripeService.syncSubscriptionToUser(user.id, current);
 
-  const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
-  const product = price.product as Stripe.Product;
-  const plan = getPlanFromMetadata(product.metadata);
-  if (!plan) throw new Error(`Stripe product ${product.id} has no valid plan metadata`);
-  const result = await applyPaidSubscriptionSnapshot(user.id, {
-    customerId,
-    subscriptionId: sub.id,
-    plan,
-    status: sub.status,
-    billingInterval: price.recurring?.interval ?? null,
-    anchorAt: new Date(sub.start_date * 1000),
-  });
-
-  console.log(`[webhook] Subscription updated — plan=${plan} grant=${result?.grantReason ?? "none"}`);
+  console.log(`[webhook] Subscription updated — grant=${result?.grantReason ?? "none"}`);
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
@@ -99,15 +81,6 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
   const user = await storage.getUserByStripeCustomerId(customerId);
   if (!user) return;
 
-  await storage.updateUserStripeInfo(user.id, {
-    stripeSubscriptionId: null,
-    plan: 'free',
-    credits: PLAN_BY_SLUG.free.credits,
-    subscriptionStatus: sub.status,
-    billingInterval: null,
-    creditCycleAnchorAt: null,
-    creditRefreshAt: null,
-  });
-
-  console.log("[webhook] Subscription deleted — account returned to free plan");
+  const updated = await storage.endUserSubscription(user.id, sub.id, sub.status);
+  if (updated) console.log("[webhook] Subscription deleted — account returned to free plan");
 }

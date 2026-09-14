@@ -30,6 +30,13 @@ export async function applyPaidSubscriptionSnapshot(
     const user = await lockUser(tx, userId);
     if (!user) return null;
 
+    // A different subscription may replace only the exact ended subscription
+    // verified by the caller. Recheck under the lock in case another event won.
+    if (user.stripeSubscriptionId && user.stripeSubscriptionId !== snapshot.subscriptionId &&
+      user.stripeSubscriptionId !== snapshot.replacesSubscriptionId) {
+      return { user, grantReason: null };
+    }
+
     if (!isEntitledSubscriptionStatus(snapshot.status)) {
       const [updated] = await tx.update(usersTable).set({
         stripeCustomerId: snapshot.customerId, subscriptionStatus: snapshot.status,

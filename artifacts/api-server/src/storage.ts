@@ -1,5 +1,6 @@
 import { db, usersTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { PLAN_BY_SLUG } from "@workspace/plans";
+import { and, eq, sql } from "drizzle-orm";
 
 export class Storage {
   async getUser(id: string) {
@@ -10,6 +11,25 @@ export class Storage {
   async getUserByStripeCustomerId(customerId: string) {
     const [user] = await db.select().from(usersTable)
       .where(eq(usersTable.stripeCustomerId, customerId));
+    return user ?? null;
+  }
+
+  async endUserSubscription(userId: string, subscriptionId: string, status: string) {
+    // Keep the identity check in the UPDATE so a replacement subscription that
+    // arrives after the webhook's customer lookup cannot lose its entitlement.
+    const [user] = await db.update(usersTable).set({
+      stripeSubscriptionId: null,
+      plan: "free",
+      credits: PLAN_BY_SLUG.free.credits,
+      subscriptionStatus: status,
+      billingInterval: null,
+      creditCycleAnchorAt: null,
+      creditRefreshAt: null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(usersTable.id, userId),
+      eq(usersTable.stripeSubscriptionId, subscriptionId),
+    )).returning();
     return user ?? null;
   }
 
