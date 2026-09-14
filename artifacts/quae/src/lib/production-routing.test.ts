@@ -23,6 +23,23 @@ test("the production build publishes Quae's Vite artifact", () => {
   assert.equal(vercel.outputDirectory, "artifacts/quae/dist/public");
 });
 
+test("every production page carries the browser security header baseline", () => {
+  assert.deepEqual(vercel.headers, [
+    {
+      source: "/(.*)",
+      headers: [
+        { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=()" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        { key: "Strict-Transport-Security", value: "max-age=31536000" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
+      ],
+    },
+  ]);
+});
+
 test("marketingApi uses one same-origin /api prefix", () => {
   assert.equal(MARKETING_API_PREFIX, "/api");
   assert.equal(marketingApiPath("/mockups/project-id/generate"), "/api/mockups/project-id/generate");

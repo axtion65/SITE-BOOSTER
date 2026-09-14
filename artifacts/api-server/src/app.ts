@@ -8,8 +8,14 @@ import { logger } from "./lib/logger";
 import { readFalWebhookHeaders, verifyFalWebhookSignature } from "./lib/falWebhookSignature";
 import { processFalCompletion, type FalCompletionEvent } from "./routes/webhooks";
 import { isAllowedBrowserOrigin } from "./lib/corsPolicy";
+import { setApiSecurityHeaders } from "./lib/securityHeaders";
 
 const app: Express = express();
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  setApiSecurityHeaders(res);
+  next();
+});
 
 // Stripe webhook MUST be registered before express.json() — needs raw Buffer
 app.post(
