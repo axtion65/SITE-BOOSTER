@@ -26,6 +26,7 @@ test("all canonical migrations include marketing context and campaigns", async (
     "0019_secure_password_recovery.sql",
     "0020_subscription_credit_cycles.sql",
     "0021_tutorial_email_onboarding.sql",
+    "0022_stripe_webhook_observability.sql",
   ]);
   const build = await readFile(
     new URL("artifacts/api-server/build.mjs", root),
@@ -177,4 +178,18 @@ test("tutorial email migration queues existing active users exactly once", async
   assert.match(sql, /WHERE account_status = 'active'/);
   assert.match(sql, /ON CONFLICT \(id\) DO NOTHING/);
   assert.doesNotMatch(sql, /UPDATE\s+users|DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
+});
+
+test("Stripe webhook observability migration is additive and retry-aware", async () => {
+  const sql = await readFile(
+    new URL("lib/db/migrations/0022_stripe_webhook_observability.sql", root),
+    "utf8",
+  );
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS stripe_webhook_events/);
+  assert.match(sql, /event_id TEXT PRIMARY KEY/);
+  assert.match(sql, /status IN \('processing', 'succeeded', 'failed'\)/);
+  assert.match(sql, /attempts INTEGER NOT NULL DEFAULT 1/);
+  assert.match(sql, /last_error TEXT/);
+  assert.match(sql, /stripe_webhook_events_status_updated_idx/);
+  assert.doesNotMatch(sql, /DELETE\s+FROM|TRUNCATE|DROP\s+(TABLE|COLUMN)/i);
 });
