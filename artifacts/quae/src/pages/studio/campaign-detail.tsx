@@ -19,6 +19,7 @@ import { ActionButton, StatusPill } from "@/components/quae-design-system";
 import { statusLabel } from "./campaigns";
 import { useToast } from "@/hooks/use-toast";
 import { customerCopy } from "@/lib/customer-copy";
+import { downloadProjectVideo } from "@/lib/video-download";
 const headers = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${localStorage.getItem("quae_token") || ""}`,
@@ -33,6 +34,7 @@ export default function CampaignDetail() {
     [rescue, setRescue] = useState<any>(null),
     [visualOptions, setVisualOptions] = useState<any[]>([]),
     [choosingVisual, setChoosingVisual] = useState(false);
+  const [downloadingVideo, setDownloadingVideo] = useState<string | null>(null);
   const load = async () => {
     try {
       const response = await fetch(`/api/campaigns/${params?.id}/workspace`, {
@@ -169,6 +171,17 @@ export default function CampaignDetail() {
       toast({ title: (error as Error).message, variant: "destructive" });
     } finally {
       setBusy(null);
+    }
+  }
+  async function downloadVideo(projectId: string) {
+    if (downloadingVideo) return;
+    setDownloadingVideo(projectId);
+    try {
+      await downloadProjectVideo(projectId);
+    } catch (error) {
+      toast({ title: "Download unavailable", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setDownloadingVideo(null);
     }
   }
   async function post(path: string, body: Record<string, unknown>) {
@@ -540,12 +553,16 @@ export default function CampaignDetail() {
                       Preview · Open in Studio
                     </Link>
                     {v.status === "completed" && (
-                      <a
-                        href={`/api/projects/${v.id}/video/download`}
-                        className="ml-3 text-sm font-bold text-violet-200"
+                      <button
+                        type="button"
+                        onClick={() => void downloadVideo(v.id)}
+                        disabled={downloadingVideo !== null}
+                        aria-busy={downloadingVideo === v.id}
+                        aria-label={`Download ${v.title || "video"} MP4`}
+                        className="ml-3 text-sm font-bold text-violet-200 disabled:opacity-50"
                       >
-                        Download
-                      </a>
+                        {downloadingVideo === v.id ? "Preparing…" : "Download"}
+                      </button>
                     )}
                   </div>
                 ))}

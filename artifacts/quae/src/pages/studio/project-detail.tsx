@@ -13,6 +13,7 @@ import { ExpandedScript } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivateImageUrl } from "@/hooks/use-private-image-url";
 import { apiHeaders } from "@/lib/marketing-api";
+import { downloadProjectVideo } from "@/lib/video-download";
 
 // Realistic estimates based on actual fal.ai queue times
 const MODEL_ESTIMATES: Record<string, number> = {
@@ -120,20 +121,7 @@ export default function StudioProjectDetail() {
   async function downloadVideo() {
     setDownloading(true);
     try {
-      const response = await fetch(`/api/projects/${id}/video/download`, { headers: apiHeaders(false) });
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.error || "Video download is temporarily unavailable.");
-      }
-      const blob = await response.blob();
-      const disposition = response.headers.get("content-disposition") || "";
-      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || "quae-video.mp4";
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      await downloadProjectVideo(id);
     } catch (error) {
       toast({ title: "Download unavailable", description: (error as Error).message, variant: "destructive" });
     } finally {
