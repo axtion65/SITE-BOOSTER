@@ -1,13 +1,14 @@
 import { randomUUID } from "crypto";
 import { Router } from "express";
 import { db, usersTable, projectsTable, emailQueueTable, stripeWebhookEventsTable } from "@workspace/db";
-import { eq, gte, count, sql, desc, like, or } from "drizzle-orm";
+import { and, eq, gte, count, sql, desc, isNotNull, like, ne, or } from "drizzle-orm";
 import { UpdateAdminUserBody } from "@workspace/api-zod";
 import { resolveUserFromToken } from "./auth";
 import { S3ObjectFile } from "../lib/objectStorage";
 import { setObjectAclPolicy } from "../lib/objectAcl";
 import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type PlanSlug } from "@workspace/plans";
 import { logger } from "../lib/logger";
+import { activeSubscriptionMetrics } from "../lib/adminRevenue";
 
 const router = Router();
 
@@ -136,21 +137,25 @@ router.get("/admin/operations", async (req, res) => {
     db.select({ status: emailQueueTable.status, value: count() }).from(emailQueueTable)
       .where(or(eq(emailQueueTable.status, "pending"), eq(emailQueueTable.status, "processing"), eq(emailQueueTable.status, "failed")))
       .groupBy(emailQueueTable.status),
-    db.select().from(usersTable).where(sql`${usersTable.subscriptionStatus} = 'active' OR (${usersTable.subscriptionStatus} IS NULL AND ${usersTable.plan} <> 'free')`),
+    db.select().from(usersTable).where(and(
+      eq(usersTable.subscriptionStatus, "active"),
+      isNotNull(usersTable.stripeSubscriptionId),
+      ne(usersTable.plan, "free"),
+    )),
     db.select().from(projectsTable).where(gte(projectsTable.createdAt, today)),
   ]);
   const { MODEL_CREDIT_COSTS } = await import("../lib/falvideo");
   const creditsUsedToday = recentProjects.reduce((sum, project) => sum + (MODEL_CREDIT_COSTS[project.renderingModelId] ?? 0), 0);
   const completed = recentProjects.filter(project => project.status === "completed");
   const averageRenderTimeSeconds = completed.length ? Math.round(completed.reduce((sum, project) => sum + Math.max(0, project.updatedAt.getTime() - project.createdAt.getTime()), 0) / completed.length / 1000) : 0;
-  const mrrCents = activeUsers.reduce((sum, user) => sum + (isPlanSlug(user.plan) ? PLAN_BY_SLUG[user.plan].monthlyPriceCents : 0), 0);
+  const { activeSubscriptions, mrrCents } = activeSubscriptionMetrics(activeUsers);
   const pendingEmails = emailQueue.reduce((sum, row) => sum + (row.status === "pending" || row.status === "processing" ? Number(row.value) : 0), 0);
   const failedEmails = emailQueue.reduce((sum, row) => sum + (row.status === "failed" ? Number(row.value) : 0), 0);
   let databaseStatus = "operational";
   try { await db.execute(sql`select 1`); } catch { databaseStatus = "down"; }
   res.json({
     usersToday: Number(todayUsers[0]?.value ?? 0), videosToday: Number(todayProjects[0]?.value ?? 0), creditsUsedToday,
-    activeSubscriptions: activeUsers.length, mrrCents, failedRenders: Number(failedRenders[0]?.value ?? 0),
+    activeSubscriptions, mrrCents, failedRenders: Number(failedRenders[0]?.value ?? 0),
     failedStripeWebhooks: Number(failedStripeWebhooks[0]?.value ?? 0), queueLength: Number(queued[0]?.value ?? 0), averageRenderTimeSeconds,
     pendingEmails, failedEmails,
     health: {
