@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { Router } from "express";
-import { db, usersTable, projectsTable, emailQueueTable } from "@workspace/db";
+import { db, usersTable, projectsTable, emailQueueTable, stripeWebhookEventsTable } from "@workspace/db";
 import { eq, gte, count, sql, desc, like } from "drizzle-orm";
 import { UpdateAdminUserBody } from "@workspace/api-zod";
 import { resolveUserFromToken } from "./auth";
@@ -127,10 +127,11 @@ router.get("/admin/operations", async (req, res) => {
   const admin = await getAdminUser(req.headers.authorization);
   if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
   const today = new Date(); today.setUTCHours(0, 0, 0, 0);
-  const [todayUsers, todayProjects, failedRenders, queued, activeUsers, recentProjects] = await Promise.all([
+  const [todayUsers, todayProjects, failedRenders, failedStripeWebhooks, queued, activeUsers, recentProjects] = await Promise.all([
     db.select({ value: count() }).from(usersTable).where(gte(usersTable.createdAt, today)),
     db.select({ value: count() }).from(projectsTable).where(gte(projectsTable.createdAt, today)),
     db.select({ value: count() }).from(projectsTable).where(eq(projectsTable.status, "failed")),
+    db.select({ value: count() }).from(stripeWebhookEventsTable).where(eq(stripeWebhookEventsTable.status, "failed")),
     db.select({ value: count() }).from(projectsTable).where(eq(projectsTable.status, "processing")),
     db.select().from(usersTable).where(sql`${usersTable.subscriptionStatus} = 'active' OR (${usersTable.subscriptionStatus} IS NULL AND ${usersTable.plan} <> 'free')`),
     db.select().from(projectsTable).where(gte(projectsTable.createdAt, today)),
@@ -145,7 +146,7 @@ router.get("/admin/operations", async (req, res) => {
   res.json({
     usersToday: Number(todayUsers[0]?.value ?? 0), videosToday: Number(todayProjects[0]?.value ?? 0), creditsUsedToday,
     activeSubscriptions: activeUsers.length, mrrCents, failedRenders: Number(failedRenders[0]?.value ?? 0),
-    failedStripeWebhooks: null, queueLength: Number(queued[0]?.value ?? 0), averageRenderTimeSeconds,
+    failedStripeWebhooks: Number(failedStripeWebhooks[0]?.value ?? 0), queueLength: Number(queued[0]?.value ?? 0), averageRenderTimeSeconds,
     health: {
       openai: process.env.OPENAI_API_KEY ? "configured" : "not_configured",
       fal: process.env.FAL_KEY ? "configured" : "not_configured",
