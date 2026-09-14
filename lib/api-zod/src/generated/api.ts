@@ -91,7 +91,7 @@ export const SignInResponse = zod.object({
 /**
  * @summary Create a new account
  */
-export const signUpBodyPasswordMin = 6;
+export const signUpBodyPasswordMin = 8;
 
 
 
@@ -132,7 +132,7 @@ export const ForgotPasswordResponse = zod.object({
  */
 export const resetPasswordBodyTokenMin = 32;
 
-export const resetPasswordBodyNewPasswordMin = 6;
+export const resetPasswordBodyNewPasswordMin = 8;
 
 
 

@@ -33,8 +33,8 @@ export default function SignUpScreen() {
       setError('Please fill in all required fields.');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
       return;
     }
     setError('');
@@ -127,7 +127,7 @@ export default function SignUpScreen() {
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Password</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.secondary, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Min. 6 characters"
+                placeholder="Min. 8 characters"
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
                 onChangeText={setPassword}
