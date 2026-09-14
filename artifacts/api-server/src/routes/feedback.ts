@@ -2,14 +2,21 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { resolveUserFromToken } from "./auth";
+import { createRateLimitMiddleware } from "../lib/rateLimit";
 
 const router = Router();
 const FEEDBACK_TYPES = new Set<string>(["idea", "bug", "other"]);
 const MAX_FEEDBACK_MESSAGE_LENGTH = 4000;
 const MAX_FEEDBACK_EMAIL_LENGTH = 320;
+const feedbackRateLimit = createRateLimitMiddleware({
+  scope: "feedback.create.client",
+  limit: 10,
+  globalLimit: 300,
+  windowMs: 60 * 60 * 1000,
+});
 
 // POST /api/feedback — store user feedback
-router.post("/feedback", async (req, res) => {
+router.post("/feedback", feedbackRateLimit, async (req, res) => {
   const { type, message, email } = req.body as {
     type?: string; message?: string; email?: string;
   };
