@@ -21,6 +21,7 @@ import {
   terminalQualityRebuildIdempotencyKey,
   validateRunSource,
 } from "./campaignReview";
+import { deterministicCampaignFallback } from "./campaignSafeFallback";
 
 const context = {
   source: "website_import",
@@ -271,6 +272,36 @@ test("customer projection fails closed for JSON and AI internal text", () => {
     ),
     /fact_1|secret/,
   );
+});
+
+test("customer projection identifies a fallback without changing its approved copy or approval checks", () => {
+  const saved = deterministicCampaignFallback(correctContext);
+  const original = structuredClone(saved);
+  const visible = publicCampaignResult(saved);
+
+  assert.equal(visible?.isFallback, true);
+  assert.equal(visible?.finalScript.script, saved.finalScript.script);
+  assert.equal(visible?.finalScript.hook, saved.finalScript.hook);
+  assert.equal(visible?.finalScript.callToAction, saved.finalScript.callToAction);
+  assert.equal(visible?.factcheck.pass, true);
+  assert.equal(visible?.qa.pass, true);
+  assert.equal("judge" in visible!, false);
+  assert.equal("ledger" in visible!, false);
+  assert.deepEqual(saved, original);
+});
+
+test("customer projection does not classify a reviewed campaign as a fallback", () => {
+  const saved = {
+    ...final(),
+    judge: { winningScore: 100 },
+    ledger: [],
+    qa: { pass: true, score: 100 },
+  };
+  const visible = publicCampaignResult(saved);
+
+  assert.equal(visible?.isFallback, false);
+  assert.deepEqual(visible?.finalScript, saved.finalScript);
+  assert.equal(visible?.qa.score, 100);
 });
 
 test("customer projection includes safe quality feedback without internal evidence data", () => {
