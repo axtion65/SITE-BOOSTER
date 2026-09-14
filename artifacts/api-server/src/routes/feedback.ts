@@ -4,11 +4,9 @@ import { sql } from "drizzle-orm";
 import { resolveUserFromToken } from "./auth";
 import { createRateLimitMiddleware } from "../lib/rateLimit";
 import { logger } from "../lib/logger";
+import { FeedbackBody } from "../lib/feedbackInput";
 
 const router = Router();
-const FEEDBACK_TYPES = new Set<string>(["idea", "bug", "other"]);
-const MAX_FEEDBACK_MESSAGE_LENGTH = 4000;
-const MAX_FEEDBACK_EMAIL_LENGTH = 320;
 const feedbackRateLimit = createRateLimitMiddleware({
   scope: "feedback.create.client",
   limit: 10,
@@ -18,30 +16,14 @@ const feedbackRateLimit = createRateLimitMiddleware({
 
 // POST /api/feedback — store user feedback
 router.post("/feedback", feedbackRateLimit, async (req, res) => {
-  const { type, message, email } = req.body as {
-    type?: string; message?: string; email?: string;
-  };
-
-  const normalizedMessage = typeof message === "string" ? message.trim() : "";
-  const normalizedEmail = typeof email === "string" ? email.trim() : "";
-  const normalizedType = typeof type === "string" ? type : "other";
-
-  if (!normalizedMessage) {
-    res.status(400).json({ error: "message is required" });
+  const parsed = FeedbackBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Enter feedback and a valid optional reply email" });
     return;
   }
-  if (normalizedMessage.length > MAX_FEEDBACK_MESSAGE_LENGTH) {
-    res.status(400).json({ error: `message must be ${MAX_FEEDBACK_MESSAGE_LENGTH} characters or fewer` });
-    return;
-  }
-  if (normalizedEmail.length > MAX_FEEDBACK_EMAIL_LENGTH) {
-    res.status(400).json({ error: `email must be ${MAX_FEEDBACK_EMAIL_LENGTH} characters or fewer` });
-    return;
-  }
-  if (!FEEDBACK_TYPES.has(normalizedType)) {
-    res.status(400).json({ error: "invalid feedback type" });
-    return;
-  }
+  const normalizedMessage = parsed.data.message;
+  const normalizedEmail = parsed.data.email ?? "";
+  const normalizedType = parsed.data.type;
 
   try {
     // Store in DB using a simple raw insert (no schema needed — uses jsonb log table pattern)
