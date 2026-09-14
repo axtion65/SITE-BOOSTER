@@ -60,7 +60,7 @@ export default function Admin() {
 
 type Operations = {
   usersToday: number; videosToday: number; creditsUsedToday: number; activeSubscriptions: number;
-  mrrCents: number; failedRenders: number; failedStripeWebhooks: number | null; queueLength: number;
+  mrrCents: number; failedRenders: number; failedStripeWebhooks: number; queueLength: number;
   averageRenderTimeSeconds: number; health: Record<string, string>;
 };
 
@@ -81,7 +81,7 @@ function OperationsOverview() {
   const metrics = [
     ["Users today", data.usersToday], ["Videos today", data.videosToday], ["Credits used today", data.creditsUsedToday.toLocaleString()],
     ["Active subscriptions", data.activeSubscriptions], ["Monthly recurring revenue", `$${(data.mrrCents / 100).toLocaleString()}`],
-    ["Failed renders", data.failedRenders], ["Failed Stripe webhooks", data.failedStripeWebhooks ?? "Not tracked"],
+    ["Failed renders", data.failedRenders], ["Failed Stripe webhooks", data.failedStripeWebhooks],
     ["Queue length", data.queueLength], ["Average render time", `${data.averageRenderTimeSeconds}s`],
   ];
   return <div className="space-y-4">
