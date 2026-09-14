@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { stripeService } from "../stripeService";
 import { resolveUserIdFromToken } from "./auth";
 import { getPublicAppOrigin, isStripeCheckoutReady } from "../lib/billingConfig";
+import { safeErrorMetadata } from "../lib/safeErrorMetadata";
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.get("/billing/plans", async (_req, res) => {
     );
     res.json({ plans });
   } catch (err) {
-    console.error("[billing] plans error", err);
+    console.error("[billing] Failed to load plans", safeErrorMetadata(err));
     res.status(500).json({ error: "Failed to load plans" });
   }
 });
@@ -59,7 +60,7 @@ router.post("/billing/checkout", async (req, res) => {
 
     res.json({ url: session.url });
   } catch (err: any) {
-    console.error("[billing] checkout error", err);
+    console.error("[billing] Checkout failed", safeErrorMetadata(err));
     res.status(500).json({ error: "Checkout failed" });
   }
 });
@@ -78,7 +79,7 @@ router.post("/billing/portal", async (req, res) => {
     const session = await stripeService.createPortalSession(user.stripeCustomerId, `${domain}/studio/dashboard`);
     res.json({ url: session.url });
   } catch (err: any) {
-    console.error("[billing] portal error", err);
+    console.error("[billing] Portal failed", safeErrorMetadata(err));
     res.status(500).json({ error: "Portal failed" });
   }
 });
@@ -99,7 +100,7 @@ router.post("/billing/sync", async (req, res) => {
     }
     res.json({ synced: true, plan: updated.plan, credits: updated.credits });
   } catch (err: any) {
-    console.error("[billing] sync error", err);
+    console.error("[billing] Subscription sync failed", safeErrorMetadata(err));
     res.status(500).json({ error: "Sync failed" });
   }
 });

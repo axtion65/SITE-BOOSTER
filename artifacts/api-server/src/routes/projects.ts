@@ -20,6 +20,7 @@ import { startVideoProduction } from "../lib/videoProduction";
 import { VIDEO_PRODUCTION_VERSION } from "../lib/videoProductionPlan";
 import { normalizeProjectSubmissionBody, projectValidationIssueFields } from "../lib/projectSubmission";
 import { checkFalProviderReadiness } from "../lib/falProviderReadiness";
+import { safeErrorMetadata } from "../lib/safeErrorMetadata";
 
 /** Log every field PostgreSQL/Drizzle exposes on a DB error. */
 function logDbError(context: string, err: any): void {
@@ -93,7 +94,7 @@ async function resolveVideoUrl(videoUrl: string | null | undefined, status?: str
     const internalPath = "/objects/" + videoUrl.slice("/api/storage/objects/".length);
     return await storage.getSignedObjectEntityUrl(internalPath, 900);
   } catch (err) {
-    console.error("[projects] Failed to sign video URL:", err);
+    console.error("[projects] Failed to sign video URL", safeErrorMetadata(err));
     return null; // keep the durable reference private and let the client retry
   }
 }
@@ -182,7 +183,7 @@ function archiveVideoAsync(ctx: ArchiveJobContext) {
             permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
           }
         } catch (err) {
-          console.error("[projects] Narration pipeline error — archiving silent video:", err);
+          console.error("[projects] Narration pipeline failed — archiving silent video", safeErrorMetadata(err));
           permanentPath = await storage.uploadVideoFromUrl(falUrl, storageIdentity);
         }
       } else {
@@ -213,7 +214,7 @@ function archiveVideoAsync(ctx: ArchiveJobContext) {
         console.log(`[projects] Archival race: project ${projectId} was re-rendered — skipping completion`);
       }
     } catch (err) {
-      console.error("[projects] Archival failed — failing project and refunding credits:", err);
+      console.error("[projects] Archival failed — failing project and refunding credits", safeErrorMetadata(err));
       // Prevent project from being stuck in "narrating" forever
       await failAndRefund(projectId, userId, creditCost, isAdmin).catch(() => {});
     }
@@ -618,7 +619,7 @@ router.get("/projects/:id", async (req, res) => {
         res.json({ ...current, createdAt: current.createdAt.toISOString(), updatedAt: current.updatedAt.toISOString() });
         return;
       }
-    } catch (err) { console.error("[fal-video] poll error", err); }
+    } catch (err) { console.error("[fal-video] Poll failed", safeErrorMetadata(err)); }
   }
 
   const resolvedVideoUrl = await resolveVideoUrl(project.videoUrl, project.status);
@@ -653,7 +654,7 @@ router.get("/projects/:id/video/download", async (req, res) => {
       Readable.fromWeb(response.body as ReadableStream<Uint8Array>).pipe(res);
     } else res.end();
   } catch (err) {
-    console.error(`[projects] Durable download failed for project ${project.id}:`, err);
+    console.error(`[projects] Durable download failed for project ${project.id}`, safeErrorMetadata(err));
     res.status(503).json({ error: "Your video is temporarily unavailable. Please try again shortly." });
   }
 });

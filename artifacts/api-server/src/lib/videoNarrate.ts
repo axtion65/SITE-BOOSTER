@@ -18,6 +18,7 @@ import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
+import { safeErrorMetadata } from './safeErrorMetadata';
 
 const execFileAsync = promisify(execFile);
 
@@ -59,7 +60,7 @@ export async function addNarrationToVideo(
     );
     return output;
   } catch (err) {
-    console.error('[videoNarrate] FFmpeg mix failed:', err);
+    console.error('[videoNarrate] FFmpeg mix failed', safeErrorMetadata(err));
     return null;
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});

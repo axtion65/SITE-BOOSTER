@@ -8,6 +8,7 @@ import {
   recordStripeWebhookSuccess,
 } from './lib/stripeWebhookLedger';
 import { logger } from './lib/logger';
+import { safeErrorMetadata } from './lib/safeErrorMetadata';
 
 function getPlanFromMetadata(metadata: Stripe.Metadata): PaidPlanSlug | null {
   const plan = metadata?.plan;
@@ -58,9 +59,9 @@ export class WebhookHandlers {
       try {
         await recordStripeWebhookFailure(event.id, error);
       } catch (ledgerError) {
-        logger.error({ err: ledgerError, eventId: event.id, eventType: event.type }, 'Failed to record Stripe webhook failure');
+        logger.error({ ...safeErrorMetadata(ledgerError), eventId: event.id, eventType: event.type }, 'Failed to record Stripe webhook failure');
       }
-      logger.error({ err: error, eventId: event.id, eventType: event.type }, 'Stripe webhook processing failed');
+      logger.error({ ...safeErrorMetadata(error), eventId: event.id, eventType: event.type }, 'Stripe webhook processing failed');
       throw error;
     }
   }
@@ -70,7 +71,7 @@ async function handleSubscriptionChange(stripe: Stripe, sub: Stripe.Subscription
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
   const user = await storage.getUserByStripeCustomerId(customerId);
   if (!user) {
-    console.warn(`[webhook] No user for customer ${customerId}`);
+    console.warn("[webhook] No user for Stripe customer");
     return;
   }
 
@@ -90,7 +91,7 @@ async function handleSubscriptionChange(stripe: Stripe, sub: Stripe.Subscription
     anchorAt: new Date(sub.start_date * 1000),
   });
 
-  console.log(`[webhook] Updated user ${user.id} → plan=${plan} grant=${result?.grantReason ?? "none"}`);
+  console.log(`[webhook] Subscription updated — plan=${plan} grant=${result?.grantReason ?? "none"}`);
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {

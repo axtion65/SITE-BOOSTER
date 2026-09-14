@@ -6,6 +6,7 @@
 import { fal } from "@fal-ai/client";
 import { compileVideoRenderBrief, modelSupportsImageConditioning, MODEL_NATIVE_DURATION_SECONDS, type VideoRenderBrief } from "./videoRenderBrief";
 import type { RenderIntent } from "@workspace/plans";
+import { safeErrorMetadata } from "./safeErrorMetadata";
 
 export interface ExpandedScript {
   script: string;
@@ -439,8 +440,7 @@ async function uploadBytesToFal(buffer: Buffer, mimeType: string, falKey: string
   });
 
   if (!uploadRes.ok) {
-    const err = await uploadRes.text();
-    console.error('[fal-video] Image upload error:', err);
+    console.error('[fal-video] Image upload failed', { httpStatus: uploadRes.status });
     throw new Error(`fal.ai image upload failed: ${uploadRes.status}`);
   }
 
@@ -554,10 +554,8 @@ async function fetchFalQueueJson(url: string, falKey: string, fetchImpl: typeof 
     headers: { Authorization: `Key ${falKey}`, Accept: "application/json" },
   });
   if (!response.ok) {
-    const body = await response.text().catch(() => "(unreadable)");
     throw Object.assign(new Error(`fal queue request failed: ${response.status}`), {
       status: response.status,
-      body,
     });
   }
   return response.json();
@@ -707,14 +705,14 @@ export async function pollFalVideoRender(
     pollStatus = statusRes?.status ?? 'UNKNOWN';
     responseUrl = canonicalFalQueueUrl(statusRes?.response_url, requestId, "response") ?? responseUrl;
   } catch (err: any) {
-    const httpStatus = err?.status ?? 0;
-    const body = err?.body ?? err?.message ?? String(err);
+    const details = safeErrorMetadata(err);
+    const httpStatus = details.httpStatus ?? 0;
     // 404/405 = job no longer exists on fal.ai (expired or never queued)
     if (httpStatus === 404 || httpStatus === 405) {
-      console.error(`[fal-video] Poll ${httpStatus} — job gone, marking failed. body: ${body}`);
+      console.error(`[fal-video] Poll ${httpStatus} — job gone, marking failed`, { requestId });
       return { status: 'failed' };
     }
-    console.error(`[fal-video] Poll error http=${httpStatus}:`, body);
+    console.error('[fal-video] Poll failed', { requestId, ...details });
     return { status: 'processing' };
   }
 
@@ -730,9 +728,9 @@ export async function pollFalVideoRender(
       ? await fetchFalQueueJson(responseUrl, falKey, fetchImpl)
       : await result(modelPath, { requestId });
   } catch (err: any) {
-    const httpStatus = Number(err?.status ?? 0);
-    const body = err?.body ?? err?.message ?? String(err);
-    console.error(`[fal-video] Result fetch error http=${httpStatus}:`, body);
+    const details = safeErrorMetadata(err);
+    const httpStatus = details.httpStatus ?? 0;
+    console.error('[fal-video] Result fetch failed', { requestId, ...details });
     if (httpStatus >= 400 && httpStatus < 500 && ![408, 409, 425, 429].includes(httpStatus)) {
       return { status: 'failed' };
     }
@@ -752,12 +750,11 @@ export async function pollFalVideoRender(
     null;
 
   if (url && typeof url === 'string') {
-    console.log(`[fal-video] Done — video_url="${url}"`);
+    console.log('[fal-video] Render completed', { requestId });
     return { status: 'done', url };
   }
 
-  console.error('[fal-video] COMPLETED but no video URL. raw keys:', Object.keys(raw ?? {}));
-  console.error('[fal-video] raw:', JSON.stringify(raw).slice(0, 500));
+  console.error('[fal-video] Completed response did not contain a video URL', { requestId });
   return { status: 'failed' };
 }
 
