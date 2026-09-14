@@ -19,9 +19,17 @@ const REQUIRED_STRIPE_PRICES = [
 
 type StripePriceSnapshot = {
   active: boolean;
+  billing_scheme: string;
   currency: string;
   livemode: boolean;
-  recurring: { interval: string } | null;
+  product: string | {
+    deleted?: boolean | void;
+    active?: boolean;
+    livemode?: boolean;
+    metadata?: Record<string, string>;
+  };
+  recurring: { interval: string; interval_count: number; usage_type: string } | null;
+  transform_quantity: unknown;
   type: string;
   unit_amount: number | null;
 };
@@ -88,14 +96,24 @@ export async function verifyStripeCatalog(
       const priceId = resolveStripePriceId(plan, interval, env);
       if (!priceId) return false;
       const price = await retrievePrice(priceId);
+      const product = price.product;
       const expectedAmount = interval === "month"
         ? PLAN_BY_SLUG[plan].monthlyPriceCents
         : PLAN_BY_SLUG[plan].annualPriceCents;
       return price.active &&
         price.livemode === expectedLivemode &&
+        price.billing_scheme === "per_unit" &&
         price.currency.toLowerCase() === "usd" &&
         price.type === "recurring" &&
         price.recurring?.interval === interval &&
+        price.recurring.interval_count === 1 &&
+        price.recurring.usage_type === "licensed" &&
+        price.transform_quantity === null &&
+        typeof product === "object" && product !== null &&
+        !product.deleted &&
+        product.active === true &&
+        product.livemode === expectedLivemode &&
+        product.metadata?.plan === plan &&
         price.unit_amount === expectedAmount;
     }));
     return checks.every(Boolean);
