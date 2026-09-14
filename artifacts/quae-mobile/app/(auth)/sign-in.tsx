@@ -99,6 +99,7 @@ export default function SignInScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 value={email}
                 onChangeText={setEmail}
+                maxLength={254}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 returnKeyType="next"
@@ -114,6 +115,7 @@ export default function SignInScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
                 onChangeText={setPassword}
+                maxLength={128}
                 secureTextEntry
                 returnKeyType="done"
                 onSubmitEditing={handleSignIn}

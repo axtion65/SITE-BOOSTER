@@ -15,6 +15,7 @@ import { refreshPaidPlanAllowance } from "../lib/subscriptionCredits";
 import { shouldRefreshPaidPlanAllowance } from "../lib/subscriptionCreditPolicy";
 import { createRateLimitMiddleware, emailRateLimitIdentity } from "../lib/rateLimit";
 import { isSessionCurrent } from "../lib/sessionSecurity";
+import { ChangePasswordBody } from "../lib/authInput";
 
 const router = Router();
 
@@ -165,7 +166,7 @@ router.post("/auth/signup", signupRateLimit, async (req, res) => {
   }
   const [user] = await db.insert(usersTable).values({
     email: email.toLowerCase(),
-    name: name ?? null,
+    name: name?.trim() || null,
     passwordHash: await hashPassword(password),
     plan: "free",
     credits: PLAN_BY_SLUG.free.credits,
@@ -181,17 +182,12 @@ router.post("/auth/signup", signupRateLimit, async (req, res) => {
 });
 
 router.post("/auth/change-password", changePasswordRateLimit, async (req, res) => {
-  const { email, currentPassword, newPassword } = req.body as {
-    email?: string; currentPassword?: string; newPassword?: string;
-  };
-  if (!email || !currentPassword || !newPassword) {
-    res.status(400).json({ error: "email, currentPassword, and newPassword are required" });
+  const parsed = ChangePasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid password change request" });
     return;
   }
-  if (newPassword.length < 8) {
-    res.status(400).json({ error: "New password must be at least 8 characters" });
-    return;
-  }
+  const { email, currentPassword, newPassword } = parsed.data;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
   if (!user || !(await verifyPassword(currentPassword, user.passwordHash)).valid) {
     res.status(401).json({ error: "Current password is incorrect" });

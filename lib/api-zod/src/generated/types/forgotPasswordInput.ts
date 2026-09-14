@@ -7,5 +7,6 @@
  */
 
 export interface ForgotPasswordInput {
+  /** @maxLength 254 */
   email: string;
 }

@@ -18,19 +18,29 @@ export interface SuccessResponse {
 }
 
 export interface SignInInput {
+  /** @maxLength 254 */
   email: string;
-  /** @minLength 6 */
+  /**
+     * @minLength 6
+     * @maxLength 128
+     */
   password: string;
 }
 
 export interface SignUpInput {
+  /** @maxLength 254 */
   email: string;
-  /** @minLength 8 */
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
   password: string;
+  /** @maxLength 100 */
   name?: string;
 }
 
 export interface ForgotPasswordInput {
+  /** @maxLength 254 */
   email: string;
 }
 
@@ -39,9 +49,15 @@ export interface PasswordResetRequestResult {
 }
 
 export interface ResetPasswordInput {
-  /** @minLength 32 */
+  /**
+     * @minLength 32
+     * @maxLength 512
+     */
   token: string;
-  /** @minLength 8 */
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
   newPassword: string;
 }
 

@@ -594,9 +594,11 @@ components:
         email:
           type: string
           format: email
+          maxLength: 254
         password:
           type: string
           minLength: 6
+          maxLength: 128
 
     SignUpInput:
       type: object
@@ -605,11 +607,14 @@ components:
         email:
           type: string
           format: email
+          maxLength: 254
         password:
           type: string
           minLength: 8
+          maxLength: 128
         name:
           type: string
+          maxLength: 100
 
     ForgotPasswordInput:
       type: object
@@ -618,6 +623,7 @@ components:
         email:
           type: string
           format: email
+          maxLength: 254
 
     PasswordResetRequestResult:
       type: object
@@ -633,9 +639,11 @@ components:
         token:
           type: string
           minLength: 32
+          maxLength: 512
         newPassword:
           type: string
           minLength: 8
+          maxLength: 128
 
     AuthResponse:
       type: object

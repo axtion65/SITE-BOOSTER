@@ -18,7 +18,7 @@ export interface PromptExpandInput {
      */
   platform?: string | null;
   /**
-     * Video duration: 15s, 30s, 60s
+     * Video duration: 5s, 10s, 15s, 30s, 45s, 60s, 90s, 120s, or 180s
      * @nullable
      */
   duration?: string | null;
