@@ -9,8 +9,8 @@ import { setObjectAclPolicy } from "../lib/objectAcl";
 import { PLAN_CATALOG, PLAN_BY_SLUG, isPlanSlug, type PlanSlug } from "@workspace/plans";
 import { logger } from "../lib/logger";
 import { activeSubscriptionMetrics } from "../lib/adminRevenue";
-import { isStripeCheckoutReady } from "../lib/billingConfig";
 import { safeErrorMetadata } from "../lib/safeErrorMetadata";
+import { stripeService } from "../stripeService";
 
 const router = Router();
 
@@ -130,7 +130,7 @@ router.get("/admin/operations", async (req, res) => {
   const admin = await getAdminUser(req.headers.authorization);
   if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
   const today = new Date(); today.setUTCHours(0, 0, 0, 0);
-  const [todayUsers, todayProjects, failedRenders, failedStripeWebhooks, queued, emailQueue, activeUsers, recentProjects] = await Promise.all([
+  const [todayUsers, todayProjects, failedRenders, failedStripeWebhooks, queued, emailQueue, activeUsers, recentProjects, stripeReady] = await Promise.all([
     db.select({ value: count() }).from(usersTable).where(gte(usersTable.createdAt, today)),
     db.select({ value: count() }).from(projectsTable).where(gte(projectsTable.createdAt, today)),
     db.select({ value: count() }).from(projectsTable).where(eq(projectsTable.status, "failed")),
@@ -145,6 +145,7 @@ router.get("/admin/operations", async (req, res) => {
       ne(usersTable.plan, "free"),
     )),
     db.select().from(projectsTable).where(gte(projectsTable.createdAt, today)),
+    stripeService.isCheckoutCatalogReady(),
   ]);
   const { MODEL_CREDIT_COSTS } = await import("../lib/falvideo");
   const creditsUsedToday = recentProjects.reduce((sum, project) => sum + (MODEL_CREDIT_COSTS[project.renderingModelId] ?? 0), 0);
@@ -163,7 +164,7 @@ router.get("/admin/operations", async (req, res) => {
     health: {
       openai: process.env.OPENAI_API_KEY ? "configured" : "not_configured",
       fal: process.env.FAL_KEY ? "configured" : "not_configured",
-      stripe: isStripeCheckoutReady() ? "configured" : "not_configured",
+      stripe: stripeReady ? "configured" : "not_configured",
       email: process.env.RESEND_API_KEY ? "configured" : "not_configured",
       storage: (process.env.PRIVATE_OBJECT_DIR || process.env.AWS_S3_BUCKET_NAME || process.env.BUCKET) ? "configured" : "not_configured",
       database: databaseStatus,
@@ -214,7 +215,6 @@ router.post("/admin/users/:id/refresh-credits", async (req, res) => {
 router.post("/admin/users/:id/sync-subscription", async (req, res) => {
   const admin = await getAdminUser(req.headers.authorization);
   if (!admin) { res.status(403).json({ error: "Forbidden" }); return; }
-  const { stripeService } = await import("../stripeService");
   const result = await stripeService.syncUserSubscription(req.params.id);
   logger.info({ action: "admin.user.sync_subscription", adminId: admin.id, targetUserId: req.params.id }, "Admin synchronized subscription");
   if (!result) { res.status(404).json({ error: "No active Stripe subscription found" }); return; }

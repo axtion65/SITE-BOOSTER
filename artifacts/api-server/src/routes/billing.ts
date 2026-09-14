@@ -12,7 +12,7 @@ const getUserIdFromHeader = resolveUserIdFromToken;
 // GET /api/billing/plans — return the application catalog with configured Stripe price IDs
 router.get("/billing/plans", async (_req, res) => {
   try {
-    const checkoutReady = isStripeCheckoutReady();
+    const checkoutReady = await stripeService.isCheckoutCatalogReady();
     const plans = stripeService.listPlans().map(plan =>
       checkoutReady ? plan : { ...plan, prices: [] },
     );
@@ -27,7 +27,7 @@ router.get("/billing/plans", async (_req, res) => {
 router.post("/billing/checkout", async (req, res) => {
   const userId = await getUserIdFromHeader(req.headers.authorization);
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
-  if (!isStripeCheckoutReady()) {
+  if (!isStripeCheckoutReady() || !await stripeService.isCheckoutCatalogReady()) {
     res.status(503).json({ error: "Billing is temporarily unavailable" });
     return;
   }

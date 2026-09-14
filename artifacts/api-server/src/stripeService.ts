@@ -2,8 +2,13 @@ import { storage } from './storage';
 import { getStripeClient } from './stripeClient';
 import { PLAN_CATALOG, isPlanSlug, type PaidPlanSlug } from '@workspace/plans';
 import type Stripe from 'stripe';
-import { resolveStripePriceId } from './lib/billingConfig';
+import { isStripeCheckoutReady, resolveStripePriceId, verifyStripeCatalog } from './lib/billingConfig';
 import { applyPaidSubscriptionSnapshot } from './lib/subscriptionCredits';
+
+const STRIPE_CATALOG_READY_TTL_MS = 5 * 60 * 1000;
+const STRIPE_CATALOG_RETRY_TTL_MS = 30 * 1000;
+let stripeCatalogReadinessCache: { expiresAt: number; ready: boolean } | null = null;
+let stripeCatalogReadinessCheck: Promise<boolean> | null = null;
 
 function getPlanFromMetadata(metadata: Stripe.Metadata): PaidPlanSlug | null {
   const plan = metadata?.plan;
@@ -16,6 +21,29 @@ function isPaidPlanSlug(slug: string): slug is PaidPlanSlug {
 }
 
 export class StripeService {
+  async isCheckoutCatalogReady(): Promise<boolean> {
+    if (!isStripeCheckoutReady()) return false;
+    const now = Date.now();
+    if (stripeCatalogReadinessCache && stripeCatalogReadinessCache.expiresAt > now) {
+      return stripeCatalogReadinessCache.ready;
+    }
+    if (stripeCatalogReadinessCheck) return stripeCatalogReadinessCheck;
+
+    const stripe = getStripeClient();
+    stripeCatalogReadinessCheck = verifyStripeCatalog(
+      async priceId => stripe.prices.retrieve(priceId),
+    ).then(ready => {
+      stripeCatalogReadinessCache = {
+        ready,
+        expiresAt: Date.now() + (ready ? STRIPE_CATALOG_READY_TTL_MS : STRIPE_CATALOG_RETRY_TTL_MS),
+      };
+      return ready;
+    }).finally(() => {
+      stripeCatalogReadinessCheck = null;
+    });
+    return stripeCatalogReadinessCheck;
+  }
+
   async createCustomer(email: string, userId: string) {
     const stripe = getStripeClient();
     return stripe.customers.create({ email, metadata: { userId } });
