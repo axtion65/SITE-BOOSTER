@@ -2,6 +2,7 @@
 // Sign up free at resend.com → get an API key → add as RESEND_API_KEY secret
 // Free tier: 3,000 emails/month, 100/day
 import { logger } from "./logger";
+import { escapeHtml, normalizeEmailSubject } from "./emailContent";
 
 const RESEND_URL = "https://api.resend.com/emails";
 export const TUTORIAL_URL = "https://quae.ai/how-to";
@@ -19,7 +20,7 @@ async function queueEmail(to: string, toName: string, subject: string, html: str
   const { db, emailQueueTable } = await import("@workspace/db");
   try {
     const [queued] = await db.insert(emailQueueTable)
-      .values({ to, toName, subject, html })
+      .values({ to, toName, subject: normalizeEmailSubject(subject), html })
       .returning({ id: emailQueueTable.id });
     logger.info({ event: "email.queued", queueId: queued?.id }, "Email queued for retry");
   } catch (err) {
@@ -67,7 +68,7 @@ async function sendViaResend(
       "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from, to: [to], subject, html }),
+    body: JSON.stringify({ from, to: [to], subject: normalizeEmailSubject(subject), html }),
   });
 
   if (res.ok) {
@@ -219,7 +220,7 @@ function wrap(content: string) {
 }
 
 const btn = (text: string, url: string) =>
-  `<a href="${url}" style="display:inline-block;margin-top:24px;padding:14px 32px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;font-weight:700;font-size:15px;border-radius:10px;text-decoration:none;">${text}</a>`;
+  `<a href="${escapeHtml(url)}" style="display:inline-block;margin-top:24px;padding:14px 32px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;font-weight:700;font-size:15px;border-radius:10px;text-decoration:none;">${escapeHtml(text)}</a>`;
 
 const h1 = (text: string) =>
   `<h1 style="margin:0 0 16px;font-size:24px;font-weight:800;color:#fff;line-height:1.3;">${text}</h1>`;
@@ -237,8 +238,9 @@ const divider = () =>
 
 export async function sendWelcomeEmail(email: string, name: string) {
   const firstName = (name || "").split(" ")[0] || "there";
+  const safeFirstName = escapeHtml(firstName);
   const html = wrap(`
-    ${h1(`Welcome to Quae.ai, ${firstName}! 🎬`)}
+    ${h1(`Welcome to Quae.ai, ${safeFirstName}! 🎬`)}
     ${p("Your AI marketing workspace is ready. Start with the simple tutorial so you always know what to do next.")}
     ${divider()}
     ${p("<strong style='color:#fff'>The walkthrough shows seven clear steps:</strong> Business Profile → Campaign → Approval → Creative → Video → Download → Reuse.")}
@@ -256,8 +258,9 @@ export async function sendPasswordResetEmail(
   resetUrl: string,
 ) {
   const firstName = (name || "").split(" ")[0] || "there";
+  const safeFirstName = escapeHtml(firstName);
   const html = wrap(`
-    ${h1(`Reset your Quae.ai password, ${firstName}`)}
+    ${h1(`Reset your Quae.ai password, ${safeFirstName}`)}
     ${p("We received a request to reset your password. This secure link expires in 30 minutes and can only be used once.")}
     ${btn("Reset Password →", resetUrl)}
     ${divider()}
@@ -276,9 +279,10 @@ export async function sendRenderDoneEmail(
   projectTitle: string,
   projectId: string,
 ) {
+  const safeProjectTitle = escapeHtml(projectTitle);
   const html = wrap(`
     ${h1("Your video is ready! ✅")}
-    ${p(`Great news — your video ad ${highlight(`"${projectTitle}"`)} has finished rendering and is ready to download.`)}
+    ${p(`Great news — your video ad ${highlight(`"${safeProjectTitle}"`)} has finished rendering and is ready to download.`)}
     ${divider()}
     ${p("Head to your project to preview and download the MP4.")}
     ${btn("View & Download →", `https://quae.ai/studio/projects/${projectId}`)}
@@ -293,9 +297,10 @@ export async function sendRenderFailedEmail(
   projectId: string,
   creditsRefunded: number,
 ) {
+  const safeProjectTitle = escapeHtml(projectTitle);
   const html = wrap(`
     ${h1("Render failed — credits refunded")}
-    ${p(`Unfortunately, the render for ${highlight(`"${projectTitle}"`)} encountered an error on the AI provider's end.`)}
+    ${p(`Unfortunately, the render for ${highlight(`"${safeProjectTitle}"`)} encountered an error on the AI provider's end.`)}
     ${divider()}
     ${p(`✅ &nbsp;<strong style='color:#fff'>${creditsRefunded} credits have been automatically refunded</strong> to your account.`)}
     ${p("You can retry the render for free from your project page — your script is saved and ready to go.")}
@@ -313,9 +318,10 @@ export async function sendPlanUpgradeEmail(
   credits: number,
 ) {
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+  const safePlanLabel = escapeHtml(planLabel);
   const html = wrap(`
-    ${h1(`You're now on ${planLabel}! 🚀`)}
-    ${p(`Your subscription to ${highlight(`Quae.ai ${planLabel}`)} is now active.`)}
+    ${h1(`You're now on ${safePlanLabel}! 🚀`)}
+    ${p(`Your subscription to ${highlight(`Quae.ai ${safePlanLabel}`)} is now active.`)}
     ${divider()}
     ${p(`<strong style='color:#fff'>Your account has been topped up with ${credits} credits.</strong>`)}
     ${p("You now have access to higher-quality AI models and more video renders per month.")}
@@ -332,8 +338,9 @@ export async function sendBroadcastEmail(
   subject: string,
   message: string,
 ) {
-  // message is plain text from admin; convert newlines to <p> tags
-  const bodyContent = message
+  // message is plain text from admin; escape it before adding email markup.
+  const bodyContent = escapeHtml(message)
+    .replace(/\r\n?/g, "\n")
     .split("\n\n")
     .map((para) => p(para.replace(/\n/g, "<br>")))
     .join("");

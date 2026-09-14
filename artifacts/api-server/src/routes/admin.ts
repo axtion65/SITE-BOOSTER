@@ -284,7 +284,7 @@ router.post("/admin/broadcast", async (req, res) => {
     if (sent % 5 === 0) await new Promise((r) => setTimeout(r, 500));
   }
 
-  console.log(`[admin] Broadcast sent to ${sent} users — "${subject}"`);
+  console.log(`[admin] Broadcast sent to ${sent} users`);
   res.json({ sent, audience: audience ?? "all" });
 });
 
