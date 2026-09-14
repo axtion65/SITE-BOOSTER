@@ -85,8 +85,8 @@ export default function SignIn() {
   };
 
   const handleSetNewPassword = async () => {
-    if (newPassword.length < 6) {
-      toast({ title: "Too short", description: "Password must be at least 6 characters.", variant: "destructive" });
+    if (newPassword.length < 8) {
+      toast({ title: "Too short", description: "Password must be at least 8 characters.", variant: "destructive" });
       return;
     }
     if (newPassword !== newPasswordConfirm) {
@@ -127,7 +127,7 @@ export default function SignIn() {
               <Input
                 id="new-pw"
                 type="password"
-                placeholder="Min. 6 characters"
+                placeholder="Min. 8 characters"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
@@ -251,7 +251,9 @@ export default function SignIn() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      minLength={6}
+                      minLength={8}
+                      placeholder="At least 8 characters"
+                      autoComplete="new-password"
                     />
                   </div>
                   <Button type="submit" className="w-full mt-4" disabled={signUpMutation.isPending}>

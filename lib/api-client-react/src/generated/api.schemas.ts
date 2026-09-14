@@ -25,7 +25,7 @@ export interface SignInInput {
 
 export interface SignUpInput {
   email: string;
-  /** @minLength 6 */
+  /** @minLength 8 */
   password: string;
   name?: string;
 }
@@ -41,7 +41,7 @@ export interface PasswordResetRequestResult {
 export interface ResetPasswordInput {
   /** @minLength 32 */
   token: string;
-  /** @minLength 6 */
+  /** @minLength 8 */
   newPassword: string;
 }
 

@@ -607,7 +607,7 @@ components:
           format: email
         password:
           type: string
-          minLength: 6
+          minLength: 8
         name:
           type: string
 
@@ -635,7 +635,7 @@ components:
           minLength: 32
         newPassword:
           type: string
-          minLength: 6
+          minLength: 8
 
     AuthResponse:
       type: object
