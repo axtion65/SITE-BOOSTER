@@ -61,7 +61,7 @@ export default function Admin() {
 type Operations = {
   usersToday: number; videosToday: number; creditsUsedToday: number; activeSubscriptions: number;
   mrrCents: number; failedRenders: number; failedStripeWebhooks: number; queueLength: number;
-  averageRenderTimeSeconds: number; health: Record<string, string>;
+  pendingEmails: number; failedEmails: number; averageRenderTimeSeconds: number; health: Record<string, string>;
 };
 
 function authHeaders(): HeadersInit {
@@ -69,11 +69,17 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+async function fetchOperations(): Promise<Operations> {
+  const response = await fetch("/api/admin/operations", { headers: authHeaders() });
+  if (!response.ok) throw new Error("Operations data unavailable");
+  return response.json();
+}
+
 function OperationsOverview() {
   const [data, setData] = useState<Operations | null>(null);
   const [error, setError] = useState("");
   const load = async () => {
-    try { const response = await fetch("/api/admin/operations", { headers: authHeaders() }); if (!response.ok) throw new Error("Operations data unavailable"); setData(await response.json()); setError(""); }
+    try { setData(await fetchOperations()); setError(""); }
     catch (reason: any) { setError(reason.message); }
   };
   useEffect(() => { void load(); const timer = window.setInterval(load, 30_000); return () => window.clearInterval(timer); }, []);
@@ -82,7 +88,8 @@ function OperationsOverview() {
     ["Users today", data.usersToday], ["Videos today", data.videosToday], ["Credits used today", data.creditsUsedToday.toLocaleString()],
     ["Active subscriptions", data.activeSubscriptions], ["Monthly recurring revenue", `$${(data.mrrCents / 100).toLocaleString()}`],
     ["Failed renders", data.failedRenders], ["Failed Stripe webhooks", data.failedStripeWebhooks],
-    ["Queue length", data.queueLength], ["Average render time", `${data.averageRenderTimeSeconds}s`],
+    ["Pending emails", data.pendingEmails], ["Failed emails", data.failedEmails],
+    ["Render queue", data.queueLength], ["Average render time", `${data.averageRenderTimeSeconds}s`],
   ];
   return <div className="space-y-4">
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">{metrics.map(([label,value]) => <Card key={label}><CardContent className="pt-5"><p className="text-xs text-muted-foreground">{label}</p><p className="text-2xl font-bold mt-1">{value}</p></CardContent></Card>)}</div>
@@ -124,7 +131,25 @@ function BroadcastPanel() {
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState("all");
   const [sending, setSending] = useState(false);
+  const [operations, setOperations] = useState<Operations | null | undefined>(undefined);
   const { toast } = useToast();
+
+  useEffect(() => {
+    void fetchOperations().then(setOperations).catch(() => setOperations(null));
+  }, []);
+
+  const automaticEmailStatus = operations === undefined
+    ? "Checking"
+    : operations === null
+      ? "Unavailable"
+      : operations.health.email !== "configured"
+      ? "Not configured"
+      : operations.failedEmails > 0
+        ? "Needs attention"
+        : operations.pendingEmails > 0
+          ? `${operations.pendingEmails} queued`
+          : "Active";
+  const automaticEmailHealthy = operations?.health.email === "configured" && operations.failedEmails === 0;
 
   const handleSend = async () => {
     if (!subject.trim() || !message.trim()) {
@@ -205,20 +230,20 @@ function BroadcastPanel() {
         </CardHeader>
         <CardContent className="space-y-3">
           {[
-            { label: "Welcome + tutorial", desc: "Sent automatically when someone signs up", status: "active" },
-            { label: "Video ready", desc: "Sent when a render completes successfully", status: "active" },
-            { label: "Render failed", desc: "Sent when a render fails (includes credit refund notice)", status: "active" },
-            { label: "Plan upgrade", desc: "Sent when a user upgrades their subscription", status: "active" },
+            { label: "Welcome + tutorial", desc: "Sent automatically when someone signs up" },
+            { label: "Video ready", desc: "Sent when a render completes successfully" },
+            { label: "Render failed", desc: "Sent when a render fails (includes credit refund notice)" },
+            { label: "Plan upgrade", desc: "Sent when a user upgrades their subscription" },
           ].map((item) => (
             <div key={item.label} className="flex items-start justify-between p-3 rounded-lg bg-secondary/30 border border-border">
               <div>
                 <p className="text-sm font-medium text-white">{item.label}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
               </div>
-              <Badge variant="success" className="ml-3 shrink-0">Active</Badge>
+              <Badge variant={operations === undefined ? "secondary" : automaticEmailHealthy ? "success" : "destructive"} className="ml-3 shrink-0">{automaticEmailStatus}</Badge>
             </div>
           ))}
-          <p className="text-xs text-muted-foreground pt-2">Automatic delivery uses the configured Resend account.</p>
+          <p className="text-xs text-muted-foreground pt-2">Resend delivery health: {automaticEmailStatus.toLowerCase()}.</p>
         </CardContent>
       </Card>
     </div>
