@@ -43,6 +43,7 @@ function loadPage(name: string, states: unknown[]) {
     "@/hooks/use-toast": { useToast: () => ({ toast: () => {} }) },
     "@/lib/campaign-templates": campaignTemplates,
     "@/lib/customer-copy": { customerCopy },
+    "@/lib/video-download": { downloadProjectVideo: async () => {} },
     "./campaigns": name === "campaign-detail" ? loadPage("campaigns", []) : {},
   };
   new Function("require", "module", "exports", "window", compiledPages[name])(
