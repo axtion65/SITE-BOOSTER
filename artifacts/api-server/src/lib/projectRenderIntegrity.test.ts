@@ -282,6 +282,35 @@ const visualAuthority = {
   object_path: "/objects/product.png", brief,
 };
 
+test("campaign creation accepts the storage service's serving path for the exact selected visual", async () => {
+  const { state, request } = harness(); state.projectExists = false;
+  state.authority = { ...visualAuthority, object_path: "/api/storage/objects/product.png" };
+  const result = await request("create", animateBody);
+  assert.equal(result.code, 201, JSON.stringify(result.body));
+  assert.equal(state.project.sourceAssetId, "/objects/product.png");
+  assert.equal(state.project.productImageUrl, "/api/storage/objects/product.png");
+  assert.equal(state.project.mockupVersionId, "version");
+  assert.equal((await request("create", animateBody)).code, 200);
+  assert.equal(state.debits, 1); assert.equal(state.workers, 1);
+});
+
+test("campaign retry compares a stored serving path with its canonical source identity", async () => {
+  const { state, request } = harness({ campaignId: "campaign", campaignRunId: "run", campaignVideoBriefId: "brief", renderIntent: "animate", mockupProjectId: "mockup", mockupVersionId: "version", sourceAssetId: "/objects/product.png", productImageUrl: "/api/storage/objects/product.png" });
+  state.authority = { ...visualAuthority, object_path: "/api/storage/objects/product.png" };
+  const result = await request("post");
+  assert.equal(result.code, 200, JSON.stringify(result.body));
+  assert.equal(state.debits, 1); assert.equal(state.workers, 1);
+});
+
+test("campaign path normalization never authorizes a different or unsafe source", async () => {
+  for (const object_path of ["/api/storage/objects/different.png", "https://example.com/product.png", "/api/storage/objects/../product.png", "/api/storage/objects/product.png?other=1"]) {
+    const { state, request } = harness(); state.projectExists = false;
+    state.authority = { ...visualAuthority, object_path };
+    assert.equal((await request("create", animateBody)).code, 409);
+    assertNoProduction(state); assert.equal(state.preflights, 0);
+  }
+});
+
 test("initial animation creation rejects visual replacement or deselection before debit", async () => {
   for (const current of [null, { ...visualAuthority, mockup_version_id: "new-version" }, { ...visualAuthority, object_path: "/objects/new.png" }]) {
     const { state, request } = harness(); state.projectExists = false; state.authority = visualAuthority;
