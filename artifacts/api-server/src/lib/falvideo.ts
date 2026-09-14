@@ -131,8 +131,11 @@ export function buildFalSceneRequest(input: {
   platform: string;
   providerImageUrl?: string;
 }): { modelPath: string; input: Record<string, unknown> } {
-  if (!Number.isFinite(input.durationSeconds) || input.durationSeconds < 2.5 || input.durationSeconds > 10) {
-    throw new Error("Scene duration must be between 2.5 and 10 seconds");
+  // This is the final edit slot, not the provider clip length. The production
+  // planner permits 1.5s slots; buildModelParams rounds up to a native clip
+  // duration, and the assembler trims that clip to the approved slot.
+  if (!Number.isFinite(input.durationSeconds) || input.durationSeconds < 1.5 || input.durationSeconds > 10) {
+    throw new Error("Scene duration must be between 1.5 and 10 seconds");
   }
   if (!["ltx-fast", "kling"].includes(input.renderingModelId)) {
     throw new Error("Full adverts support LTX 2.3 Fast or Kling 3 Standard");

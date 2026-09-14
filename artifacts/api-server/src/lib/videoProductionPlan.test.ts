@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileVideoProductionPlan, constrainVoiceoverText, productionQualityGate, validateVideoProductionPlan, voiceoverWordBudget } from "./videoProductionPlan";
 import { validateScript } from "./scriptEngine";
-import type { ExpandedScript } from "./falvideo";
+import { buildFalSceneRequest, type ExpandedScript } from "./falvideo";
 
 const script: ExpandedScript = {
   script: "Stop wasting hours on marketing. Quae builds approved campaigns and visuals. Review the details. Start building your campaign.",
@@ -98,6 +98,13 @@ test("an accepted five-scene 15-second script produces every approved scene", ()
   assert.equal(plan.scenes.reduce((sum, scene) => sum + scene.durationMs, plan.endCardDurationMs), 15_000);
   assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), voiceoverText);
   plan.scenes.forEach((scene, index) => assert.ok(scene.visualPrompt.includes(descriptions[index]!)));
+  for (const renderingModelId of ["ltx-fast", "kling"]) {
+    for (const scene of plan.scenes) {
+      const request = buildFalSceneRequest({ prompt: scene.visualPrompt, durationSeconds: scene.durationMs / 1000, renderingModelId, platform: plan.platform });
+      assert.ok(Number(request.input.duration) >= scene.durationMs / 1000);
+      assert.equal(request.input.generate_audio, false);
+    }
+  }
 });
 
 test("shortening an eight-scene draft to 15 seconds preserves its scene order", () => {
@@ -123,6 +130,21 @@ test("shortening an eight-scene draft to 15 seconds preserves its scene order", 
   assert.equal(plan.scenes.reduce((sum, scene) => sum + scene.durationMs, plan.endCardDurationMs), 15_000);
   assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), approved.voiceoverText);
   plan.scenes.forEach((scene, index) => assert.ok(scene.visualPrompt.includes(approved.scenes[index]!.description)));
+  for (const renderingModelId of ["ltx-fast", "kling"]) {
+    for (const scene of plan.scenes) {
+      const request = buildFalSceneRequest({ prompt: scene.visualPrompt, durationSeconds: scene.durationMs / 1000, renderingModelId, platform: plan.platform });
+      assert.ok(Number(request.input.duration) >= scene.durationMs / 1000);
+      if (renderingModelId === "ltx-fast") assert.equal(request.input.duration, 6);
+    }
+  }
+});
+
+test("scene submission rejects edit slots outside the production planner's limits", () => {
+  for (const durationSeconds of [NaN, Infinity, -1, 0, 1.499, 10.001]) {
+    assert.throws(() => buildFalSceneRequest({
+      prompt: "Approved visual beat", durationSeconds, renderingModelId: "ltx-fast", platform: "instagram",
+    }), /between 1\.5 and 10 seconds/);
+  }
 });
 
 test("production still rejects edit slots below the supported minimum", () => {
