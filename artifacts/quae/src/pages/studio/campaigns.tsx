@@ -371,7 +371,7 @@ export default function CampaignsPage() {
                     <div className="flex gap-3">
                       <h2 className="font-bold">{c.name}</h2>
                       <StatusPill>
-                        {statusLabel(c.latest_run_status || c.status)}
+                        {statusLabel(c.status === "approved" ? c.status : c.latest_run_status || c.status)}
                       </StatusPill>
                     </div>
                     <p className="mt-2 text-sm text-[#B9C5D8]">
