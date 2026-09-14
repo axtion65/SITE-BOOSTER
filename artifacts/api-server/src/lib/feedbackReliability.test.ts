@@ -43,3 +43,12 @@ test("public feedback storage is rate limited before its handler", () => {
   assert.match(route, /globalLimit: 300/);
   assert.match(route, /router\.post\("\/feedback", feedbackRateLimit, async/);
 });
+
+test("feedback logs never copy customer messages or email addresses", () => {
+  const route = readFileSync(new URL("../routes/feedback.ts", import.meta.url), "utf8");
+
+  assert.match(route, /logger\.info\(\{ event: "feedback\.stored", type: normalizedType \}/);
+  assert.doesNotMatch(route, /console\.log\(`\[feedback\]/);
+  assert.doesNotMatch(route, /normalizedMessage\.slice/);
+  assert.doesNotMatch(route, /<\$\{normalizedEmail\}>/);
+});

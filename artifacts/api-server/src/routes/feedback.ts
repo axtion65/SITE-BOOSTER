@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { resolveUserFromToken } from "./auth";
 import { createRateLimitMiddleware } from "../lib/rateLimit";
+import { logger } from "../lib/logger";
 
 const router = Router();
 const FEEDBACK_TYPES = new Set<string>(["idea", "bug", "other"]);
@@ -71,7 +72,7 @@ router.post("/feedback", feedbackRateLimit, async (req, res) => {
     }
   }
 
-  console.log(`[feedback] ${normalizedType}: "${normalizedMessage.slice(0, 80)}" ${normalizedEmail ? `<${normalizedEmail}>` : ""}`);
+  logger.info({ event: "feedback.stored", type: normalizedType }, "Feedback stored");
   res.json({ ok: true });
 });
 
