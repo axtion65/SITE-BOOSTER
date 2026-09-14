@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileVideoProductionPlan, constrainVoiceoverText, productionQualityGate, voiceoverWordBudget } from "./videoProductionPlan";
+import { compileVideoProductionPlan, constrainVoiceoverText, productionQualityGate, validateVideoProductionPlan, voiceoverWordBudget } from "./videoProductionPlan";
+import { validateScript } from "./scriptEngine";
 import type { ExpandedScript } from "./falvideo";
 
 const script: ExpandedScript = {
@@ -53,6 +54,89 @@ test("voiceover is measured before any provider plan can be accepted", () => {
     voiceoverDurationMs: 15_000,
     brand: { name: "Quae", callToAction: "Start now" },
   }), /does not fit/);
+});
+
+test("an accepted five-scene 15-second script produces every approved scene", () => {
+  const voiceoverText = "Busy days deserve simple marketing. Quae keeps your campaign organized. Create professional product visuals. See every detail before launch. Start your campaign today.";
+  const descriptions = [
+    "A tired shopkeeper closes the shop.",
+    "A creator photographs a cotton shirt.",
+    "A customer wears the finished garment.",
+    "A seller arranges folded garments.",
+    "An owner opens the entrance confidently.",
+  ];
+  const directions = [
+    "Close framing with sunset light.",
+    "Gentle overhead move across a wooden surface.",
+    "Steady medium framing outdoors.",
+    "Slow side movement beside a counter.",
+    "Wide stationary framing at morning light.",
+  ];
+  const approved: ExpandedScript = {
+    ...script,
+    script: voiceoverText,
+    voiceoverText,
+    callToAction: "Start your campaign today.",
+    estimatedDuration: "15s",
+    scenes: descriptions.map((description, index) => ({
+      sceneNumber: index + 1,
+      description,
+      duration: "3s",
+      visualDirection: directions[index]!,
+    })),
+  };
+  assert.deepEqual(validateScript(approved, 15), []);
+
+  const plan = compileVideoProductionPlan({
+    script: approved,
+    duration: "15s",
+    platform: "instagram",
+    voiceoverDurationMs: 10_000,
+    brand: { name: "Quae", callToAction: approved.callToAction },
+  });
+  assert.deepEqual(plan.scenes.map((scene) => scene.durationMs), [2400, 2400, 2400, 2400, 2400]);
+  assert.equal(plan.scenes.reduce((sum, scene) => sum + scene.durationMs, plan.endCardDurationMs), 15_000);
+  assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), voiceoverText);
+  plan.scenes.forEach((scene, index) => assert.ok(scene.visualPrompt.includes(descriptions[index]!)));
+});
+
+test("shortening an eight-scene draft to 15 seconds preserves its scene order", () => {
+  const approved: ExpandedScript = {
+    ...script,
+    estimatedDuration: "45s",
+    scenes: Array.from({ length: 8 }, (_, index) => ({
+      sceneNumber: index + 1,
+      description: `Approved visual ${index + 1}`,
+      duration: "5.625s",
+      visualDirection: "One clear action.",
+    })),
+  };
+  const plan = compileVideoProductionPlan({
+    script: approved,
+    duration: "15s",
+    platform: "instagram",
+    voiceoverDurationMs: 10_000,
+    brand: { name: "Quae", callToAction: approved.callToAction },
+  });
+  assert.equal(plan.scenes.length, 8);
+  assert.ok(plan.scenes.every((scene) => scene.durationMs === 1500));
+  assert.equal(plan.scenes.reduce((sum, scene) => sum + scene.durationMs, plan.endCardDurationMs), 15_000);
+  assert.equal(plan.scenes.map((scene) => scene.narrationText).join(" "), approved.voiceoverText);
+  plan.scenes.forEach((scene, index) => assert.ok(scene.visualPrompt.includes(approved.scenes[index]!.description)));
+});
+
+test("production still rejects edit slots below the supported minimum", () => {
+  const plan = compileVideoProductionPlan({
+    script,
+    duration: "15s",
+    platform: "instagram",
+    voiceoverDurationMs: 10_000,
+    brand: { name: "Quae", callToAction: script.callToAction },
+  });
+  const movedDuration = plan.scenes[0]!.durationMs - 1499;
+  plan.scenes[0]!.durationMs = 1499;
+  plan.scenes[1]!.durationMs += movedDuration;
+  assert.throws(() => validateVideoProductionPlan(plan), /between 1\.5s and 10s/);
 });
 
 test("production narration never splits a dotted brand token", () => {
