@@ -22,7 +22,7 @@ test("campaign production is bound to the approved brief, run, owner, business a
   assert.doesNotMatch(createRoute, /submitFalVideoRender/);
 });
 
-test("approved no-image campaigns use the exact safe run without weakening animation checks",async()=>{const source=await readFile(new URL("../routes/projects.ts",import.meta.url),"utf8");assert.match(source,/parsed\.data\.renderIntent==="animate"/);assert.match(source,/deriveApprovedTextVideoBrief\(authority/);assert.match(source,/campaignVideoBriefId\|\|parsed\.data\.sourceAssetId\|\|parsed\.data\.productImageUrl/);assert.match(source,/production=\{campaign_run_id:authority\.campaign_run_id,brief:approvedBrief\}/);});
+test("approved no-image campaigns use the exact safe run without weakening animation checks",async()=>{const source=await readFile(new URL("../routes/projects.ts",import.meta.url),"utf8");assert.match(source,/parsed\.data\.renderIntent==="animate"/);assert.match(source,/deriveApprovedTextVideoBrief\(authority/);assert.match(source,/campaignVideoBriefId\|\|parsed\.data\.sourceAssetId\|\|parsed\.data\.productImageUrl/);assert.match(source,/production = await loadApprovedTextProduction\(campaignId, userId\)/);});
 
 test("campaign render retries are durable and idempotent", async () => {
   const migration = await readFile(new URL("../../../../lib/db/migrations/0017_campaign_video_production.sql", import.meta.url), "utf8");

@@ -60,8 +60,12 @@ test("project creation and rerender gate provider work before charging or TTS", 
   const rerenderRoute = source.slice(source.indexOf('router.post("/projects/:id/rerender"'), source.indexOf('router.patch("/projects/:id"'));
   for (const route of [createRoute, rerenderRoute]) {
     const preflight = route.indexOf("requireVideoProviderReadiness");
+    const debit = route.indexOf(".update(usersTable)");
     assert.ok(preflight >= 0);
-    assert.ok(preflight < route.indexOf("db.transaction"));
+    // Rerender must lock and validate approval before preflight. The safety
+    // boundary is the first debit, not the read-only start of its transaction.
+    assert.ok(debit >= 0);
+    assert.ok(preflight < debit);
     assert.ok(preflight < route.indexOf("startVideoProduction"));
   }
 });
