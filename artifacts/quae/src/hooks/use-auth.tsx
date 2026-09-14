@@ -10,6 +10,9 @@ interface AuthContextType {
   login: (token: string, user: User) => void;
   logout: () => void;
   isLoading: boolean;
+  isSessionError: boolean;
+  isRetryingSession: boolean;
+  retrySession: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -23,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthTokenGetter(() => localStorage.getItem("quae_token"));
   }, []);
 
-  const { data: fetchedUser, isLoading, isError, error } = useGetMe({
+  const { data: fetchedUser, isLoading, isFetching, isError, error, refetch } = useGetMe({
     query: {
       enabled: !!token,
       queryKey: getGetMeQueryKey(),
@@ -64,8 +67,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.clear();
   };
 
+  const errorStatus = (error as any)?.response?.status ?? (error as any)?.status;
+  const isSessionError = !!token && isError && errorStatus !== 401 && errorStatus !== 403;
+  const retrySession = () => { void refetch(); };
+
   return (
-    <AuthContext.Provider value={{ token, user, login, logout, isLoading: isLoading && !!token }}>
+    <AuthContext.Provider value={{
+      token, user, login, logout,
+      isLoading: isLoading && !!token,
+      isSessionError,
+      isRetryingSession: isFetching,
+      retrySession,
+    }}>
       {children}
     </AuthContext.Provider>
   );

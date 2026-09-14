@@ -4,8 +4,32 @@ import { useAuth } from "@/hooks/use-auth";
 import { Spinner } from "@/components/ui/spinner";
 import { protectedSignInUrl } from "@/lib/campaign-templates";
 
+function SessionRecovery({ retry, isRetrying }: { retry: () => void; isRetrying: boolean }) {
+  return (
+    <main className="flex min-h-screen flex-1 items-center justify-center px-6">
+      <div className="max-w-md space-y-4 text-center">
+        <div role="alert" className="space-y-2">
+          <h1 className="text-xl font-semibold">We couldn’t reconnect to your account</h1>
+          <p className="text-sm text-muted-foreground">
+            Check your internet connection and try again. Your sign-in has been kept.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={retry}
+          disabled={isRetrying}
+          aria-busy={isRetrying}
+          className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+        >
+          {isRetrying ? "Reconnecting…" : "Try again"}
+        </button>
+      </div>
+    </main>
+  );
+}
+
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user, token, isLoading } = useAuth();
+  const { user, token, isLoading, isSessionError, isRetryingSession, retrySession } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -23,14 +47,16 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return null;
+    return token && isSessionError
+      ? <SessionRecovery retry={retrySession} isRetrying={isRetryingSession} />
+      : null;
   }
 
   return <>{children}</>;
 }
 
 export function RequireAdmin({ children }: { children: React.ReactNode }) {
-  const { user, token, isLoading } = useAuth();
+  const { user, token, isLoading, isSessionError, isRetryingSession, retrySession } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -51,7 +77,13 @@ export function RequireAdmin({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user || !user.isAdmin) {
+  if (!user) {
+    return token && isSessionError
+      ? <SessionRecovery retry={retrySession} isRetrying={isRetryingSession} />
+      : null;
+  }
+
+  if (!user.isAdmin) {
     return null;
   }
 
