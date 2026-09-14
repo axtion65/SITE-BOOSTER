@@ -9,6 +9,10 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://quae.ai/templates</loc>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://quae.ai/privacy</loc>
     <priority>0.3</priority>
   </url>
