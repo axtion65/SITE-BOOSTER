@@ -483,7 +483,7 @@ export default function CampaignDetail() {
                   </div>
                 ))}
               </div>
-            ) : (
+            ) : !data.attachedVisuals?.length ? (
               <>
                 <p className="mt-3 text-sm text-slate-400">
                   No visuals have been created for this campaign yet.
@@ -495,7 +495,7 @@ export default function CampaignDetail() {
                   Create a visual
                 </Link>
               </>
-            )}
+            ) : null}
             {data.attachedVisuals?.length > 0 && (
               <div className="mt-5">
                 <p className="quae-eyebrow">Attached from My Visuals</p>
