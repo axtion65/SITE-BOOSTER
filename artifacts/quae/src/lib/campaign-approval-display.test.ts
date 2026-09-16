@@ -33,7 +33,10 @@ function loadPage(name: string, states: unknown[]) {
       useLocation: () => ["/studio/campaigns", () => {}],
       useRoute: () => [true, { id: "campaign-1" }],
     },
-    "./marketing-shared": { MarketingPage: panel, PremiumCard: panel, StatusPill: pill, fieldClass: "field" },
+    "./marketing-shared": {
+      MarketingImage: ({ alt }: { alt: string }) => React.createElement("img", { alt }),
+      MarketingPage: panel, PremiumCard: panel, StatusPill: pill, fieldClass: "field",
+    },
     "@/components/quae-design-system": {
       ActionButton: ({ children, ...props }: any) => React.createElement("button", props, children),
       StatusPill: pill, EmptyState: panel,
@@ -98,6 +101,19 @@ test("a newer draft cannot inherit a previous run's approved display", () => {
 test("a source mismatch does not display an approval or approval button", () => {
   const html = renderWorkspace(workspace({ reviewState: "needs_rebuild" }));
   assert.doesNotMatch(html, /Approval saved|Continue to Creative|Approve Campaign/);
+});
+
+test("an attached approved visual does not display the campaign visual empty state", () => {
+  const html = renderWorkspace(workspace({
+    visuals: [],
+    attachedVisuals: [{
+      version_id: "visual-1", version_number: 1, object_path: "/approved.png",
+      name: "Approved visual", is_primary: true,
+    }],
+  }));
+  assert.match(html, /Attached from My Visuals/);
+  assert.match(html, /Approved visual · Version 1 · Primary/);
+  assert.doesNotMatch(html, /No visuals have been created for this campaign yet/);
 });
 
 test("campaign list prioritizes saved approval while retaining pending and failed states", () => {
