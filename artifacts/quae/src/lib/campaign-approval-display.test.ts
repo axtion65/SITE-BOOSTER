@@ -6,6 +6,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import * as campaignTemplates from "./campaign-templates";
+import { shouldPollCampaignWorkspace } from "./campaign-workspace-polling";
 import { customerCopy } from "./customer-copy";
 
 const require = createRequire(import.meta.url);
@@ -45,6 +46,7 @@ function loadPage(name: string, states: unknown[]) {
       DialogContent: panel, DialogDescription: panel, DialogHeader: panel, DialogTitle: panel },
     "@/hooks/use-toast": { useToast: () => ({ toast: () => {} }) },
     "@/lib/campaign-templates": campaignTemplates,
+    "@/lib/campaign-workspace-polling": { shouldPollCampaignWorkspace },
     "@/lib/customer-copy": { customerCopy },
     "@/lib/video-download": { downloadProjectVideo: async () => {} },
     "./campaigns": name === "campaign-detail" ? loadPage("campaigns", []) : {},
