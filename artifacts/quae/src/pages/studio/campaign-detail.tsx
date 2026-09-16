@@ -19,6 +19,7 @@ import { ActionButton, StatusPill } from "@/components/quae-design-system";
 import { statusLabel } from "./campaigns";
 import { useToast } from "@/hooks/use-toast";
 import { customerCopy } from "@/lib/customer-copy";
+import { shouldPollCampaignWorkspace } from "@/lib/campaign-workspace-polling";
 import { downloadProjectVideo } from "@/lib/video-download";
 const headers = () => ({
   "Content-Type": "application/json",
@@ -51,14 +52,17 @@ export default function CampaignDetail() {
   };
   useEffect(() => {
     void load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
   }, [params?.id]);
   const run = data?.runs?.[0],
     result = run?.final_result,
     fallbackDraft = result?.isFallback === true,
     copy = customerCopy(result),
     active = ["queued", "running"].includes(run?.status);
+  useEffect(() => {
+    if (!shouldPollCampaignWorkspace(run?.status)) return;
+    const timer = window.setInterval(() => void load(), 5000);
+    return () => window.clearInterval(timer);
+  }, [params?.id, run?.status]);
   const approved = data?.status === "approved" &&
     data.reviewState !== "needs_rebuild" &&
     Boolean(data.approved_run_id) &&
