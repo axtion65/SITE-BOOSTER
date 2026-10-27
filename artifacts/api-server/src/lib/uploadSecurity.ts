@@ -8,6 +8,26 @@ export const ALLOWED_UPLOAD_MIME_TYPES = new Set([
 ]);
 export const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 
+export type UploadFailureReport = {
+  stage: "storage_put";
+  statusCode?: number;
+};
+
+export function parseUploadFailureReport(body: unknown): UploadFailureReport | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const record = body as Record<string, unknown>;
+  if (Object.keys(record).some((key) => key !== "stage" && key !== "statusCode")) return null;
+  if (record.stage !== "storage_put") return null;
+  if (
+    record.statusCode !== undefined &&
+    (!Number.isSafeInteger(record.statusCode) || Number(record.statusCode) < 0 || Number(record.statusCode) > 599)
+  ) return null;
+  return {
+    stage: "storage_put",
+    ...(record.statusCode === undefined ? {} : { statusCode: Number(record.statusCode) }),
+  };
+}
+
 interface UploadIntent {
   userId: string;
   objectPath: string;

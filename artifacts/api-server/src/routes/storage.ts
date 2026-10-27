@@ -1,4 +1,5 @@
 import { Readable } from 'stream';
+import { randomUUID } from 'crypto';
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
@@ -14,11 +15,19 @@ import {
 import {
   consumeUploadIntent,
   issueUploadIntent,
+  parseUploadFailureReport,
   validateUpload,
 } from '../lib/uploadSecurity';
+import { createRateLimitMiddleware } from '../lib/rateLimit';
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+const uploadFailureRateLimit = createRateLimitMiddleware({
+  scope: 'storage.upload-failure.client',
+  limit: 12,
+  globalLimit: 1_000,
+  windowMs: 60 * 60 * 1_000,
+});
 
 export const persistedMarketingObjectOwnersQuery = `
   WITH requested_paths AS (
@@ -97,6 +106,41 @@ const resolveVerifiedUserId = resolveUserIdFromToken;
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
+
+/**
+ * Records a failed browser-to-storage PUT. That cross-origin request bypasses
+ * this API, so without this bounded report the production logs only show an
+ * upload URL being issued and cannot distinguish a failure from abandonment.
+ */
+router.post(
+  '/storage/uploads/report-failure',
+  uploadFailureRateLimit,
+  async (req: Request, res: Response) => {
+    const userId = await resolveVerifiedUserId(req.headers.authorization);
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const report = parseUploadFailureReport(req.body);
+    if (!report) {
+      res.status(400).json({ error: 'Invalid upload failure report' });
+      return;
+    }
+
+    const requestId = randomUUID();
+    req.log.warn(
+      {
+        event: 'customer_image_upload_failed',
+        stage: report.stage,
+        statusCode: report.statusCode ?? null,
+        requestId,
+      },
+      'Customer image upload failed before finalization',
+    );
+    res.status(202).json({ ok: true, requestId });
+  },
+);
 
 /**
  * POST /storage/uploads/request-url

@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 22954)
+Total output lines: 1610
+
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { RequireAuth } from "@/components/auth-guard";
@@ -22,7 +25,7 @@ import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
 import { CUSTOMER_RENDERING_MODELS, getProductionCreditCost, normalizeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 import { buildStudioProjectRequest } from "@/lib/studio-project-request";
-import { privateImageUrl } from "@/lib/marketing-api";
+import { privateImageUrl, uploadMarketingImage } from "@/lib/marketing-api";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -83,47 +86,14 @@ function saveDraft(draft: StudioDraft) {
 }
 
 /**
- * Upload an image file to GCS via the two-step presigned URL flow.
+ * Upload an image through the shared monitored object-storage flow.
  * Step 1: request a presigned URL + objectPath from the API.
- * Step 2: PUT the file directly to GCS.
+ * Step 2: PUT the file directly to object storage.
  * Step 3: call finalize to set ACL ownership on the now-existing object.
  * Returns the serving URL (e.g. /api/storage/objects/uploads/uuid) on success.
  */
 async function uploadImageToStorage(file: File): Promise<string> {
-  const token = localStorage.getItem("quae_token");
-  const authHeaders: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
-
-  // Step 1: Request presigned URL
-  const res = await fetch("/api/storage/uploads/request-url", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders },
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "image/jpeg" }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as any;
-    throw new Error(err.error || "Failed to get upload URL");
-  }
-  const { uploadURL, objectPath, finalizeToken } = await res.json() as { uploadURL: string; objectPath: string; finalizeToken: string };
-
-  // Step 2: PUT file directly to GCS
-  const uploadRes = await fetch(uploadURL, {
-    method: "PUT",
-    body: file,
-    headers: { "Content-Type": file.type || "image/jpeg" },
-  });
-  if (!uploadRes.ok) throw new Error("Failed to upload image to storage");
-
-  // Step 3: Finalize — set ACL ownership using the server-issued single-use token
-  const finalizeRes = await fetch("/api/storage/uploads/finalize", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders },
-    body: JSON.stringify({ objectPath, finalizeToken }),
-  });
-  if (!finalizeRes.ok) {
-    const err = await finalizeRes.json().catch(() => ({})) as any;
-    throw new Error(err.error || "Failed to finalize upload");
-  }
-
+  const objectPath = await uploadMarketingImage(file);
   return `/api/storage${objectPath}`;
 }
 function clearDraft() {
@@ -819,185 +789,7 @@ function Wizard() {
                   {imageUploading ? (
                     <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/20 bg-primary/5">
                       {imagePreviewUrl && (
-                        <img
-                          src={imagePreviewUrl}
-                          alt="Product preview"
-                          className="h-16 w-16 rounded-lg object-cover border border-white/10 flex-shrink-0 opacity-60"
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{productImageFileName}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Spinner className="h-3 w-3" />
-                          <p className="text-xs text-muted-foreground">Uploading…</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (productImageUrl || imagePreviewUrl) ? (
-                    <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
-                      <img
-                        src={imagePreviewUrl ?? signedProductImageUrl ?? undefined}
-                        alt="Product preview"
-                        className="h-16 w-16 rounded-lg object-cover border border-white/10 flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{productImageFileName}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Image ready — available to the full scene production plan</p>
-                      </div>
-                      {!campaignId && <button
-                        type="button"
-                        onClick={handleRemoveImage}
-                        className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-white transition-colors flex-shrink-0"
-                        title="Remove image"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>}
-                    </div>
-                  ) : campaignId ? (
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-4 text-sm text-muted-foreground">
-                      Choose an owned campaign visual below. New uploads must be added through My Visuals before they can become the confirmed campaign source.
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => imageInputRef.current?.click()}
-                      className="w-full flex items-center gap-3 px-4 py-4 rounded-xl border border-dashed border-white/20 bg-white/[0.02] hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
-                    >
-                      <div className="h-10 w-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0 group-hover:border-primary/30 transition-colors">
-                        <ImagePlus className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">Upload new visual</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP — up to 10 MB. Helps Quae create accurate scenes.</p>
-                      </div>
-                    </button>
-                  )}
-                  {campaignId&&<div className="mt-4 rounded-xl border border-white/10 p-4"><p className="text-sm font-bold">Choose from My Visuals</p><p className="mt-1 text-xs text-muted-foreground">Choose one primary visual and optional additional campaign visuals. Originals stay in My Visuals.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{visualOptions.map((visual:any)=>{const selected=selectedVisualIds.includes(visual.version_id);return <button type="button" key={visual.version_id} onClick={()=>{const ids=selected?selectedVisualIds.filter(id=>id!==visual.version_id):[...selectedVisualIds,visual.version_id];if(ids.length)void saveVisualSelection(ids)}} className={`overflow-hidden rounded-lg border text-left text-xs ${selected?"border-violet-400 bg-violet-500/10":"border-white/10"}`}><MarketingImage objectPath={visual.object_path} alt={visual.name} className="aspect-video w-full object-cover"/><div className="p-3"><b className="block text-sm">{visual.name}</b><span>Status: {String(visual.status).replaceAll("_"," ")} · Version {visual.version_number}</span><span className="block mt-1">Created {new Date(visual.created_at).toLocaleDateString()}</span><span className="mt-2 block font-bold text-violet-200">{selected?(selectedVisualIds[0]===visual.version_id?"Primary visual":"Additional visual"):"Attach visual"}</span></div></button>})}{visualOptions.length===0&&<p className="text-xs text-muted-foreground">No selectable saved visuals yet.</p>}</div></div>}
-
-                  <input
-                    aria-label="Upload product image"
-                    ref={imageInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageSelect}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Target Audience</Label>
-                    <Input
-                      aria-label="Target audience"
-                      placeholder="e.g. Insomniacs"
-                      value={targetAudience}
-                      onChange={(e) => setTargetAudience(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Platform</Label>
-                    <Select value={platform} onValueChange={handlePlatformChange}>
-                      <SelectTrigger aria-label="Platform"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="tiktok">TikTok</SelectItem>
-                        <SelectItem value="instagram">Instagram Reels</SelectItem>
-                        <SelectItem value="youtube">YouTube Shorts</SelectItem>
-                        <SelectItem value="amazon">Amazon Listing</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Advert length</Label>
-                    <AdvertLengthSelect value={duration} onValueChange={setDuration} />
-                    <p className="text-xs leading-5 text-white/65">Quae builds several script-matched scenes, then assembles the exact-length advert with voiceover, captions, branding, and CTA.</p>
-                  </div>
-                </div>
-
-                <Button
-                  size="lg"
-                  className="w-full h-16 rounded-2xl bg-gradient-to-r from-violet-600 to-[#5B7CFA] text-lg font-bold shadow-[0_18px_45px_rgba(76,29,149,.35)] hover:from-violet-500 hover:to-indigo-400 hover:shadow-[0_22px_55px_rgba(76,29,149,.45)] transition-all"
-                  onClick={handleExpand}
-                  disabled={expandMutation.isPending}
-                >
-                  {expandMutation.isPending ? <Spinner className="mr-2 h-5 w-5" /> : <Sparkles className="mr-2 h-5 w-5" />}
-                  {expandMutation.isPending ? "Writing cinematic script…" : "Generate Script with AI"}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 2 — Script Review & Edit */}
-          {step === 2 && expandedScript && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight text-white mb-2">{campaignHandoff ? "Approved Script Ready for Production" : "Cinematic Script Generated"}</h2>
-                  <p className="text-muted-foreground">{campaignHandoff ? "The approved campaign copy is locked as the production source of truth." : "Fine-tune any scene or the hook — your edits carry forward to the render."}</p>
-                </div>
-                {!campaignHandoff && <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (scriptEdited) {
-                      const confirmed = window.confirm("Go back and lose your edits?");
-                      if (!confirmed) return;
-                      setExpandedScript(null);
-                      setScriptEdited(false);
-                    }
-                    setStep(1);
-                  }}
-                >Back</Button>}
-              </div>
-
-              {campaignHandoff && (
-                <div className="grid gap-4 rounded-xl border border-violet-400/25 bg-violet-500/5 p-4 md:grid-cols-[minmax(0,240px)_1fr] md:items-end">
-                  <div className="space-y-2">
-                    <Label>Advert length</Label>
-                    <AdvertLengthSelect value={duration} onValueChange={setDuration} />
-                  </div>
-                  <div className="space-y-1 text-sm">
-                    <p className="font-semibold text-white">
-                      {isAdminUser ? "FREE (admin)" : `${getProductionCreditCost(modelId, duration)} credits`} · {duration.replace("s", " seconds")}
-                    </p>
-                    <p className="text-muted-foreground">
-                      Changing the length keeps the approved campaign copy locked and does not run AI. Your exact cost is confirmed before rendering.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <Card className="border-primary/20 bg-primary/5">
-                {/* Hook — editable */}
-                <div className="p-6 border-b border-primary/10">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="text-xs font-bold text-primary uppercase tracking-wider">The Hook</div>
-                    <Pencil className="h-3 w-3 text-primary/60" />
-                  </div>
-                  <Textarea
-                    aria-label="Advertising hook"
-                    value={expandedScript.hook}
-                    readOnly={Boolean(campaignHandoff)}
-                    onChange={(e) => updateHook(e.target.value)}
-                    className="text-lg font-medium italic bg-black/20 border-white/10 focus:border-primary/50 resize-none min-h-[60px] leading-relaxed"
-                    rows={2}
-                  />
-                </div>
-
-                {/* Scenes — editable */}
-                <div className="p-0">
-                  {expandedScript.scenes.map((scene, idx) => {
-                    const isRegenerating = regeneratingIdx === idx;
-                    const isHintOpen = showHintFor === idx;
-                    return (
-                    <div key={idx} className="flex border-b border-primary/10 last:border-0">
-                      <div className="w-16 flex-shrink-0 flex items-center justify-center border-r border-primary/10 bg-black/20 font-mono text-muted-foreground text-sm">
-                        {scene.duration}
-                      </div>
-                      <div className="p-4 flex-1 space-y-3">
-                        {/* Scene header row */}
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm font-semibold text-white">Scene {scene.sceneNumber}</div>
-                          <div className="flex items-center gap-1">
-                            {/* Undo button — visible only after a successful regeneration */}
+              …2954 tokens truncated…ccessful regeneration */}
                             {sceneHistory[idx] && !isRegenerating && (
                               <button
                                 type="button"

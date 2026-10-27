@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { consumeUploadIntent, issueUploadIntent, MAX_UPLOAD_SIZE_BYTES, validateUpload } from "./uploadSecurity";
+import {
+  consumeUploadIntent,
+  issueUploadIntent,
+  MAX_UPLOAD_SIZE_BYTES,
+  parseUploadFailureReport,
+  validateUpload,
+} from "./uploadSecurity";
 
 test("upload validation continues to reject unsupported MIME types", () => {
   assert.match(validateUpload(10, "image/svg+xml") ?? "", /Unsupported file type/);
@@ -10,6 +16,20 @@ test("upload validation continues to reject unsupported MIME types", () => {
 test("upload validation continues to reject oversized files", () => {
   assert.match(validateUpload(MAX_UPLOAD_SIZE_BYTES + 1, "image/png") ?? "", /File too large/);
   assert.equal(validateUpload(MAX_UPLOAD_SIZE_BYTES, "image/png"), null);
+});
+
+test("upload failure reports accept only bounded storage PUT diagnostics", () => {
+  assert.deepEqual(parseUploadFailureReport({ stage: "storage_put", statusCode: 403 }), {
+    stage: "storage_put",
+    statusCode: 403,
+  });
+  assert.deepEqual(parseUploadFailureReport({ stage: "storage_put", statusCode: 0 }), {
+    stage: "storage_put",
+    statusCode: 0,
+  });
+  assert.equal(parseUploadFailureReport({ stage: "finalize", statusCode: 500 }), null);
+  assert.equal(parseUploadFailureReport({ stage: "storage_put", statusCode: 600 }), null);
+  assert.equal(parseUploadFailureReport({ stage: "storage_put", fileName: "customer.png" }), null);
 });
 
 test("finalize intents remain ownership scoped and single use", () => {
