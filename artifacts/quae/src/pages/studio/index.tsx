@@ -22,7 +22,7 @@ import { loadMockupVideoHandoff } from "@/lib/mockup-handoff";
 import { MarketingImage } from "./marketing-shared";
 import { CUSTOMER_RENDERING_MODELS, getProductionCreditCost, normalizeClipLength, RENDERING_MODEL_BY_ID, type RenderIntent } from "@workspace/plans";
 import { buildStudioProjectRequest } from "@/lib/studio-project-request";
-import { privateImageUrl } from "@/lib/marketing-api";
+import { privateImageUrl, uploadMarketingImage } from "@/lib/marketing-api";
 
 const STORAGE_KEY = "quae_studio_draft";
 
@@ -83,47 +83,14 @@ function saveDraft(draft: StudioDraft) {
 }
 
 /**
- * Upload an image file to GCS via the two-step presigned URL flow.
+ * Upload an image through the shared monitored object-storage flow.
  * Step 1: request a presigned URL + objectPath from the API.
- * Step 2: PUT the file directly to GCS.
+ * Step 2: PUT the file directly to object storage.
  * Step 3: call finalize to set ACL ownership on the now-existing object.
  * Returns the serving URL (e.g. /api/storage/objects/uploads/uuid) on success.
  */
 async function uploadImageToStorage(file: File): Promise<string> {
-  const token = localStorage.getItem("quae_token");
-  const authHeaders: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
-
-  // Step 1: Request presigned URL
-  const res = await fetch("/api/storage/uploads/request-url", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders },
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "image/jpeg" }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as any;
-    throw new Error(err.error || "Failed to get upload URL");
-  }
-  const { uploadURL, objectPath, finalizeToken } = await res.json() as { uploadURL: string; objectPath: string; finalizeToken: string };
-
-  // Step 2: PUT file directly to GCS
-  const uploadRes = await fetch(uploadURL, {
-    method: "PUT",
-    body: file,
-    headers: { "Content-Type": file.type || "image/jpeg" },
-  });
-  if (!uploadRes.ok) throw new Error("Failed to upload image to storage");
-
-  // Step 3: Finalize — set ACL ownership using the server-issued single-use token
-  const finalizeRes = await fetch("/api/storage/uploads/finalize", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders },
-    body: JSON.stringify({ objectPath, finalizeToken }),
-  });
-  if (!finalizeRes.ok) {
-    const err = await finalizeRes.json().catch(() => ({})) as any;
-    throw new Error(err.error || "Failed to finalize upload");
-  }
-
+  const objectPath = await uploadMarketingImage(file);
   return `/api/storage${objectPath}`;
 }
 function clearDraft() {
